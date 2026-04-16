@@ -33,7 +33,7 @@ const EMAIL_CONFIG = {
   borrow_subject: '設備借用通知',
   return_subject: '設備歸還通知',
   return_confirm_subject: '歸還確認通知',
-  web_app_url: 'https://YOUR_USERNAME.github.io/mt-equipment-system'
+  web_app_url: ' https://lobbster1234-ai.github.io/mt-equipment-system/'
 };
 
 /**
