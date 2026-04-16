@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GAS 連線測試</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 { color: #667eea; }
+    h2 { color: #333; font-size: 1.2em; margin-bottom: 10px; }
+    .status { 
+      padding: 10px 15px; 
+      border-radius: 6px; 
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1em;
+      margin: 5px;
+    }
+    button:hover { background: #5568d3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    pre {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.85em;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .checklist { list-style: none; }
+    .checklist li { 
+      padding: 8px 0; 
+      border-bottom: 1px solid #eee;
+    }
+    .checklist li:last-child { border-bottom: none; }
+    .checklist .ok { color: #28a745; }
+    .checklist .fail { color: #dc3545; }
+    .checklist .pending { color: #6c757d; }
+  </style>
+</head>
+<body>
+  <h1>🔧 Google Apps Script 連線測試</h1>
+
+  <div class="card">
+    <h2>📋 部署設定檢查清單</h2>
+    <ul class="checklist">
+      <li id="check-1">⬜ GAS 腳本已部署為 Web App</li>
+      <li id="check-2">⬜ 執行身分設定為「我」(stella_fan)</li>
+      <li id="check-3">⬜ 誰有權存取設定為「任何人」(Anyone)</li>
+      <li id="check-4">⬜ 使用 /exec 結尾的網址 (不是 /dev)</li>
+      <li id="check-5">⬜ GAS 腳本包含 doGet/doPost 函式</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>🧪 連線測試</h2>
+    <p>點擊按鈕測試 GAS 連線：</p>
+    <button onclick="testGet()">測試 GET 請求</button>
+    <button onclick="testPost()">測試 POST 請求</button>
+    <button onclick="testDirect()">直接在瀏覽器開啟 GAS</button>
+    <div id="test-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>📡 測試結果</h2>
+    <pre id="output">等待測試...</pre>
+  </div>
+
+  <div class="card">
+    <h2>🔗 GAS 網址</h2>
+    <p>當前設定：</p>
+    <pre id="gas-url"></pre>
+    <p>✅ <strong>正確部署後</strong>，直接在瀏覽器開啟這個網址應該要看到 JSON 回應（例如 <code>{"status":"ok"}</code>），而不是 401/403 錯誤頁面。</p>
+  </div>
+
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
+
+    document.getElementById('gas-url').textContent = GAS_URL;
+
+    function log(message, type = 'info') {
+      const output = document.getElementById('output');
+      const timestamp = new Date().toLocaleTimeString('zh-TW');
+      output.innerHTML += `[${timestamp}] ${message}\n`;
+      
+      const resultDiv = document.getElementById('test-result');
+      if (type === 'success') {
+        resultDiv.innerHTML = `<div class="status success">✅ ${message}</div>`;
+      } else if (type === 'error') {
+        resultDiv.innerHTML = `<div class="status error">❌ ${message}</div>`;
+      } else if (type === 'warning') {
+        resultDiv.innerHTML = `<div class="status warning">⚠️ ${message}</div>`;
+      } else {
+        resultDiv.innerHTML = `<div class="status info">ℹ️ ${message}</div>`;
+      }
+    }
+
+    function checkItem(id, status, message) {
+      const item = document.getElementById(id);
+      if (item) {
+        item.className = status === 'ok' ? 'ok' : (status === 'fail' ? 'fail' : 'pending');
+        item.textContent = (status === 'ok' ? '✅ ' : (status === 'fail' ? '❌ ' : '⬜ ')) + message;
+      }
+    }
+
+    async function testGet() {
+      document.getElementById('output').textContent = '';
+      log('開始測試 GET 請求...', 'info');
+      
+      try {
+        const res = await fetch(GAS_URL + '?action=query&test=true', {
+          method: 'GET',
+          redirect: 'follow'
+        });
+        
+        log(`HTTP 狀態：${res.status} ${res.ok ? '✅' : '❌'}`, res.ok ? 'success' : 'error');
+        
+        const text = await res.text();
+        log(`回應內容：${text.substring(0, 500)}${text.length > 500 ? '...' : ''}`, 'info');
+        
+        if (res.ok) {
+          try {
+            const json = JSON.parse(text);
+            log(`✅ 成功解析 JSON: ${JSON.stringify(json, null, 2)}`, 'success');
+          } catch (e) {
+            log(`⚠️ 回應不是有效 JSON，但 HTTP 請求成功`, 'warning');
+          }
+        }
+      } catch (err) {
+        log(`❌ 請求失敗：${err.message}`, 'error');
+        if (err.message.includes('Failed to fetch')) {
+          log('可能是 CORS 問題或網路連線問題', 'warning');
+        }
+      }
+    }
+
+    async function testPost() {
+      document.getElementById('output').textContent = '';
+      log('開始測試 POST 請求...', 'info');
+      log('⚠️ 注意：GAS 的 POST 請求可能會有 CORS 問題，這是正常的', 'warning');
+      log('查詢功能建議使用 GET 請求', 'info');
+      
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'query', test: true }),
+          redirect: 'follow'
+        });
+        
+        log(`HTTP 狀態：${res.status} ${res.ok ? '✅' : '❌'}`, res.ok ? 'success' : 'error');
+        
+        const text = await res.text();
+        log(`回應內容：${text.substring(0, 500)}${text.length > 500 ? '...' : ''}`, 'info');
+        
+        if (res.ok) {
+          try {
+            const json = JSON.parse(text);
+            log(`✅ 成功解析 JSON: ${JSON.stringify(json, null, 2)}`, 'success');
+          } catch (e) {
+            log(`⚠️ 回應不是有效 JSON，但 HTTP 請求成功`, 'warning');
+          }
+        }
+      } catch (err) {
+        log(`❌ 請求失敗：${err.message}`, 'error');
+        if (err.message.includes('Failed to fetch')) {
+          log('這是 GAS 的 CORS 限制，查詢功能請用 GET 請求', 'warning');
+          log('POST 用於寫入（如登記設備）時才需要', 'info');
+        }
+      }
+    }
+
+    function testDirect() {
+      log('正在開啟 GAS 網址於新分頁...', 'info');
+      log('請檢查新分頁：', 'info');
+      log('- 如果看到 JSON 回應 → ✅ 部署正確', 'success');
+      log('- 如果看到 401/403 錯誤 → ❌ 權限設定有問題', 'error');
+      log('- 如果要求 Google 登入 → ⚠️ 需要設定為「任何人」可存取', 'warning');
+      window.open(GAS_URL, '_blank');
+    }
+
+    // 頁面載入時執行基本檢查
+    window.addEventListener('DOMContentLoaded', () => {
+      log('🦐 MT 設備系統 - GAS 連線診斷工具', 'info');
+      log('請先確認 GAS 部署設定，然後點擊上方按鈕進行測試', 'info');
+      
+      // 自動檢查 URL 格式
+      if (GAS_URL.includes('/exec')) {
+        checkItem('check-4', 'ok', '使用 /exec 結尾的網址');
+      } else if (GAS_URL.includes('/dev')) {
+        checkItem('check-4', 'fail', '使用 /dev 網址（應該用 /exec）');
+      }
+    });
+  </script>
+</body>
+</html>

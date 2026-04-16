@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MT 部門儀器借用系統</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🦐 MT 部門儀器借用系統</h1>
+      <nav>
+        <button class="nav-btn active" data-tab="equipment">📦 設備列表</button>
+        <button class="nav-btn" data-tab="register">➕ 設備登記</button>
+      </nav>
+    </header>
+
+    <!-- 設備列表 -->
+    <section id="equipment-tab" class="tab-content active">
+      <div class="search-bar">
+        <input type="text" id="search-keyword" placeholder="🔍 搜尋關鍵字...">
+        <select id="search-department">
+          <option value="">所有部門</option>
+        </select>
+        <select id="search-status">
+          <option value="">所有狀態</option>
+          <option value="available">可借用</option>
+          <option value="borrowed">已借出</option>
+        </select>
+        <button onclick="searchEquipment()">搜尋</button>
+      </div>
+      <div id="equipment-list" class="equipment-list">
+        <p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>
+      </div>
+    </section>
+
+    <!-- 設備登記 -->
+    <section id="register-tab" class="tab-content">
+      <form id="register-form" class="form-card">
+        <h2>📦 新增設備</h2>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>設備類型 (fix_type) *</label>
+            <select name="fix_type" required>
+              <option value="">請選擇設備類型</option>
+              <option value="儀器設備">儀器設備</option>
+              <option value="其他設備">其他設備</option>
+              <option value="雜項購置">雜項購置</option>
+              <option value="電腦週邊用品">電腦週邊用品</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>設備編號 (fix_no)</label>
+            <input type="text" name="fix_no" placeholder="可自填或留空自動生成">
+          </div>
+          <div class="form-group full-width">
+            <label>設備名稱 (device_name) *</label>
+            <input type="text" name="device_name" required placeholder="例如：示波器 Tektronix TDS2014C">
+          </div>
+          <div class="form-group">
+            <label>數量 (qty_asset)</label>
+            <input type="text" name="qty_asset" value="1">
+          </div>
+          <div class="form-group">
+            <label>保管人 (keeper)</label>
+            <input type="text" name="keeper" placeholder="例如：王小明">
+          </div>
+        </div>
+        <button type="submit" class="btn-primary">登記設備</button>
+      </form>
+    </section>
+  </div>
+
+  <!-- 借用 Modal -->
+  <div id="borrow-modal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeBorrowModal()">&times;</span>
+      <h2>📤 借用設備</h2>
+      <div id="borrow-equipment-info"></div>
+      <form id="borrow-form">
+        <input type="hidden" id="borrow-fix-no">
+        <div class="form-group">
+          <label>借用人姓名 *</label>
+          <input type="text" id="borrow-name" required placeholder="請輸入您的姓名">
+        </div>
+        <div class="form-group">
+          <label>預計歸還日期 *</label>
+          <input type="date" id="borrow-due-date" required>
+        </div>
+        <button type="submit" class="btn-primary">確認借用</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 歸還 Modal -->
+  <div id="return-modal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeReturnModal()">&times;</span>
+      <h2>📥 歸還設備</h2>
+      <div id="return-equipment-info"></div>
+      <form id="return-form">
+        <input type="hidden" id="return-fix-no">
+        <div class="form-group">
+          <label>歸還日期</label>
+          <input type="date" id="return-date" required>
+        </div>
+        <p style="color:#666;font-size:0.9em;margin-top:15px;">
+          📧 送出後系統會自動寄信通知保管人（Keeper）<br>
+          ✅ 設備狀態需等待 Keeper 點擊郵件中的【確認已收到】按鈕後才會更新
+        </p>
+        <button type="submit" class="btn-primary">📧 通知歸還</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

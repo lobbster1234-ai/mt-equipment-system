@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>確認歸還 - MT 設備系統</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      max-width: 500px;
+      width: 100%;
+      text-align: center;
+    }
+    
+    h1 {
+      color: #667eea;
+      margin-bottom: 20px;
+    }
+    
+    .info {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    
+    .info p {
+      margin: 10px 0;
+      color: #333;
+    }
+    
+    .info strong {
+      color: #667eea;
+    }
+    
+    .btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 15px 30px;
+      border-radius: 8px;
+      font-size: 1.1em;
+      cursor: pointer;
+      margin: 10px 5px;
+      transition: background 0.3s;
+    }
+    
+    .btn:hover {
+      background: #5568d3;
+    }
+    
+    .btn-secondary {
+      background: #6c757d;
+    }
+    
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+    
+    .success {
+      color: #28a745;
+    }
+    
+    .error {
+      color: #dc3545;
+    }
+    
+    .loading {
+      color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="title">🔒 身份驗證中...</h1>
+    <div id="content" class="loading">
+      正在驗證您的身份，請稍候...
+    </div>
+  </div>
+
+  <script>
+    // GAS 網址
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
+
+    // 從 URL 參數獲取 token
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+
+    if (!token) {
+      showError('❌ 無效的確認連結');
+    } else {
+      // 解碼 token 獲取設備資訊和 keeper email
+      try {
+        const decoded = atob(token);
+        const [fixNo, keeperEmail, timestamp] = decoded.split(':');
+        
+        if (!fixNo || !keeperEmail || !timestamp) {
+          showError('❌ 無效的確認連結');
+        } else {
+          // 直接載入設備資訊並顯示確認表單（不需要再驗證 email）
+          loadEquipmentInfo(fixNo, keeperEmail);
+        }
+      } catch (err) {
+        showError('❌ 無效的確認連結');
+      }
+    }
+
+    // 載入設備資訊
+    async function loadEquipmentInfo(fixNo, keeperEmail) {
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'getEquipmentInfo');
+        url.searchParams.append('fix_no', fixNo);
+
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          showError(`❌ ${data.error}`);
+        } else {
+          showConfirmForm(data, keeperEmail);
+        }
+      } catch (err) {
+        showError(`❌ 載入失敗：${err.message}`);
+      }
+    }
+
+    // 顯示確認表單
+    function showConfirmForm(equipment, keeperEmail) {
+      document.getElementById('title').textContent = '📥 確認收到';
+      document.getElementById('content').innerHTML = `
+        <div class="info">
+          <p><strong>設備編號：</strong>${equipment.fix_no}</p>
+          <p><strong>設備名稱：</strong>${equipment.device_name}</p>
+          <p><strong>保管人：</strong>${equipment.keeper}</p>
+          <p><strong>借用人：</strong>${equipment.borrower || '未知'}</p>
+          <p><strong>歸還日期：</strong>${equipment.dt_return || '未知'}</p>
+        </div>
+        <p style="margin: 20px 0; color: #666;">
+          請確認您已收到上述設備，點擊下方按鈕完成歸還確認。
+        </p>
+        <button class="btn" onclick="confirmReturn('${equipment.fix_no}', '${keeperEmail}')">
+          ✅ 確認收到
+        </button>
+        <button class="btn btn-secondary" onclick="window.location.href='/'">
+          取消
+        </button>
+      `;
+    }
+
+    // 確認歸還
+    async function confirmReturn(fixNo, keeperEmail) {
+      const contentDiv = document.getElementById('content');
+      contentDiv.innerHTML = '<p class="loading">正在處理，請稍候...</p>';
+
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'confirmReturn');
+        url.searchParams.append('fix_no', fixNo);
+        url.searchParams.append('keeper_email', keeperEmail);
+
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const data = await res.json();
+
+        if (data.success || data.status === 'success' || (!data.error && data.message)) {
+          contentDiv.innerHTML = `
+            <p class="success" style="font-size: 1.2em; margin: 20px 0;">
+              ✅ 歸還已確認！
+            </p>
+            <p style="color: #666;">
+              設備狀態已更新為「可借用」<br>
+              感謝您的配合！
+            </p>
+            <button class="btn" onclick="window.location.href='/'" style="margin-top: 20px;">
+              返回首頁
+            </button>
+          `;
+        } else {
+          throw new Error(data.error || '確認失敗');
+        }
+      } catch (err) {
+        contentDiv.innerHTML = `
+          <p class="error" style="font-size: 1.2em; margin: 20px 0;">
+            ❌ 確認失敗
+          </p>
+          <p style="color: #666;">
+            ${err.message}
+          </p>
+          <button class="btn" onclick="window.location.href='/'" style="margin-top: 20px;">
+            返回首頁
+          </button>
+        `;
+      }
+    }
+
+    // 顯示錯誤
+    function showError(message) {
+      document.getElementById('title').textContent = '❌ 錯誤';
+      document.getElementById('content').innerHTML = `
+        <p class="error" style="font-size: 1.2em; margin: 20px 0;">
+          ${message}
+        </p>
+        <button class="btn" onclick="window.location.href='/'" style="margin-top: 20px;">
+          返回首頁
+        </button>
+      `;
+    }
+  </script>
+</body>
+</html>
