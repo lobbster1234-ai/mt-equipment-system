@@ -199,10 +199,15 @@
               設備狀態已更新為「可借用」<br>
               感謝您的配合！
             </p>
-            <button class="btn" onclick="window.location.href='./index.html'" style="margin-top: 20px;">
-              返回首頁
-            </button>
+            <p style="color: #999; font-size: 0.9em; margin-top: 15px;">
+              3 秒後自動返回首頁...
+            </p>
           `;
+          
+          // 3 秒後自動跳轉回首頁
+          setTimeout(() => {
+            window.location.href = './index.html';
+          }, 3000);
         } else {
           throw new Error(data.error || '確認失敗');
         }
