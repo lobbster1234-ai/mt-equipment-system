@@ -149,7 +149,7 @@ function renderEquipment(equipment) {
                   <td>
                     ${statusHtml}
                     <div style="margin-top:5px;">${actionButton}</div>
-                    ${!isAvailable && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;">👤 ${eq.borrower} | 📅 ${eq.dt_borrow || ''} ${eq.dt_due ? '| ⏰ ' + eq.dt_due : ''}</div>` : ''}
+                    ${!isAvailable && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;">👤 ${eq.borrower} | 📅 ${eq.dt_borrow ? eq.dt_borrow.split('T')[0] : '未設定'} ${eq.dt_due ? '| ⏰ ' + eq.dt_due.split('T')[0] : ''}</div>` : ''}
                   </td>
                 </tr>
               `;
@@ -386,6 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const fixNo = document.getElementById('borrow-fix-no').value;
       const borrower = document.getElementById('borrow-name').value;
       const dtDue = document.getElementById('borrow-due-date').value;
+      const dtBorrow = new Date().toISOString().split('T')[0]; // 今天日期
 
       const submitBtn = e.target.querySelector('button[type="submit"]');
       if (submitBtn) {
@@ -393,7 +394,7 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.textContent = '🔄 處理中...';
       }
 
-      const result = await submitBorrow({ fix_no: fixNo, borrower: borrower, dt_due: dtDue });
+      const result = await submitBorrow({ fix_no: fixNo, borrower: borrower, dt_borrow: dtBorrow, dt_due: dtDue });
 
       if (submitBtn) {
         submitBtn.disabled = false;
