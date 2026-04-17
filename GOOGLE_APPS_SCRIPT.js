@@ -10,6 +10,7 @@ const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
 // 設定：工作表名稱
 const SHEET_NAME = '工作表 1';
 const KEEPER_SHEET_NAME = 'Keeper 聯絡資訊';
+const HISTORY_SHEET_NAME = '歷史紀錄';
 
 // 欄位索引對照（0-indexed）
 const COLS = {
@@ -64,6 +65,8 @@ function doGet(e) {
       });
     } else if (action === 'getEquipmentInfo') {
       return getEquipmentInfo(e.parameter.fix_no);
+    } else if (action === 'history') {
+      return queryHistory(e.parameter);
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -601,4 +604,98 @@ function errorResponse(message) {
     error: message,
     timestamp: new Date().toISOString()
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * 記錄歷史紀錄
+ */
+function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue, dtConfirmed) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sheet = ss.getSheetByName(HISTORY_SHEET_NAME);
+    
+    // 如果歷史紀錄工作表不存在，建立它
+    if (!sheet) {
+      sheet = ss.insertSheet(HISTORY_SHEET_NAME);
+      // 建立標題列
+      sheet.appendRow(['時間戳', '動作', '設備編號', '設備名稱', '借用人', '保管人', '借用日期', '預計歸還', '實際歸還/確認日期']);
+    }
+    
+    const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+    
+    sheet.appendRow([
+      now,
+      action,
+      fixNo,
+      deviceName,
+      borrower || '',
+      keeper || '',
+      dtAction || '',
+      dtDue || '',
+      dtConfirmed || ''
+    ]);
+    
+    Logger.log(`已記錄歷史紀錄：${action} - ${fixNo}`);
+  } catch (err) {
+    Logger.error('記錄歷史紀錄失敗:', err);
+  }
+}
+
+/**
+ * 查詢歷史紀錄
+ */
+function queryHistory(params) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(HISTORY_SHEET_NAME);
+  
+  if (!sheet) {
+    return successResponse([]);
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  const rows = data.slice(1);
+  
+  const keyword = (params.keyword || '').toLowerCase();
+  const action = params.action || '';
+  
+  const filtered = rows.filter((row) => {
+    if (!row[1]) return false;
+    
+    if (keyword) {
+      const fixNo = (row[2] || '').toString().toLowerCase();
+      const deviceName = (row[3] || '').toString().toLowerCase();
+      const borrower = (row[4] || '').toString().toLowerCase();
+      const keeper = (row[5] || '').toString().toLowerCase();
+      
+      if (!fixNo.includes(keyword) && !deviceName.includes(keyword) && !borrower.includes(keyword) && !keeper.includes(keyword)) {
+        return false;
+      }
+    }
+    
+    if (action && (row[1] || '').toString() !== action) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  filtered.sort((a, b) => {
+    const aTime = new Date(a[0]);
+    const bTime = new Date(b[0]);
+    return bTime - aTime;
+  });
+  
+  const result = filtered.map(row => ({
+    timestamp: row[0] || '',
+    action: row[1] || '',
+    fix_no: row[2] || '',
+    device_name: row[3] || '',
+    borrower: row[4] || '',
+    keeper: row[5] || '',
+    dt_borrow: row[6] || '',
+    dt_due: row[7] || '',
+    dt_confirmed: row[8] || ''
+  }));
+  
+  return successResponse(result);
 }

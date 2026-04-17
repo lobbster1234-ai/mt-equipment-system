@@ -488,3 +488,113 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === returnModal) closeReturnModal();
   });
 });
+
+// =============================================
+// 歷史紀錄功能
+// =============================================
+
+// 搜尋歷史紀錄
+async function searchHistory() {
+  const keyword = document.getElementById('history-keyword')?.value.trim() || '';
+  const action = document.getElementById('history-action')?.value || '';
+
+  const listEl = document.getElementById('history-list');
+  if (listEl) {
+    listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+  }
+
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'history');
+    if (keyword) url.searchParams.append('keyword', keyword);
+    if (action) url.searchParams.append('action', action);
+
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+
+    const data = await res.json();
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    const history = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
+    renderHistory(history);
+  } catch (err) {
+    console.error('查詢歷史紀錄失敗:', err);
+    if (listEl) {
+      listEl.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 查詢失敗：${err.message}</p>`;
+    }
+  }
+}
+
+// 渲染歷史紀錄
+function renderHistory(history) {
+  const list = document.getElementById('history-list');
+  if (!list) return;
+
+  if (!history || history.length === 0) {
+    list.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">目前沒有歷史紀錄</p>';
+    return;
+  }
+
+  let html = '<table class="equipment-table"><thead><tr><th>時間</th><th>動作</th><th>設備編號</th><th>設備名稱</th><th>借用人</th><th>保管人</th><th>借用日期</th><th>預計歸還</th><th>確認日期</th></tr></thead><tbody>';
+  
+  html += history.map(record => {
+    const actionIcon = record.action === 'borrow' ? '📤 借用' : '📥 歸還';
+    const actionColor = record.action === 'borrow' ? '#667eea' : '#28a745';
+    
+    return `
+      <tr>
+        <td style="white-space:nowrap;">${record.timestamp || ''}</td>
+        <td style="color:${actionColor};font-weight:bold;">${actionIcon}</td>
+        <td>${record.fix_no || ''}</td>
+        <td>${record.device_name || ''}</td>
+        <td>${record.borrower || ''}</td>
+        <td>${record.keeper || ''}</td>
+        <td style="white-space:nowrap;">${record.dt_borrow || ''}</td>
+        <td style="white-space:nowrap;">${record.dt_due || ''}</td>
+        <td style="white-space:nowrap;">${record.dt_confirmed || ''}</td>
+      </tr>
+    `;
+  }).join('');
+  
+
+// 綁定歷史紀錄搜尋
+const historySearchBtn = document.querySelector('#history-tab .search-bar button');
+if (historySearchBtn) {
+  historySearchBtn.addEventListener('click', searchHistory);
+}
+
+const historyInput = document.getElementById('history-keyword');
+if (historyInput) {
+  historyInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchHistory();
+    }
+  });
+}
+
+// 綁定分頁切換
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const tab = this.dataset.tab;
+    
+    // 移除所有 active
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    // 添加 active
+    this.classList.add('active');
+    document.getElementById(`${tab}-tab`).classList.add('active');
+    
+    // 如果切換到歷史紀錄分頁，自動載入
+    if (tab === 'history') {
+      searchHistory();
+    }
+  });
+});
+});

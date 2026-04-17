@@ -12,6 +12,7 @@
       <h1>🦐 MT 部門儀器借用系統</h1>
       <nav>
         <button class="nav-btn active" data-tab="equipment">📦 設備列表</button>
+        <button class="nav-btn" data-tab="history">📜 歷史紀錄</button>
         <button class="nav-btn" data-tab="register">➕ 設備登記</button>
       </nav>
     </header>
@@ -31,6 +32,22 @@
         <button onclick="searchEquipment()">搜尋</button>
       </div>
       <div id="equipment-list" class="equipment-list">
+        <p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>
+      </div>
+    </section>
+
+    <!-- 歷史紀錄 -->
+    <section id="history-tab" class="tab-content">
+      <div class="search-bar">
+        <input type="text" id="history-keyword" placeholder="🔍 搜尋關鍵字...">
+        <select id="history-action">
+          <option value="">所有動作</option>
+          <option value="borrow">借用</option>
+          <option value="return">歸還</option>
+        </select>
+        <button onclick="searchHistory()">搜尋</button>
+      </div>
+      <div id="history-list" class="history-list">
         <p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>
       </div>
     </section>
