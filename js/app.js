@@ -567,7 +567,7 @@ async function searchHistory() {
   }
 }
 
-// 渲染歷史紀錄
+// 渲染歷史紀錄 - 每次借用週期（borrow/return/confirm）做成一個小箭頭
 function renderHistory(history) {
   const list = document.getElementById('history-list');
   if (!list) return;
@@ -577,114 +577,150 @@ function renderHistory(history) {
     return;
   }
 
-  // 按設備編號分組（將同一設備的借用/歸還/確認記錄合併）
-  const grouped = {};
-  history.forEach(record => {
-    const key = `${record.fix_no || 'unknown'}_${record.device_name || 'unknown'}`;
-    if (!grouped[key]) {
-      grouped[key] = {
+  // 按「借用週期」分組：每次 borrow 開始一個新週期，後續的 return/confirm 歸到同一週期
+  const cycles = [];
+  let currentCycle = null;
+  
+  // 先排序：舊的在後面，新的在前面（假設 timestamp 越大越新）
+  const sortedHistory = [...history].sort((a, b) => {
+    const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+    const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return tsB - tsA; // 新的在前
+  });
+  
+  sortedHistory.forEach(record => {
+    if (record.action === 'borrow') {
+      // 開始新週期
+      currentCycle = {
         fix_no: record.fix_no,
         device_name: record.device_name,
-        records: []
+        borrower: record.borrower,
+        keeper: record.keeper,
+        dt_borrow: record.dt_borrow,
+        dt_due: record.dt_due,
+        records: [record]
       };
+      cycles.push(currentCycle);
+    } else if (currentCycle) {
+      // 歸到當前週期（return 或 confirm）
+      currentCycle.records.push(record);
+      // 更新週期資訊
+      if (record.action === 'return' && !currentCycle.dt_return) {
+        currentCycle.dt_return = record.dt_return;
+      }
+      if (record.action === 'confirm' && !currentCycle.dt_confirmed) {
+        currentCycle.dt_confirmed = record.dt_confirmed;
+      }
     }
-    grouped[key].records.push(record);
   });
 
   let html = '';
-  Object.keys(grouped).forEach((key, index) => {
-    const group = grouped[key];
+  cycles.forEach((cycle, index) => {
     const isExpanded = index === 0; // 第一個預設展開
-    const recordCount = group.records.length;
+    const recordCount = cycle.records.length;
     
-    // 找出最新的動作狀態
-    const latestRecord = group.records[0];
+    // 判斷週期狀態
     let statusText = '';
     let statusColor = '';
-    if (latestRecord.action === 'confirm') {
+    const hasConfirm = cycle.records.some(r => r.action === 'confirm');
+    const hasReturn = cycle.records.some(r => r.action === 'return');
+    
+    if (hasConfirm) {
       statusText = '✅ 已歸還';
       statusColor = '#28a745';
-    } else if (latestRecord.action === 'return') {
+    } else if (hasReturn) {
       statusText = '⏳ 待確認';
       statusColor = '#ffc107';
-    } else if (latestRecord.action === 'borrow') {
+    } else {
       statusText = '📤 借用中';
       statusColor = '#667eea';
     }
     
     html += `
-      <div class="history-group">
-        <div class="history-header" onclick="toggleHistoryGroup(this)" style="cursor:pointer;user-select:none;padding:10px;background:#f8f9fa;border-radius:4px;margin-bottom:8px;">
-          <span class="history-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-          <span style="font-weight:bold;">📦 ${group.fix_no} - ${group.device_name}</span>
-          <span style="margin-left:12px;color:${statusColor};font-size:0.9em;">${statusText}</span>
-          <span style="margin-left:8px;color:#999;font-size:0.85em;">(${recordCount}筆記錄)</span>
+      <div class="history-cycle-group">
+        <div class="history-cycle-header" onclick="toggleHistoryCycle(this)" style="cursor:pointer;user-select:none;padding:12px 15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;">
+            <span class="cycle-arrow" style="display:inline-block;width:12px;margin-right:10px;transition:transform 0.2s;font-size:0.9em;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+            <span style="font-weight:bold;font-size:1em;">📦 ${cycle.fix_no || '無編號'} - ${cycle.device_name || '未知設備'}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="background:rgba(255,255,255,0.2);padding:4px 10px;border-radius:12px;font-size:0.85em;color:${statusColor === '#ffc107' ? '#000' : '#fff'};font-weight:bold;">${statusText}</span>
+            <span style="font-size:0.85em;opacity:0.9;">${recordCount}筆記錄</span>
+          </div>
         </div>
-        <div class="history-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}">
-          <table class="equipment-table">
-            <thead>
-              <tr>
-                <th>時間</th>
-                <th>動作</th>
-                <th>借用人</th>
-                <th>保管人</th>
-                <th>借用日期</th>
-                <th>預計歸還</th>
-                <th>確認日期</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${group.records.map(record => {
-                let actionIcon, actionColor;
-                if (record.action === 'borrow') {
-                  actionIcon = '📤 借用';
-                  actionColor = '#667eea';
-                } else if (record.action === 'return') {
-                  actionIcon = '📥 歸還（待確認）';
-                  actionColor = '#ffc107';
-                } else if (record.action === 'confirm') {
-                  actionIcon = '✅ 已確認';
-                  actionColor = '#28a745';
-                } else {
-                  actionIcon = record.action;
-                  actionColor = '#666';
-                }
-                
-                // 解析時間戳，分成日期和時間
-                let dateStr = '';
-                let timeStr = '';
-                if (record.timestamp) {
-                  const ts = record.timestamp.toString();
-                  const parts = ts.split(' ');
-                  if (parts.length >= 2) {
-                    dateStr = parts[0];
-                    timeStr = parts[1];
-                  } else if (ts.includes('T')) {
-                    const [d, t] = ts.split('T');
-                    dateStr = d;
-                    timeStr = t ? t.substring(0, 8) : '';
+        <div class="history-cycle-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}">
+          <div style="background:#f8f9fa;padding:15px;border-radius:6px;border-left:4px solid #667eea;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;margin-bottom:15px;font-size:0.9em;">
+              <div><strong>借用人：</strong>${cycle.borrower || '－'}</div>
+              <div><strong>保管人：</strong>${cycle.keeper || '－'}</div>
+              <div><strong>借用日期：</strong>${cycle.dt_borrow ? cycle.dt_borrow.split('T')[0] : '－'}</div>
+              <div><strong>預計歸還：</strong>${cycle.dt_due ? cycle.dt_due.split('T')[0] : '－'}</div>
+              ${cycle.dt_return ? `<div><strong>歸還日期：</strong>${cycle.dt_return.split('T')[0]}</div>` : ''}
+              ${cycle.dt_confirmed ? `<div><strong>確認日期：</strong>${cycle.dt_confirmed.split('T')[0]}</div>` : ''}
+            </div>
+            <table class="equipment-table" style="font-size:0.9em;">
+              <thead>
+                <tr>
+                  <th style="width:18%;">時間</th>
+                  <th style="width:20%;">動作</th>
+                  <th style="width:15%;">借用人</th>
+                  <th style="width:15%;">保管人</th>
+                  <th style="width:16%;">借用日期</th>
+                  <th style="width:16%;">預計歸還</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${cycle.records.map(record => {
+                  let actionIcon, actionColor;
+                  if (record.action === 'borrow') {
+                    actionIcon = '📤 借用';
+                    actionColor = '#667eea';
+                  } else if (record.action === 'return') {
+                    actionIcon = '📥 歸還（待確認）';
+                    actionColor = '#ffc107';
+                  } else if (record.action === 'confirm') {
+                    actionIcon = '✅ 已確認';
+                    actionColor = '#28a745';
                   } else {
-                    dateStr = ts;
+                    actionIcon = record.action;
+                    actionColor = '#666';
                   }
-                }
-                
-                return `
-                  <tr>
-                    <td style="min-width:130px;padding:12px 8px;">
-                      <div style="font-weight:bold;font-size:0.95em;">${dateStr}</div>
-                      <div style="font-size:0.82em;color:#888;margin-top:2px;">${timeStr}</div>
-                    </td>
-                    <td style="min-width:140px;color:${actionColor};font-weight:bold;">${actionIcon}</td>
-                    <td style="min-width:100px;">${record.borrower || ''}</td>
-                    <td style="min-width:100px;">${record.keeper || ''}</td>
-                    <td style="white-space:nowrap;min-width:110px;">${record.dt_borrow || ''}</td>
-                    <td style="white-space:nowrap;min-width:110px;">${record.dt_due || ''}</td>
-                    <td style="white-space:nowrap;min-width:110px;">${record.dt_confirmed || ''}</td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
+                  
+                  // 解析時間戳
+                  let dateStr = '';
+                  let timeStr = '';
+                  if (record.timestamp) {
+                    const ts = record.timestamp.toString();
+                    const parts = ts.split(' ');
+                    if (parts.length >= 2) {
+                      dateStr = parts[0];
+                      timeStr = parts[1];
+                    } else if (ts.includes('T')) {
+                      const [d, t] = ts.split('T');
+                      dateStr = d;
+                      timeStr = t ? t.substring(0, 8) : '';
+                    } else {
+                      dateStr = ts;
+                    }
+                  }
+                  
+                  return `
+                    <tr>
+                      <td style="padding:10px 8px;">
+                        <div style="font-weight:bold;font-size:0.95em;">${dateStr}</div>
+                        <div style="font-size:0.8em;color:#888;">${timeStr}</div>
+                      </td>
+                      <td style="color:${actionColor};font-weight:bold;">${actionIcon}</td>
+                      <td>${record.borrower || '－'}</td>
+                      <td>${record.keeper || '－'}</td>
+                      <td style="white-space:nowrap;">${record.dt_borrow || '－'}</td>
+                      <td style="white-space:nowrap;">${record.dt_due || '－'}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     `;
@@ -693,9 +729,9 @@ function renderHistory(history) {
   list.innerHTML = html;
 }
 
-// 切換歷史紀錄分組展開/收起
-function toggleHistoryGroup(headerEl) {
-  const arrowEl = headerEl.querySelector('.history-arrow');
+// 切換歷史紀錄週期展開/收起
+function toggleHistoryCycle(headerEl) {
+  const arrowEl = headerEl.querySelector('.cycle-arrow');
   const detailEl = headerEl.nextElementSibling;
   
   if (detailEl && arrowEl) {
