@@ -458,8 +458,7 @@ function sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue) {
     }
     
     const subject = `${EMAIL_CONFIG.subject_prefix} ${EMAIL_CONFIG.borrow_subject}`;
-    const body = `
-親愛的 ${keeper} 您好：
+    const body = `親愛的 ${keeper} 您好：
 
 有人借用了您保管的設備，詳情如下：
 
@@ -472,8 +471,7 @@ function sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue) {
 請留意設備歸還狀況。
 
 ---
-MT 部門設備管理系統 自動通知
-    `.trim();
+MT 部門設備管理系統 自動通知`.trim();
     
     MailApp.sendEmail(keeperEmail, subject, body);
     Logger.log(`已發送借用通知給 ${keeperEmail}`);
@@ -499,8 +497,7 @@ function sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn) {
     const confirmUrl = `${EMAIL_CONFIG.web_app_url}/confirm.html?token=${encodeURIComponent(token)}`;
     
     const subject = `${EMAIL_CONFIG.subject_prefix} ${EMAIL_CONFIG.return_subject}`;
-    const body = `
-親愛的 ${keeper} 您好：
+    const body = `親愛的 ${keeper} 您好：
 
 您保管的設備已被歸還，請確認收到：
 
@@ -516,8 +513,7 @@ ${confirmUrl}
 ${confirmUrl}
 
 ---
-MT 部門設備管理系統 自動通知
-    `.trim();
+MT 部門設備管理系統 自動通知`.trim();
     
     MailApp.sendEmail(keeperEmail, subject, body);
     Logger.log(`已發送歸還通知給 ${keeperEmail}`);
@@ -538,8 +534,7 @@ function sendReturnConfirmEmail(keeper, fixNo, deviceName) {
     }
     
     const subject = `${EMAIL_CONFIG.subject_prefix} ${EMAIL_CONFIG.return_confirm_subject}`;
-    const body = `
-親愛的 ${keeper} 您好：
+    const body = `親愛的 ${keeper} 您好：
 
 您已確認收到歸還的設備：
 
@@ -551,8 +546,7 @@ function sendReturnConfirmEmail(keeper, fixNo, deviceName) {
 感謝您的配合！
 
 ---
-MT 部門設備管理系統 自動通知
-    `.trim();
+MT 部門設備管理系統 自動通知`.trim();
     
     MailApp.sendEmail(keeperEmail, subject, body);
   } catch (err) {

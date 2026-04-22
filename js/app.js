@@ -577,64 +577,140 @@ function renderHistory(history) {
     return;
   }
 
-  let html = '<table class="equipment-table"><thead><tr><th>時間</th><th>動作</th><th>設備編號</th><th>設備名稱</th><th>借用人</th><th>保管人</th><th>借用日期</th><th>預計歸還</th><th>確認日期</th></tr></thead><tbody>';
-  
-  html += history.map(record => {
-    let actionIcon, actionColor;
-    if (record.action === 'borrow') {
-      actionIcon = '📤 借用';
-      actionColor = '#667eea';
-    } else if (record.action === 'return') {
-      actionIcon = '📥 歸還（待確認）';
-      actionColor = '#ffc107';
-    } else if (record.action === 'confirm') {
-      actionIcon = '✅ 已確認';
-      actionColor = '#28a745';
-    } else {
-      actionIcon = record.action;
-      actionColor = '#666';
+  // 按設備編號分組（將同一設備的借用/歸還/確認記錄合併）
+  const grouped = {};
+  history.forEach(record => {
+    const key = `${record.fix_no || 'unknown'}_${record.device_name || 'unknown'}`;
+    if (!grouped[key]) {
+      grouped[key] = {
+        fix_no: record.fix_no,
+        device_name: record.device_name,
+        records: []
+      };
+    }
+    grouped[key].records.push(record);
+  });
+
+  let html = '';
+  Object.keys(grouped).forEach((key, index) => {
+    const group = grouped[key];
+    const isExpanded = index === 0; // 第一個預設展開
+    const recordCount = group.records.length;
+    
+    // 找出最新的動作狀態
+    const latestRecord = group.records[0];
+    let statusText = '';
+    let statusColor = '';
+    if (latestRecord.action === 'confirm') {
+      statusText = '✅ 已歸還';
+      statusColor = '#28a745';
+    } else if (latestRecord.action === 'return') {
+      statusText = '⏳ 待確認';
+      statusColor = '#ffc107';
+    } else if (latestRecord.action === 'borrow') {
+      statusText = '📤 借用中';
+      statusColor = '#667eea';
     }
     
-    // 解析時間戳，分成日期和時間（支援多種格式）
-    let dateStr = '';
-    let timeStr = '';
-    if (record.timestamp) {
-      const ts = record.timestamp.toString();
-      // 嘗試用空格分隔（yyyy-MM-dd HH:mm:ss）
-      const parts = ts.split(' ');
-      if (parts.length >= 2) {
-        dateStr = parts[0];
-        timeStr = parts[1];
-      } else if (ts.includes('T')) {
-        // ISO 格式：2026-04-22T10:30:00
-        const [d, t] = ts.split('T');
-        dateStr = d;
-        timeStr = t ? t.substring(0, 8) : '';
-      } else {
-        dateStr = ts;
-      }
-    }
-    
-    return `
-      <tr>
-        <td style="min-width:130px;padding:12px 8px;">
-          <div style="font-weight:bold;font-size:0.95em;">${dateStr}</div>
-          <div style="font-size:0.82em;color:#888;margin-top:2px;">${timeStr}</div>
-        </td>
-        <td style="min-width:140px;color:${actionColor};font-weight:bold;">${actionIcon}</td>
-        <td style="min-width:140px;">${record.fix_no || ''}</td>
-        <td style="min-width:200px;">${record.device_name || ''}</td>
-        <td style="min-width:100px;">${record.borrower || ''}</td>
-        <td style="min-width:100px;">${record.keeper || ''}</td>
-        <td style="white-space:nowrap;min-width:110px;">${record.dt_borrow || ''}</td>
-        <td style="white-space:nowrap;min-width:110px;">${record.dt_due || ''}</td>
-        <td style="white-space:nowrap;min-width:110px;">${record.dt_confirmed || ''}</td>
-      </tr>
+    html += `
+      <div class="history-group">
+        <div class="history-header" onclick="toggleHistoryGroup(this)" style="cursor:pointer;user-select:none;padding:10px;background:#f8f9fa;border-radius:4px;margin-bottom:8px;">
+          <span class="history-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+          <span style="font-weight:bold;">📦 ${group.fix_no} - ${group.device_name}</span>
+          <span style="margin-left:12px;color:${statusColor};font-size:0.9em;">${statusText}</span>
+          <span style="margin-left:8px;color:#999;font-size:0.85em;">(${recordCount}筆記錄)</span>
+        </div>
+        <div class="history-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}">
+          <table class="equipment-table">
+            <thead>
+              <tr>
+                <th>時間</th>
+                <th>動作</th>
+                <th>借用人</th>
+                <th>保管人</th>
+                <th>借用日期</th>
+                <th>預計歸還</th>
+                <th>確認日期</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${group.records.map(record => {
+                let actionIcon, actionColor;
+                if (record.action === 'borrow') {
+                  actionIcon = '📤 借用';
+                  actionColor = '#667eea';
+                } else if (record.action === 'return') {
+                  actionIcon = '📥 歸還（待確認）';
+                  actionColor = '#ffc107';
+                } else if (record.action === 'confirm') {
+                  actionIcon = '✅ 已確認';
+                  actionColor = '#28a745';
+                } else {
+                  actionIcon = record.action;
+                  actionColor = '#666';
+                }
+                
+                // 解析時間戳，分成日期和時間
+                let dateStr = '';
+                let timeStr = '';
+                if (record.timestamp) {
+                  const ts = record.timestamp.toString();
+                  const parts = ts.split(' ');
+                  if (parts.length >= 2) {
+                    dateStr = parts[0];
+                    timeStr = parts[1];
+                  } else if (ts.includes('T')) {
+                    const [d, t] = ts.split('T');
+                    dateStr = d;
+                    timeStr = t ? t.substring(0, 8) : '';
+                  } else {
+                    dateStr = ts;
+                  }
+                }
+                
+                return `
+                  <tr>
+                    <td style="min-width:130px;padding:12px 8px;">
+                      <div style="font-weight:bold;font-size:0.95em;">${dateStr}</div>
+                      <div style="font-size:0.82em;color:#888;margin-top:2px;">${timeStr}</div>
+                    </td>
+                    <td style="min-width:140px;color:${actionColor};font-weight:bold;">${actionIcon}</td>
+                    <td style="min-width:100px;">${record.borrower || ''}</td>
+                    <td style="min-width:100px;">${record.keeper || ''}</td>
+                    <td style="white-space:nowrap;min-width:110px;">${record.dt_borrow || ''}</td>
+                    <td style="white-space:nowrap;min-width:110px;">${record.dt_due || ''}</td>
+                    <td style="white-space:nowrap;min-width:110px;">${record.dt_confirmed || ''}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
     `;
-  }).join('');
+  });
   
-  html += '</tbody></table>';
   list.innerHTML = html;
+}
+
+// 切換歷史紀錄分組展開/收起
+function toggleHistoryGroup(headerEl) {
+  const arrowEl = headerEl.querySelector('.history-arrow');
+  const detailEl = headerEl.nextElementSibling;
+  
+  if (detailEl && arrowEl) {
+    const isExpanded = detailEl.style.display !== 'none';
+    
+    if (isExpanded) {
+      // 收起
+      detailEl.style.display = 'none';
+      arrowEl.style.transform = 'rotate(0deg)';
+    } else {
+      // 展開
+      detailEl.style.display = 'block';
+      arrowEl.style.transform = 'rotate(90deg)';
+    }
+  }
 }
 
 // 綁定歷史紀錄搜尋
