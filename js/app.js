@@ -570,9 +570,22 @@ function renderHistory(history) {
       actionColor = '#666';
     }
     
+    // 解析時間戳，分成日期和時間
+    let dateStr = '';
+    let timeStr = '';
+    if (record.timestamp) {
+      const ts = record.timestamp.toString();
+      const parts = ts.split(' ');
+      dateStr = parts[0] || '';
+      timeStr = parts[1] || '';
+    }
+    
     return `
       <tr>
-        <td style="white-space:nowrap;">${record.timestamp || ''}</td>
+        <td style="white-space:normal;min-width:120px;">
+          <div style="font-weight:bold;">${dateStr}</div>
+          <div style="font-size:0.85em;color:#666;">${timeStr}</div>
+        </td>
         <td style="color:${actionColor};font-weight:bold;">${actionIcon}</td>
         <td>${record.fix_no || ''}</td>
         <td>${record.device_name || ''}</td>
