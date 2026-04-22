@@ -516,7 +516,7 @@ async function searchHistory() {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'history');
     if (keyword) url.searchParams.append('keyword', keyword);
-    if (actionFilter) url.searchParams.append('actionFilter', actionFilter);
+    if (actionFilter) url.searchParams.append('actionType', actionFilter);  // 修正：使用 actionType 避免衝突
 
     console.log('歷史紀錄請求網址:', url.toString());
 

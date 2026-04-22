@@ -671,7 +671,7 @@ function queryHistory(params) {
   const rows = data.slice(1);
   
   const keyword = (params.keyword || '').toLowerCase();
-  const action = params.action || '';
+  const actionType = params.actionType || '';  // 修正：使用 actionType 避免與 action='history' 衝突
   
   const filtered = rows.filter((row) => {
     if (!row[1]) return false;
@@ -687,7 +687,7 @@ function queryHistory(params) {
       }
     }
     
-    if (action && (row[1] || '').toString() !== action) {
+    if (actionType && (row[1] || '').toString() !== actionType) {
       return false;
     }
     
