@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>歷史紀錄測試頁面</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 1200px; margin: 0 auto; }
+    .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+    .success { color: #28a745; }
+    .error { color: #dc3545; }
+    .info { color: #17a2b8; }
+    button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    pre { background: #f5f5f5; padding: 15px; overflow-x: auto; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <h1>🔧 歷史紀錄診斷工具</h1>
+  
+  <div class="test-section">
+    <h2>步驟 1：測試 GAS 連線</h2>
+    <button onclick="testGASConnection()">測試 GAS 連線</button>
+    <div id="connection-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>步驟 2：查詢歷史紀錄</h2>
+    <button onclick="queryHistory()">查詢歷史紀錄</button>
+    <div id="history-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>步驟 3：檢查 GAS 回應格式</h2>
+    <button onclick="checkResponseFormat()">檢查回應格式</button>
+    <div id="format-result"></div>
+  </div>
+
+  <div class="test-section">
+    <h2>步驟 4：直接呼叫 queryHistory</h2>
+    <button onclick="directQueryHistory()">直接呼叫 queryHistory</button>
+    <div id="direct-result"></div>
+  </div>
+
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
+
+    async function testGASConnection() {
+      const resultDiv = document.getElementById('connection-result');
+      resultDiv.innerHTML = '<p class="info">🔄 測試中...</p>';
+
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'test');
+        
+        console.log('測試網址:', url.toString());
+        
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        console.log('回應狀態:', res.status, res.ok);
+        
+        const data = await res.json();
+        console.log('回應資料:', data);
+
+        if (res.ok) {
+          resultDiv.innerHTML = `
+            <p class="success">✅ GAS 連線成功！</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <p class="error">❌ GAS 連線失敗：HTTP ${res.status}</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        }
+      } catch (err) {
+        console.error('測試失敗:', err);
+        resultDiv.innerHTML = `
+          <p class="error">❌ 測試失敗：${err.message}</p>
+          <p>可能原因：CORS 錯誤、GAS 網址錯誤、或部署設定問題</p>
+        `;
+      }
+    }
+
+    async function queryHistory() {
+      const resultDiv = document.getElementById('history-result');
+      resultDiv.innerHTML = '<p class="info">🔄 查詢中...</p>';
+
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'history');
+        
+        console.log('歷史紀錄請求網址:', url.toString());
+        
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        console.log('回應狀態:', res.status);
+        
+        const data = await res.json();
+        console.log('回應資料:', data);
+
+        if (data.error) {
+          resultDiv.innerHTML = `
+            <p class="error">❌ 查詢失敗：${data.error}</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+          return;
+        }
+
+        const history = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
+        
+        if (!history || history.length === 0) {
+          resultDiv.innerHTML = `
+            <p class="info">ℹ️ 目前沒有歷史紀錄</p>
+            <p>這可能是正常的，如果還沒有進行過借用/歸還操作</p>
+            <p>原始回應：<pre>${JSON.stringify(data, null, 2)}</pre></p>
+          `;
+          return;
+        }
+
+        let html = `<p class="success">✅ 找到 ${history.length} 筆紀錄</p>`;
+        html += '<table><thead><tr><th>時間</th><th>動作</th><th>設備編號</th><th>設備名稱</th><th>借用人</th><th>保管人</th></tr></thead><tbody>';
+        
+        history.forEach(record => {
+          html += `<tr>
+            <td>${record.timestamp || record.dt_borrow || '-'}</td>
+            <td>${record.action || '-'}</td>
+            <td>${record.fix_no || '-'}</td>
+            <td>${record.device_name || '-'}</td>
+            <td>${record.borrower || '-'}</td>
+            <td>${record.keeper || '-'}</td>
+          </tr>`;
+        });
+        
+        html += '</tbody></table>';
+        html += '<h3>完整回應：</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        
+        resultDiv.innerHTML = html;
+      } catch (err) {
+        console.error('查詢失敗:', err);
+        resultDiv.innerHTML = `
+          <p class="error">❌ 查詢失敗：${err.message}</p>
+          <p>錯誤詳情：<pre>${err.stack}</pre></p>
+        `;
+      }
+    }
+
+    async function checkResponseFormat() {
+      const resultDiv = document.getElementById('format-result');
+      resultDiv.innerHTML = '<p class="info">🔄 檢查中...</p>';
+
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'history');
+        
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const rawText = await res.text();
+        console.log('原始回應:', rawText);
+
+        let data;
+        try {
+          data = JSON.parse(rawText);
+        } catch (e) {
+          resultDiv.innerHTML = `
+            <p class="error">❌ 回應不是有效的 JSON</p>
+            <p>原始回應：<pre>${rawText.substring(0, 500)}</pre></p>
+          `;
+          return;
+        }
+
+        let checks = [];
+        
+        // 檢查是否為陣列
+        checks.push({
+          name: '是否為陣列',
+          pass: Array.isArray(data),
+          value: Array.isArray(data) ? '是' : '否'
+        });
+
+        // 檢查是否有 data/result/items 屬性
+        const hasDataProperty = data.data || data.result || data.items;
+        checks.push({
+          name: '是否有 data/result/items 屬性',
+          pass: !!hasDataProperty,
+          value: hasDataProperty ? '是' : '否'
+        });
+
+        // 檢查是否有 error 屬性
+        checks.push({
+          name: '是否有 error 屬性',
+          pass: !data.error,
+          value: data.error ? data.error : '無錯誤'
+        });
+
+        // 檢查陣列內容（如果有）
+        const history = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
+        if (history.length > 0) {
+          const firstRecord = history[0];
+          checks.push({
+            name: '第一筆紀錄有 timestamp',
+            pass: !!firstRecord.timestamp,
+            value: firstRecord.timestamp || '無'
+          });
+          checks.push({
+            name: '第一筆紀錄有 action',
+            pass: !!firstRecord.action,
+            value: firstRecord.action || '無'
+          });
+          checks.push({
+            name: '第一筆紀錄有 fix_no',
+            pass: !!firstRecord.fix_no,
+            value: firstRecord.fix_no || '無'
+          });
+        }
+
+        let html = '<table><thead><tr><th>檢查項目</th><th>結果</th><th>值</th></tr></thead><tbody>';
+        checks.forEach(check => {
+          const color = check.pass ? '#28a745' : '#dc3545';
+          const icon = check.pass ? '✅' : '❌';
+          html += `<tr>
+            <td>${check.name}</td>
+            <td style="color:${color}">${icon} ${check.pass ? '通過' : '失敗'}</td>
+            <td>${check.value}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+
+        html += '<h3>完整回應：</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        
+        resultDiv.innerHTML = html;
+      } catch (err) {
+        console.error('檢查失敗:', err);
+        resultDiv.innerHTML = `
+          <p class="error">❌ 檢查失敗：${err.message}</p>
+        `;
+      }
+    }
+
+    async function directQueryHistory() {
+      const resultDiv = document.getElementById('direct-result');
+      resultDiv.innerHTML = '<p class="info">🔄 查詢中...</p>';
+
+      try {
+        // 直接使用 action=history，不帶其他參數
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'history');
+        
+        console.log('直接查詢網址:', url.toString());
+        
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const data = await res.json();
+        
+        resultDiv.innerHTML = `
+          <h3>HTTP 狀態：${res.status} ${res.ok ? '✅' : '❌'}</h3>
+          <h3>回應類型：</h3>
+          <ul>
+            <li>是否為陣列：${Array.isArray(data) ? '是' : '否'}</li>
+            <li>是否有 data 屬性：${!!data.data ? '是' : '否'}</li>
+            <li>是否有 result 屬性：${!!data.result ? '是' : '否'}</li>
+            <li>是否有 error 屬性：${!!data.error ? '是（' + data.error + '）' : '否'}</li>
+          </ul>
+          <h3>完整回應：</h3>
+          <pre>${JSON.stringify(data, null, 2)}</pre>
+        `;
+      } catch (err) {
+        console.error('直接查詢失敗:', err);
+        resultDiv.innerHTML = `
+          <p class="error">❌ 查詢失敗：${err.message}</p>
+        `;
+      }
+    }
+
+    // 頁面載入時自動執行測試
+    window.addEventListener('DOMContentLoaded', () => {
+      console.log('測試頁面已載入');
+      console.log('GAS_URL:', GAS_URL);
+    });
+  </script>
+</body>
+</html>
