@@ -505,7 +505,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // 搜尋歷史紀錄
 async function searchHistory() {
   const keyword = document.getElementById('history-keyword')?.value.trim() || '';
-  const action = document.getElementById('history-action')?.value || '';
+  const actionFilter = document.getElementById('history-action')?.value || '';
 
   const listEl = document.getElementById('history-list');
   if (listEl) {
@@ -516,7 +516,9 @@ async function searchHistory() {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'history');
     if (keyword) url.searchParams.append('keyword', keyword);
-    if (action) url.searchParams.append('action', action);
+    if (actionFilter) url.searchParams.append('actionFilter', actionFilter);
+
+    console.log('歷史紀錄請求網址:', url.toString());
 
     const res = await fetch(url.toString(), {
       method: 'GET',
@@ -524,6 +526,7 @@ async function searchHistory() {
     });
 
     const data = await res.json();
+    console.log('歷史紀錄回應:', data);
 
     if (data.error) {
       throw new Error(data.error);
@@ -552,8 +555,20 @@ function renderHistory(history) {
   let html = '<table class="equipment-table"><thead><tr><th>時間</th><th>動作</th><th>設備編號</th><th>設備名稱</th><th>借用人</th><th>保管人</th><th>借用日期</th><th>預計歸還</th><th>確認日期</th></tr></thead><tbody>';
   
   html += history.map(record => {
-    const actionIcon = record.action === 'borrow' ? '📤 借用' : '📥 歸還';
-    const actionColor = record.action === 'borrow' ? '#667eea' : '#28a745';
+    let actionIcon, actionColor;
+    if (record.action === 'borrow') {
+      actionIcon = '📤 借用';
+      actionColor = '#667eea';
+    } else if (record.action === 'return') {
+      actionIcon = '📥 歸還（待確認）';
+      actionColor = '#ffc107';
+    } else if (record.action === 'confirm') {
+      actionIcon = '✅ 已確認';
+      actionColor = '#28a745';
+    } else {
+      actionIcon = record.action;
+      actionColor = '#666';
+    }
     
     return `
       <tr>

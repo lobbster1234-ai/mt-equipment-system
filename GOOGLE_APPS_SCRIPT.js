@@ -216,6 +216,7 @@ function borrowEquipment(data) {
   const borrowerCol = COLS.borrower;
   const dtBorrowCol = COLS.dt_borrow;
   const dtDueCol = COLS.dt_due;
+  const dtReturnCol = COLS.dt_return;
   const keeperCol = COLS.keeper;
   const deviceNameCol = COLS.device_name;
   
@@ -243,10 +244,14 @@ function borrowEquipment(data) {
   sheet.getRange(foundRow, borrowerCol + 1).setValue(borrower);
   sheet.getRange(foundRow, dtBorrowCol + 1).setValue(dtBorrow);
   sheet.getRange(foundRow, dtDueCol + 1).setValue(dtDue);
+  sheet.getRange(foundRow, dtReturnCol + 1).setValue(''); // 清除歸還日期
   sheet.getRange(foundRow, COLS.return_confirmed + 1).setValue(false);
   
   const keeper = sheet.getRange(foundRow, keeperCol + 1).getValue();
   const deviceName = sheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  
+  // 記錄歷史紀錄
+  logHistory('borrow', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   
   if (EMAIL_CONFIG.enabled && keeper) {
     sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue);
@@ -309,6 +314,9 @@ function returnEquipment(data) {
   const borrower = sheet.getRange(foundRow, borrowerCol + 1).getValue();
   
   sheet.getRange(foundRow, dtReturnCol + 1).setValue(dtReturn);
+  
+  // 記錄歷史紀錄（歸還動作，dtConfirmed 設為空，等確認時再更新）
+  logHistory('return', fixNo, deviceName, borrower, keeper, dtReturn, '', '');
   
   if (EMAIL_CONFIG.enabled && keeper) {
     sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn);
@@ -408,6 +416,10 @@ function confirmReturn(data) {
   
   const keeperName = sheet.getRange(foundRow, keeperCol + 1).getValue();
   const deviceName = sheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  const borrower = sheet.getRange(foundRow, borrowerCol + 1).getValue();
+  const dtBorrowVal = sheet.getRange(foundRow, dtBorrowCol + 1).getValue();
+  const dtDueVal = sheet.getRange(foundRow, dtDueCol + 1).getValue();
+  const dtReturnVal = sheet.getRange(foundRow, dtReturnCol + 1).getValue();
   
   // 直接確認歸還，不再驗證 email
   Logger.log(`確認歸還：${fixNo}，保管人：${keeperName}`);
@@ -417,6 +429,9 @@ function confirmReturn(data) {
   sheet.getRange(foundRow, borrowerCol + 1).setValue('');
   sheet.getRange(foundRow, dtBorrowCol + 1).setValue('');
   sheet.getRange(foundRow, dtDueCol + 1).setValue('');
+  
+  // 記錄歷史紀錄（確認歸還）
+  logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtReturnVal || '', '', Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss'));
   
   if (EMAIL_CONFIG.enabled && keeperName) {
     sendReturnConfirmEmail(keeperName, fixNo, deviceName);
