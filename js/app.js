@@ -637,6 +637,7 @@ function renderHistory(history) {
     group.users.forEach((user, userIndex) => {
       const hasConfirm = user.records.some(r => r.action === 'confirm' || r.action === 'confirmed');
       const hasReturn = user.records.some(r => r.action === 'return');
+      const isExpanded = userIndex === 0; // 第一個預設展開
       
       // 判斷狀態
       let statusIcon, statusText;
@@ -652,14 +653,17 @@ function renderHistory(history) {
       }
       
       html += `
-        <div style="margin-left:15px;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;margin-bottom:10px;">
-          <div style="font-weight:bold;margin-bottom:8px;">
-            ---> ${user.borrower} ${statusIcon} ${statusText}
+        <div class="history-borrow-cycle" style="margin-bottom:10px;">
+          <div class="history-borrow-header" onclick="toggleHistoryBorrow(this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
+            <span class="borrow-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+            <span style="font-weight:bold;font-size:0.95em;">---> ${user.borrower} ${statusIcon} ${statusText}</span>
           </div>
-          <div style="font-size:0.9em;color:#666;line-height:1.8;">
-            <div>借用日期：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'}</div>
-            <div>預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}</div>
-            <div>歸還完成：${user.dt_confirmed ? user.dt_confirmed.split('T')[0] : (user.dt_return ? user.dt_return.split('T')[0] : '－')}</div>
+          <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
+            <div style="font-size:0.9em;color:#666;line-height:1.8;">
+              <div>借用日期：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'}</div>
+              <div>預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}</div>
+              <div>歸還完成：${user.dt_confirmed ? user.dt_confirmed.split('T')[0] : (user.dt_return ? user.dt_return.split('T')[0] : '－')}</div>
+            </div>
           </div>
         </div>
       `;
@@ -671,7 +675,27 @@ function renderHistory(history) {
   list.innerHTML = html;
 }
 
-// 切換歷史紀錄週期展開/收起
+// 切換歷史紀錄借用週期展開/收起
+function toggleHistoryBorrow(headerEl) {
+  const arrowEl = headerEl.querySelector('.borrow-arrow');
+  const detailEl = headerEl.nextElementSibling;
+  
+  if (detailEl && arrowEl) {
+    const isExpanded = detailEl.style.display !== 'none';
+    
+    if (isExpanded) {
+      // 收起
+      detailEl.style.display = 'none';
+      arrowEl.style.transform = 'rotate(0deg)';
+    } else {
+      // 展開
+      detailEl.style.display = 'block';
+      arrowEl.style.transform = 'rotate(90deg)';
+    }
+  }
+}
+
+// 切換歷史紀錄週期展開/收起（舊函數，保留相容性）
 function toggleHistoryCycle(headerEl) {
   const arrowEl = headerEl.querySelector('.cycle-arrow');
   const detailEl = headerEl.nextElementSibling;
