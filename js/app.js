@@ -67,6 +67,7 @@ async function searchEquipment() {
 
     // 處理陣列或物件格式
     const equipment = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
+    console.log('設備資料:', equipment.slice(0, 5)); // 顯示前 5 筆
     renderEquipment(equipment);
   } catch (err) {
     console.error('查詢失敗:', err);
