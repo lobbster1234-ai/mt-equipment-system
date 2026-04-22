@@ -277,6 +277,43 @@ nav {
   gap: 10px;
 }
 
+.history-group {
+  background: #f8f9fa;
+  border-radius: 8px;
+  overflow: hidden;
+  border-left: 4px solid #667eea;
+  margin-bottom: 10px;
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background: #f8f9fa;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+}
+
+.history-header:hover {
+  background: #e9ecef;
+}
+
+.history-arrow {
+  display: inline-block;
+  width: 12px;
+  margin-right: 8px;
+  transition: transform 0.2s;
+  font-size: 0.8em;
+  color: #667eea;
+}
+
+.history-detail {
+  display: none;
+  overflow-x: auto;
+}
+
 .history-item {
   background: #f8f9fa;
   padding: 15px;
@@ -286,12 +323,6 @@ nav {
 
 .history-item.returned {
   border-left-color: #28a745;
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
 }
 
 .history-status {
