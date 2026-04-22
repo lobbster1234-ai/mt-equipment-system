@@ -642,7 +642,7 @@ function renderHistory(history) {
       let statusIcon, statusText;
       if (hasConfirm) {
         statusIcon = '✅';
-        statusText = '已確認';
+        statusText = '已歸還';
       } else if (hasReturn) {
         statusIcon = '📥';
         statusText = '歸還（待確認）';
