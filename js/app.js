@@ -567,7 +567,7 @@ async function searchHistory() {
   }
 }
 
-// 渲染歷史紀錄 - 每次借用週期（borrow/return/confirm）做成一個小箭頭
+// 渲染歷史紀錄 - 按設備編號 + 借用人分組
 function renderHistory(history) {
   const list = document.getElementById('history-list');
   if (!list) return;
@@ -577,153 +577,96 @@ function renderHistory(history) {
     return;
   }
 
-  // 按「借用週期」分組：每次 borrow 開始一個新週期，後續的 return/confirm 歸到同一週期
-  const cycles = [];
-  let currentCycle = null;
-  
-  // 先排序：舊的在後面，新的在前面（假設 timestamp 越大越新）
+  // 先排序：新的在後面（舊的在上面）
   const sortedHistory = [...history].sort((a, b) => {
     const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
     const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return tsB - tsA; // 新的在前
+    return tsA - tsB; // 舊的在前，新的在後
   });
-  
+
+  // 按設備編號分組
+  const deviceGroups = {};
   sortedHistory.forEach(record => {
-    if (record.action === 'borrow') {
-      // 開始新週期
-      currentCycle = {
-        fix_no: record.fix_no,
+    const fixNo = record.fix_no || '無編號';
+    if (!deviceGroups[fixNo]) {
+      deviceGroups[fixNo] = {
+        fix_no: fixNo,
         device_name: record.device_name,
-        borrower: record.borrower,
+        users: []
+      };
+    }
+    
+    // 檢查是否為新的借用週期（borrow 動作）
+    if (record.action === 'borrow') {
+      const borrower = record.borrower || '未知';
+      deviceGroups[fixNo].users.push({
+        borrower: borrower,
         keeper: record.keeper,
         dt_borrow: record.dt_borrow,
         dt_due: record.dt_due,
         records: [record]
-      };
-      cycles.push(currentCycle);
-    } else if (currentCycle) {
-      // 歸到當前週期（return 或 confirm）
-      currentCycle.records.push(record);
-      // 更新週期資訊
-      if (record.action === 'return' && !currentCycle.dt_return) {
-        currentCycle.dt_return = record.dt_return;
-      }
-      if (record.action === 'confirm' && !currentCycle.dt_confirmed) {
-        currentCycle.dt_confirmed = record.dt_confirmed;
+      });
+    } else {
+      // return 或 confirm，歸到最後一個借用週期
+      const users = deviceGroups[fixNo].users;
+      if (users.length > 0) {
+        const lastUser = users[users.length - 1];
+        lastUser.records.push(record);
+        if (record.action === 'return' && !lastUser.dt_return) {
+          lastUser.dt_return = record.dt_return;
+        }
+        if (record.action === 'confirm' && !lastUser.dt_confirmed) {
+          lastUser.dt_confirmed = record.dt_confirmed;
+        }
       }
     }
   });
 
   let html = '';
-  cycles.forEach((cycle, index) => {
-    const isExpanded = index === 0; // 第一個預設展開
-    const recordCount = cycle.records.length;
-    
-    // 判斷週期狀態
-    let statusText = '';
-    let statusColor = '';
-    const hasConfirm = cycle.records.some(r => r.action === 'confirm');
-    const hasReturn = cycle.records.some(r => r.action === 'return');
-    
-    if (hasConfirm) {
-      statusText = '✅ 已歸還';
-      statusColor = '#28a745';
-    } else if (hasReturn) {
-      statusText = '⏳ 待確認';
-      statusColor = '#ffc107';
-    } else {
-      statusText = '📤 借用中';
-      statusColor = '#667eea';
-    }
+  Object.keys(deviceGroups).forEach(fixNo => {
+    const group = deviceGroups[fixNo];
     
     html += `
-      <div class="history-cycle-group">
-        <div class="history-cycle-header" onclick="toggleHistoryCycle(this)" style="cursor:pointer;user-select:none;padding:12px 15px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
-          <div style="display:flex;align-items:center;">
-            <span class="cycle-arrow" style="display:inline-block;width:12px;margin-right:10px;transition:transform 0.2s;font-size:0.9em;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-            <span style="font-weight:bold;font-size:1em;">📦 ${cycle.fix_no || '無編號'} - ${cycle.device_name || '未知設備'}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px;">
-            <span style="background:rgba(255,255,255,0.2);padding:4px 10px;border-radius:12px;font-size:0.85em;color:${statusColor === '#ffc107' ? '#000' : '#fff'};font-weight:bold;">${statusText}</span>
-            <span style="font-size:0.85em;opacity:0.9;">${recordCount}筆記錄</span>
-          </div>
+      <div class="history-device-group" style="margin-bottom:20px;">
+        <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:12px 15px;border-radius:6px;margin-bottom:10px;font-weight:bold;font-size:1.1em;">
+          📦 ${fixNo} - ${group.device_name || '未知設備'}
         </div>
-        <div class="history-cycle-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}">
-          <div style="background:#f8f9fa;padding:15px;border-radius:6px;border-left:4px solid #667eea;">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:10px;margin-bottom:15px;font-size:0.9em;">
-              <div><strong>借用人：</strong>${cycle.borrower || '－'}</div>
-              <div><strong>保管人：</strong>${cycle.keeper || '－'}</div>
-              <div><strong>借用日期：</strong>${cycle.dt_borrow ? cycle.dt_borrow.split('T')[0] : '－'}</div>
-              <div><strong>預計歸還：</strong>${cycle.dt_due ? cycle.dt_due.split('T')[0] : '－'}</div>
-              ${cycle.dt_return ? `<div><strong>歸還日期：</strong>${cycle.dt_return.split('T')[0]}</div>` : ''}
-              ${cycle.dt_confirmed ? `<div><strong>確認日期：</strong>${cycle.dt_confirmed.split('T')[0]}</div>` : ''}
-            </div>
-            <table class="equipment-table" style="font-size:0.9em;">
-              <thead>
-                <tr>
-                  <th style="width:18%;">時間</th>
-                  <th style="width:20%;">動作</th>
-                  <th style="width:15%;">借用人</th>
-                  <th style="width:15%;">保管人</th>
-                  <th style="width:16%;">借用日期</th>
-                  <th style="width:16%;">預計歸還</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${cycle.records.map(record => {
-                  let actionIcon, actionColor;
-                  if (record.action === 'borrow') {
-                    actionIcon = '📤 借用';
-                    actionColor = '#667eea';
-                  } else if (record.action === 'return') {
-                    actionIcon = '📥 歸還（待確認）';
-                    actionColor = '#ffc107';
-                  } else if (record.action === 'confirm') {
-                    actionIcon = '✅ 已確認';
-                    actionColor = '#28a745';
-                  } else {
-                    actionIcon = record.action;
-                    actionColor = '#666';
-                  }
-                  
-                  // 解析時間戳
-                  let dateStr = '';
-                  let timeStr = '';
-                  if (record.timestamp) {
-                    const ts = record.timestamp.toString();
-                    const parts = ts.split(' ');
-                    if (parts.length >= 2) {
-                      dateStr = parts[0];
-                      timeStr = parts[1];
-                    } else if (ts.includes('T')) {
-                      const [d, t] = ts.split('T');
-                      dateStr = d;
-                      timeStr = t ? t.substring(0, 8) : '';
-                    } else {
-                      dateStr = ts;
-                    }
-                  }
-                  
-                  return `
-                    <tr>
-                      <td style="padding:10px 8px;">
-                        <div style="font-weight:bold;font-size:0.95em;">${dateStr}</div>
-                        <div style="font-size:0.8em;color:#888;">${timeStr}</div>
-                      </td>
-                      <td style="color:${actionColor};font-weight:bold;">${actionIcon}</td>
-                      <td>${record.borrower || '－'}</td>
-                      <td>${record.keeper || '－'}</td>
-                      <td style="white-space:nowrap;">${record.dt_borrow || '－'}</td>
-                      <td style="white-space:nowrap;">${record.dt_due || '－'}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
     `;
+    
+    // 每個借用人的紀錄
+    group.users.forEach((user, userIndex) => {
+      const hasConfirm = user.records.some(r => r.action === 'confirm' || r.action === 'confirmed');
+      const hasReturn = user.records.some(r => r.action === 'return');
+      
+      // 判斷狀態
+      let statusIcon, statusText;
+      if (hasConfirm) {
+        statusIcon = '✅';
+        statusText = '已確認';
+      } else if (hasReturn) {
+        statusIcon = '📥';
+        statusText = '歸還（待確認）';
+      } else {
+        statusIcon = '📤';
+        statusText = '借用';
+      }
+      
+      html += `
+        <div style="margin-left:15px;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;margin-bottom:10px;">
+          <div style="font-weight:bold;margin-bottom:8px;">
+            ---> ${user.borrower} ${statusIcon} ${statusText}
+          </div>
+          <div style="font-size:0.9em;color:#666;">
+            借用：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'} | 
+            預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}
+            ${user.dt_return ? ` | 歸還：${user.dt_return.split('T')[0]}` : ''}
+            ${user.dt_confirmed ? ` | 確認：${user.dt_confirmed.split('T')[0]}` : ''}
+          </div>
+        </div>
+      `;
+    });
+    
+    html += `</div>`;
   });
   
   list.innerHTML = html;
