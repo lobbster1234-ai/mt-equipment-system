@@ -121,7 +121,7 @@ function renderEquipment(equipment) {
           </thead>
           <tbody>
             ${items.map(eq => {
-              const isAvailable = eq.status === 'available' || !eq.status;
+              const isAvailable = eq.status === 'available' || eq.status === '可借用' || !eq.status;
               const statusHtml = isAvailable
                 ? '<span style="color:#0a0;">✅ 可借用</span>'
                 : '<span style="color:#c00;">📤 借用中</span>';
