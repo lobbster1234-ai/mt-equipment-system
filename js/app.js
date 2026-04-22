@@ -570,30 +570,40 @@ function renderHistory(history) {
       actionColor = '#666';
     }
     
-    // 解析時間戳，分成日期和時間
+    // 解析時間戳，分成日期和時間（支援多種格式）
     let dateStr = '';
     let timeStr = '';
     if (record.timestamp) {
       const ts = record.timestamp.toString();
+      // 嘗試用空格分隔（yyyy-MM-dd HH:mm:ss）
       const parts = ts.split(' ');
-      dateStr = parts[0] || '';
-      timeStr = parts[1] || '';
+      if (parts.length >= 2) {
+        dateStr = parts[0];
+        timeStr = parts[1];
+      } else if (ts.includes('T')) {
+        // ISO 格式：2026-04-22T10:30:00
+        const [d, t] = ts.split('T');
+        dateStr = d;
+        timeStr = t ? t.substring(0, 8) : '';
+      } else {
+        dateStr = ts;
+      }
     }
     
     return `
       <tr>
-        <td style="white-space:normal;min-width:120px;">
-          <div style="font-weight:bold;">${dateStr}</div>
-          <div style="font-size:0.85em;color:#666;">${timeStr}</div>
+        <td style="min-width:130px;padding:12px 8px;">
+          <div style="font-weight:bold;font-size:0.95em;">${dateStr}</div>
+          <div style="font-size:0.82em;color:#888;margin-top:2px;">${timeStr}</div>
         </td>
-        <td style="color:${actionColor};font-weight:bold;">${actionIcon}</td>
-        <td>${record.fix_no || ''}</td>
-        <td>${record.device_name || ''}</td>
-        <td>${record.borrower || ''}</td>
-        <td>${record.keeper || ''}</td>
-        <td style="white-space:nowrap;">${record.dt_borrow || ''}</td>
-        <td style="white-space:nowrap;">${record.dt_due || ''}</td>
-        <td style="white-space:nowrap;">${record.dt_confirmed || ''}</td>
+        <td style="min-width:140px;color:${actionColor};font-weight:bold;">${actionIcon}</td>
+        <td style="min-width:140px;">${record.fix_no || ''}</td>
+        <td style="min-width:200px;">${record.device_name || ''}</td>
+        <td style="min-width:100px;">${record.borrower || ''}</td>
+        <td style="min-width:100px;">${record.keeper || ''}</td>
+        <td style="white-space:nowrap;min-width:110px;">${record.dt_borrow || ''}</td>
+        <td style="white-space:nowrap;min-width:110px;">${record.dt_due || ''}</td>
+        <td style="white-space:nowrap;min-width:110px;">${record.dt_confirmed || ''}</td>
       </tr>
     `;
   }).join('');
