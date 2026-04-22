@@ -656,11 +656,10 @@ function renderHistory(history) {
           <div style="font-weight:bold;margin-bottom:8px;">
             ---> ${user.borrower} ${statusIcon} ${statusText}
           </div>
-          <div style="font-size:0.9em;color:#666;">
-            借用：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'} | 
-            預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}
-            ${user.dt_return ? ` | 歸還：${user.dt_return.split('T')[0]}` : ''}
-            ${user.dt_confirmed ? ` | 確認：${user.dt_confirmed.split('T')[0]}` : ''}
+          <div style="font-size:0.9em;color:#666;line-height:1.8;">
+            <div>借用日期：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'}</div>
+            <div>預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}</div>
+            <div>歸還完成：${user.dt_confirmed ? user.dt_confirmed.split('T')[0] : (user.dt_return ? user.dt_return.split('T')[0] : '－')}</div>
           </div>
         </div>
       `;
