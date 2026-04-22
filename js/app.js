@@ -49,11 +49,14 @@ async function searchEquipment() {
 
     console.log('GAS 回應狀態:', res.status, res.ok);
 
-    if (!res.ok) {
+  if (!res.ok) {
       const errorText = await res.text();
       console.error('GAS 錯誤回應:', errorText);
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    }
+      let message = `HTTP ${res.status}: ${res.statusText}.`;
+      // 由於您提到系統在 GitHub 部署，請確認 GAS_URL 是否已更新為您新的 API 端點。
+      message += `如果 API 網址錯誤，請檢查 URL。原始錯誤: ${res.statusText}`;
+      throw new Error(message);
+  }
 
     const data = await res.json();
     console.log('GAS 回應資料:', data);
@@ -561,6 +564,9 @@ function renderHistory(history) {
     `;
   }).join('');
   
+  html += '</tbody></table>';
+  list.innerHTML = html;
+}
 
 // 綁定歷史紀錄搜尋
 const historySearchBtn = document.querySelector('#history-tab .search-bar button');
