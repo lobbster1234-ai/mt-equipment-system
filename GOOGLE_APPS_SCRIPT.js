@@ -700,17 +700,44 @@ function queryHistory(params) {
     return bTime - aTime;
   });
   
-  const result = filtered.map(row => ({
-    timestamp: row[0] || '',
-    action: row[1] || '',
-    fix_no: row[2] || '',
-    device_name: row[3] || '',
-    borrower: row[4] || '',
-    keeper: row[5] || '',
-    dt_borrow: row[6] || '',
-    dt_due: row[7] || '',
-    dt_confirmed: row[8] || ''
-  }));
+  const result = filtered.map(row => {
+    const action = row[1] || '';
+    
+    // 根據動作類型，正確對應日期欄位
+    // 欄位索引：0=時間戳，1=動作，2=設備編號，3=設備名稱，4=借用人，5=保管人，6=dtAction，7=dtDue，8=dtConfirmed
+    let dt_borrow = '';
+    let dt_due = '';
+    let dt_confirmed = '';
+    
+    if (action === 'borrow') {
+      // 借用：row[6]=借用日期，row[7]=預計歸還，row[8]=空
+      dt_borrow = row[6] || '';
+      dt_due = row[7] || '';
+      dt_confirmed = '';
+    } else if (action === 'return') {
+      // 歸還：row[6]=歸還日期，row[7]=空，row[8]=空
+      dt_borrow = row[6] || '';  // 歸還日期顯示在借用日期欄位
+      dt_due = '';
+      dt_confirmed = '';
+    } else if (action === 'confirm') {
+      // 確認：row[6]=歸還日期，row[7]=空，row[8]=確認日期
+      dt_borrow = row[6] || '';  // 歸還日期顯示在借用日期欄位
+      dt_due = '';
+      dt_confirmed = row[8] || '';
+    }
+    
+    return {
+      timestamp: row[0] || '',
+      action: action,
+      fix_no: row[2] || '',
+      device_name: row[3] || '',
+      borrower: row[4] || '',
+      keeper: row[5] || '',
+      dt_borrow: dt_borrow,
+      dt_due: dt_due,
+      dt_confirmed: dt_confirmed
+    };
+  });
   
   return successResponse(result);
 }
