@@ -132,9 +132,14 @@ function renderEquipment(equipment) {
                 actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', '${eq.device_name}', '${eq.keeper}')">借用</button>`;
               } else {
                 // 已借出，顯示歸還按鈕（借用者使用）或等待確認狀態
-                if (eq.return_confirmed === true) {
+                console.log('設備狀態檢查:', eq.fix_no, 'status:', eq.status, 'return_confirmed:', eq.return_confirmed, 'dt_return:', eq.dt_return, 'borrower:', eq.borrower);
+                
+                const isConfirmed = eq.return_confirmed === true || eq.return_confirmed === 'true' || eq.return_confirmed === 1;
+                const hasReturnDate = eq.dt_return && eq.dt_return.toString().trim() !== '';
+                
+                if (isConfirmed) {
                   actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
-                } else if (eq.dt_return) {
+                } else if (hasReturnDate) {
                   // 已歸還，等待 Keeper 確認
                   actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';
                 } else {
