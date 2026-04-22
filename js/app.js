@@ -623,14 +623,17 @@ function renderHistory(history) {
   });
 
   let html = '';
-  Object.keys(deviceGroups).forEach(fixNo => {
+  Object.keys(deviceGroups).forEach((fixNo, deviceIndex) => {
     const group = deviceGroups[fixNo];
+    const deviceExpanded = deviceIndex === 0; // 第一個設備預設展開
     
     html += `
       <div class="history-device-group" style="margin-bottom:20px;">
-        <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:12px 15px;border-radius:6px;margin-bottom:10px;font-weight:bold;font-size:1.1em;">
-          📦 ${fixNo} - ${group.device_name || '未知設備'}
+        <div class="history-device-header" onclick="toggleHistoryDevice(this)" style="cursor:pointer;user-select:none;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:12px 15px;border-radius:6px;margin-bottom:10px;font-weight:bold;font-size:1.1em;display:flex;align-items:center;">
+          <span class="device-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${deviceExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+          <span>📦 ${fixNo} - ${group.device_name || '未知設備'}</span>
         </div>
+        <div class="history-device-content" style="${deviceExpanded ? 'display:block;' : 'display:none;'}">
     `;
     
     // 每個借用人的紀錄
@@ -654,7 +657,7 @@ function renderHistory(history) {
       
       html += `
         <div class="history-borrow-cycle" style="margin-bottom:10px;">
-          <div class="history-borrow-header" onclick="toggleHistoryBorrow(this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
+          <div class="history-borrow-header" onclick="toggleHistoryBorrow(event, this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
             <span class="borrow-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
             <span style="font-weight:bold;font-size:0.95em;">---> ${user.borrower} ${statusIcon} ${statusText}</span>
           </div>
@@ -669,14 +672,36 @@ function renderHistory(history) {
       `;
     });
     
-    html += `</div>`;
+    html += `</div></div>`;
   });
   
   list.innerHTML = html;
 }
 
+// 切換歷史紀錄設備展開/收起
+function toggleHistoryDevice(headerEl) {
+  const arrowEl = headerEl.querySelector('.device-arrow');
+  const contentEl = headerEl.nextElementSibling;
+  
+  if (contentEl && arrowEl) {
+    const isExpanded = contentEl.style.display !== 'none';
+    
+    if (isExpanded) {
+      // 收起
+      contentEl.style.display = 'none';
+      arrowEl.style.transform = 'rotate(0deg)';
+    } else {
+      // 展開
+      contentEl.style.display = 'block';
+      arrowEl.style.transform = 'rotate(90deg)';
+    }
+  }
+}
+
 // 切換歷史紀錄借用週期展開/收起
-function toggleHistoryBorrow(headerEl) {
+function toggleHistoryBorrow(event, headerEl) {
+  event.stopPropagation(); // 防止事件冒泡到設備標題
+  
   const arrowEl = headerEl.querySelector('.borrow-arrow');
   const detailEl = headerEl.nextElementSibling;
   
