@@ -363,17 +363,20 @@ async function confirmReturn(fixNo, deviceName, keeper) {
 // 設備登記
 async function registerEquipment(formData) {
   try {
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'register',
-        fix_type: formData.fix_type,
-        fix_no: formData.fix_no,
-        device_name: formData.device_name,
-        qty_asset: formData.qty_asset || '1',
-        keeper: formData.keeper
-      })
+    // 使用 GET 請求避免 CORS preflight 問題
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'register');
+    url.searchParams.append('fix_type', formData.fix_type);
+    url.searchParams.append('fix_no', formData.fix_no || '');
+    url.searchParams.append('device_name', formData.device_name);
+    url.searchParams.append('qty_asset', formData.qty_asset || '1');
+    url.searchParams.append('keeper', formData.keeper || '');
+
+    console.log('登記請求網址:', url.toString());
+
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
     });
 
     const result = await res.json();
