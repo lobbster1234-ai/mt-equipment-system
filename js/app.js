@@ -863,17 +863,21 @@ async function uploadAvatar(name, file) {
     const reader = new FileReader();
     reader.onload = async function(e) {
       try {
+        // 解碼 base64
         const base64 = e.target.result.split(',')[1]; // 移除 data:image/...;base64, 前綴
         
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'uploadAvatar',
-            user_name: name,
-            image_data: base64,
-            file_name: 'avatar_' + name + '.png'
-          })
+        // 使用 GET 請求 + 圖片轉為 URL-safe base64
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'uploadAvatar');
+        url.searchParams.append('user_name', name);
+        url.searchParams.append('image_data', base64);
+        url.searchParams.append('file_name', 'avatar_' + name + '.png');
+        
+        console.log('頭像上傳請求網址:', url.toString().substring(0, 200) + '...');
+        
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
         });
         
         const result = await res.json();
