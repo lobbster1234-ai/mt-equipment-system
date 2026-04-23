@@ -897,57 +897,43 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
 }
 
 /**
- * 上傳頭像到 Imgur（免費圖床）
- * 注意：這是匿名上傳，圖片會公開。若要私有需要註冊 Imgur API
+ * 上傳頭像到 Google Drive（使用 POST + JSON）
  */
-async function uploadAvatarToImgur(name, file) {
+async function uploadAvatar(name, file) {
   // 先壓縮圖片
-  const compressedData = await compressImage(file, 100, 0.6);
+  const compressedData = await compressImage(file, 100, 0.7);
   const base64 = compressedData.split(',')[1];
   
-  // 使用 Imgur API 上傳（匿名上傳）
-  const formData = new FormData();
-  formData.append('image', base64);
-  formData.append('type', 'base64');
+  console.log('頭像上傳開始，圖片大小:', base64.length, '字元');
   
-  // Imgur 匿名上傳 API（注意：這是簡化版本，建議正式上線時申請自己的 API key）
-  const res = await fetch('https://api.imgur.com/3/image', {
+  // 使用 POST + JSON body
+  const res = await fetch(GAS_URL, {
     method: 'POST',
     headers: {
-      'Authorization': 'Client-ID 546c25a59c58ad7' // Imgur 匿名上傳的 client ID（公開測試用）
+      'Content-Type': 'application/json'
     },
-    body: formData
+    body: JSON.stringify({
+      action: 'uploadAvatar',
+      user_name: name,
+      image_data: base64,
+      file_name: 'avatar_' + name + '.jpg'
+    })
   });
+  
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error('HTTP ' + res.status + ': ' + errorText);
+  }
   
   const result = await res.json();
   
-  if (result.success && result.data.link) {
-    return {
-      success: true,
-      url: result.data.link
-    };
-  } else {
-    throw new Error(result.data?.error || '上傳失敗');
-  }
-}
-
-/**
- * 上傳頭像（主要函數）
- * 嘗試使用 Imgur 上傳
- */
-async function uploadAvatar(name, file) {
-  try {
-    // 嘗試上傳到 Imgur
-    const result = await uploadAvatarToImgur(name, file);
-    
+  if (result.success || result.url) {
     // 更新本地快取
     avatarCache[name] = result.url;
     saveAvatarCache();
-    
     return result;
-  } catch (err) {
-    console.error('Imgur 上傳失敗，嘗試 GAS 上傳:', err);
-    throw err; // 讓 UI 顯示錯誤
+  } else {
+    throw new Error(result.error || '上傳失敗');
   }
 }
 
