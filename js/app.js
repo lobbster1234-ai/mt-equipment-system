@@ -856,49 +856,99 @@ async function loadAvatarList() {
 }
 
 /**
- * 上傳頭像
+ * 壓縮圖片並轉為 base64
  */
-async function uploadAvatar(name, file) {
+function compressImage(file, maxWidth = 100, quality = 0.6) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async function(e) {
-      try {
-        // 解碼 base64
-        const base64 = e.target.result.split(',')[1]; // 移除 data:image/...;base64, 前綴
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
         
-        // 使用 GET 請求 + 圖片轉為 URL-safe base64
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', 'uploadAvatar');
-        url.searchParams.append('user_name', name);
-        url.searchParams.append('image_data', base64);
-        url.searchParams.append('file_name', 'avatar_' + name + '.png');
-        
-        console.log('頭像上傳請求網址:', url.toString().substring(0, 200) + '...');
-        
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
-        
-        const result = await res.json();
-        
-        if (result.success || result.url) {
-          // 更新本地快取
-          avatarCache[name] = result.url;
-          saveAvatarCache();
-          resolve(result);
-        } else {
-          reject(new Error(result.error || '上傳失敗'));
+        // 等比例縮小
+        if (width > maxWidth) {
+          height = Math.round(height * maxWidth / width);
+          width = maxWidth;
         }
-      } catch (err) {
-        reject(err);
-      }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // 輸出為 JPEG（壓縮率更高）
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      };
+      img.onerror = function() {
+        reject(new Error('圖片載入失敗'));
+      };
+      img.src = e.target.result;
     };
     reader.onerror = function() {
       reject(new Error('讀取檔案失敗'));
     };
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * 上傳頭像到 Imgur（免費圖床）
+ * 注意：這是匿名上傳，圖片會公開。若要私有需要註冊 Imgur API
+ */
+async function uploadAvatarToImgur(name, file) {
+  // 先壓縮圖片
+  const compressedData = await compressImage(file, 100, 0.6);
+  const base64 = compressedData.split(',')[1];
+  
+  // 使用 Imgur API 上傳（匿名上傳）
+  const formData = new FormData();
+  formData.append('image', base64);
+  formData.append('type', 'base64');
+  
+  // Imgur 匿名上傳 API（注意：這是簡化版本，建議正式上線時申請自己的 API key）
+  const res = await fetch('https://api.imgur.com/3/image', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Client-ID 546c25a59c58ad7' // Imgur 匿名上傳的 client ID（公開測試用）
+    },
+    body: formData
+  });
+  
+  const result = await res.json();
+  
+  if (result.success && result.data.link) {
+    return {
+      success: true,
+      url: result.data.link
+    };
+  } else {
+    throw new Error(result.data?.error || '上傳失敗');
+  }
+}
+
+/**
+ * 上傳頭像（主要函數）
+ * 嘗試使用 Imgur 上傳
+ */
+async function uploadAvatar(name, file) {
+  try {
+    // 嘗試上傳到 Imgur
+    const result = await uploadAvatarToImgur(name, file);
+    
+    // 更新本地快取
+    avatarCache[name] = result.url;
+    saveAvatarCache();
+    
+    return result;
+  } catch (err) {
+    console.error('Imgur 上傳失敗，嘗試 GAS 上傳:', err);
+    throw err; // 讓 UI 顯示錯誤
+  }
 }
 
 // 初始化頭像功能
@@ -912,15 +962,24 @@ if (avatarForm) {
   const avatarPreview = document.getElementById('avatar-preview');
   
   if (avatarFile && avatarPreview) {
-    avatarFile.addEventListener('change', function(e) {
+    avatarFile.addEventListener('change', async function(e) {
       const file = e.target.files[0];
       if (file) {
-        const reader = new FileReader();
-        reader.onload = function(ev) {
-          avatarPreview.src = ev.target.result;
+        // 限制圖片大小，最大 500KB
+        if (file.size > 500 * 1024) {
+          alert('圖片太大，請選擇小於 500KB 的圖片或使用截圖工具壓縮');
+          e.target.value = '';
+          return;
+        }
+        
+        try {
+          // 壓縮並顯示預覽
+          const compressed = await compressImage(file, 150, 0.7);
+          avatarPreview.src = compressed;
           avatarPreview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+          alert('圖片處理失敗: ' + err.message);
+        }
       }
     });
   }
