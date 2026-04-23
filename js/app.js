@@ -113,7 +113,7 @@ function renderEquipment(equipment) {
       <div class="keeper-group">
         <div class="keeper-header" onclick="toggleKeeperGroup(this)" style="cursor:pointer;user-select:none;">
           <span class="keeper-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-          <span>👤 ${keeper} (${items.length}項)</span>
+          <span>${getAvatarHtml(keeper, 24)} ${keeper} (${items.length}項)</span>
         </div>
         <div class="keeper-table-wrapper" style="${isExpanded ? 'display:block;' : 'display:none;'}">
           <table class="equipment-table">
@@ -662,7 +662,7 @@ function renderHistory(history) {
         <div class="history-borrow-cycle" style="margin-bottom:10px;">
           <div class="history-borrow-header" onclick="toggleHistoryBorrow(event, this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
             <span class="borrow-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-            <span style="font-weight:bold;font-size:0.95em;">---> ${user.borrower} ${statusIcon} ${statusText}</span>
+            <span style="font-weight:bold;font-size:0.95em;">---> ${getAvatarHtml(user.borrower, 24)} ${user.borrower} ${statusIcon} ${statusText}</span>
           </div>
           <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
@@ -776,5 +776,185 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     if (tab === 'history') {
       searchHistory();
     }
+    // 如果切換到個人設定分頁，載入頭像列表
+    if (tab === 'settings') {
+      loadAvatarList();
+    }
   });
 });
+
+// =============================================
+// 頭像功能
+// =============================================
+
+// 頭像本地快取（格式：{ "姓名": "URL" }）
+let avatarCache = {};
+
+/**
+ * 載入頭像快取
+ */
+async function loadAvatarCache() {
+  try {
+    // 嘗試從 localStorage 載入
+    const cached = localStorage.getItem('avatarCache');
+    if (cached) {
+      avatarCache = JSON.parse(cached);
+    }
+  } catch (err) {
+    console.log('載入頭像快取失敗:', err);
+  }
+}
+
+/**
+ * 儲存頭像快取到 localStorage
+ */
+function saveAvatarCache() {
+  try {
+    localStorage.setItem('avatarCache', JSON.stringify(avatarCache));
+  } catch (err) {
+    console.log('儲存頭像快取失敗:', err);
+  }
+}
+
+/**
+ * 取得頭像 HTML（圖片或預設 emoji）
+ */
+function getAvatarHtml(name, size = 24) {
+  if (!name) return `<span style="font-size:${size}px;">👤</span>`;
+  
+  const url = avatarCache[name];
+  if (url) {
+    return `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span style="font-size:${size}px;display:none;">👤</span>`;
+  }
+  return `<span style="font-size:${size}px;">👤</span>`;
+}
+
+/**
+ * 載入所有頭像列表
+ */
+async function loadAvatarList() {
+  // 從 localStorage 顯示已知的頭像
+  const listEl = document.getElementById('avatar-list');
+  if (!listEl) return;
+  
+  if (Object.keys(avatarCache).length === 0) {
+    listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
+    return;
+  }
+  
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
+  for (const [name, url] of Object.entries(avatarCache)) {
+    html += `
+      <div style="text-align:center;">
+        <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
+        <div style="font-size:0.85em;margin-top:5px;">${name}</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  listEl.innerHTML = html;
+}
+
+/**
+ * 上傳頭像
+ */
+async function uploadAvatar(name, file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const base64 = e.target.result.split(',')[1]; // 移除 data:image/...;base64, 前綴
+        
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'uploadAvatar',
+            user_name: name,
+            image_data: base64,
+            file_name: 'avatar_' + name + '.png'
+          })
+        });
+        
+        const result = await res.json();
+        
+        if (result.success || result.url) {
+          // 更新本地快取
+          avatarCache[name] = result.url;
+          saveAvatarCache();
+          resolve(result);
+        } else {
+          reject(new Error(result.error || '上傳失敗'));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = function() {
+      reject(new Error('讀取檔案失敗'));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 初始化頭像功能
+loadAvatarCache();
+
+// 綁定頭像表單
+const avatarForm = document.getElementById('avatar-form');
+if (avatarForm) {
+  // 圖片預覽
+  const avatarFile = document.getElementById('avatar-file');
+  const avatarPreview = document.getElementById('avatar-preview');
+  
+  if (avatarFile && avatarPreview) {
+    avatarFile.addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          avatarPreview.src = ev.target.result;
+          avatarPreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+  
+  // 表單提交
+  avatarForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('avatar-name').value.trim();
+    const file = document.getElementById('avatar-file').files[0];
+    const statusEl = document.getElementById('avatar-status');
+    const submitBtn = avatarForm.querySelector('button[type="submit"]');
+    
+    if (!name) {
+      alert('請輸入姓名');
+      return;
+    }
+    
+    if (!file) {
+      alert('請選擇圖片');
+      return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = '🔄 上傳中...';
+    statusEl.innerHTML = '';
+    
+    try {
+      const result = await uploadAvatar(name, file);
+      statusEl.innerHTML = '<p style="color:green;">✅ 頭像上傳成功！</p>';
+      avatarPreview.src = result.url;
+      avatarPreview.style.display = 'block';
+      loadAvatarList(); // 更新頭像列表
+    } catch (err) {
+      statusEl.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '上傳頭像';
+    }
+  });
+}

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MT 部門儀器借用系統</title>
-  <link rel="stylesheet" href="css/style.css?v=20260422-1842">
+  <link rel="stylesheet" href="css/style.css?v=20260423-1632">
 </head>
 <body>
   <div class="container">
@@ -14,6 +14,7 @@
         <button class="nav-btn active" data-tab="equipment">📦 設備列表</button>
         <button class="nav-btn" data-tab="history">📜 歷史紀錄</button>
         <button class="nav-btn" data-tab="register">➕ 設備登記</button>
+        <button class="nav-btn" data-tab="settings">⚙️ 個人設定</button>
       </nav>
     </header>
 
@@ -88,6 +89,35 @@
         <button type="submit" class="btn-primary">登記設備</button>
       </form>
     </section>
+
+    <!-- 個人設定 -->
+    <section id="settings-tab" class="tab-content">
+      <div class="form-card" style="max-width:500px;margin:0 auto;">
+        <h2>⚙️ 個人頭像設定</h2>
+        <p style="color:#666;font-size:0.9em;margin-bottom:20px;">上傳你的照片，作為借用/歸還記錄的頭像顯示</p>
+        
+        <form id="avatar-form">
+          <div class="form-group">
+            <label>你的姓名 *</label>
+            <input type="text" id="avatar-name" required placeholder="請輸入你的姓名（需與借用/歸還時輸入的名字一致）">
+          </div>
+          <div class="form-group">
+            <label>頭像圖片</label>
+            <div style="display:flex;align-items:center;gap:15px;">
+              <input type="file" id="avatar-file" accept="image/*" style="flex:1;">
+              <img id="avatar-preview" src="" style="width:60px;height:60px;border-radius:50%;object-fit:cover;display:none;border:2px solid #ddd;">
+            </div>
+            <p style="color:#888;font-size:0.8em;margin-top:5px;">支援 JPG、PNG 圖片，建議使用正方形圖片效果最佳</p>
+          </div>
+          <button type="submit" class="btn-primary" style="width:100%;">上傳頭像</button>
+        </form>
+        
+        <div id="avatar-status" style="margin-top:15px;text-align:center;"></div>
+        
+        <h3 style="margin-top:30px;font-size:1.1em;">📋 目前已上傳頭像的使用者</h3>
+        <div id="avatar-list" style="margin-top:10px;"></div>
+      </div>
+    </section>
   </div>
 
   <!-- 借用 Modal -->
@@ -132,6 +162,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=20260422-1842"></script>
+  <script src="js/app.js?v=20260423-1632"></script>
 </body>
 </html>

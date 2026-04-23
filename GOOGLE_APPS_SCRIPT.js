@@ -11,6 +11,11 @@ const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
 const SHEET_NAME = '工作表 1';
 const KEEPER_SHEET_NAME = 'Keeper 聯絡資訊';
 const HISTORY_SHEET_NAME = '歷史紀錄';
+const AVATAR_SHEET_NAME = '頭像資料';
+
+// 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
+// 建立方式：在 Google Drive 建立一個資料夾，分享為「知道連結的使用者」可檢視，然後複製資料夾網址的最後一段
+const AVATAR_FOLDER_ID = 'YOUR_AVATAR_FOLDER_ID';
 
 // 欄位索引對照（0-indexed）
 const COLS = {
@@ -46,6 +51,14 @@ function doGet(e) {
     
     if (action === 'query') {
       return queryEquipment(e.parameter);
+    } else if (action === 'register') {
+      return registerEquipment({
+        fix_type: e.parameter.fix_type,
+        fix_no: e.parameter.fix_no,
+        device_name: e.parameter.device_name,
+        qty_asset: e.parameter.qty_asset,
+        keeper: e.parameter.keeper
+      });
     } else if (action === 'return') {
       return returnEquipment({
         fix_no: e.parameter.fix_no,
@@ -93,6 +106,8 @@ function doPost(e) {
       return queryEquipment(data);
     } else if (action === 'register') {
       return registerEquipment(data);
+    } else if (action === 'uploadAvatar') {
+      return uploadAvatar(data);
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -138,8 +153,26 @@ function queryEquipment(params) {
       }
     }
     
-    if (status && (row[COLS.status] || '').toString() !== status) {
-      return false;
+    if (status) {
+      const rowStatus = (row[COLS.status] || '').toString().trim().toLowerCase();
+      const filterStatus = status.toString().trim().toLowerCase();
+      
+      // 可借用：匹配 'available'、'可借用'、或空值
+      if (filterStatus === 'available') {
+        if (rowStatus !== 'available' && rowStatus !== '可借用' && rowStatus !== '') {
+          return false;
+        }
+      }
+      // 已借出：匹配 'borrowed' 或 '已借出'
+      else if (filterStatus === 'borrowed') {
+        if (rowStatus !== 'borrowed' && rowStatus !== '已借出') {
+          return false;
+        }
+      }
+      // 其他狀態：精確匹配
+      else if (rowStatus !== filterStatus) {
+        return false;
+      }
     }
     
     return true;
@@ -190,6 +223,7 @@ function registerEquipment(data) {
   sheet.appendRow(newRow);
   
   return successResponse({
+    success: true,
     message: '設備登記成功',
     fix_no: data.fix_no
   });
@@ -594,6 +628,112 @@ function getKeeperEmail(keeperName) {
   } catch (err) {
     Logger.error('讀取 Keeper 聯絡資訊失敗:', err);
     return null;
+  }
+}
+
+/**
+ * 取得頭像圖片 URL
+ */
+function getAvatarUrl(userName) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let avatarSheet = ss.getSheetByName(AVATAR_SHEET_NAME);
+    
+    // 如果頭像工作表不存在，返回 null
+    if (!avatarSheet) {
+      return null;
+    }
+    
+    const data = avatarSheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const name = (row[0] || '').toString().trim();
+      const avatarUrl = (row[1] || '').toString().trim();
+      
+      if (name === userName.trim() && avatarUrl) {
+        return avatarUrl;
+      }
+    }
+    
+    return null;
+  } catch (err) {
+    Logger.log('取得頭像失敗: ' + err.message);
+    return null;
+  }
+}
+
+/**
+ * 上傳頭像圖片
+ */
+function uploadAvatar(data) {
+  try {
+    const userName = data.user_name;
+    const imageData = data.image_data; // base64 編碼的圖片
+    const fileName = data.file_name || 'avatar_' + userName + '.png';
+    
+    if (!userName || !imageData) {
+      return errorResponse('缺少必要參數');
+    }
+    
+    // 解碼 base64
+    const decoded = Utilities.base64Decode(imageData);
+    const blob = Utilities.newBlob(decoded, 'image/png', fileName);
+    
+    // 取得資料夾
+    let folder;
+    try {
+      folder = DriveApp.getFolderById(AVATAR_FOLDER_ID);
+    } catch (e) {
+      return errorResponse('找不到頭像資料夾，請確認 AVATAR_FOLDER_ID 設定正確');
+    }
+    
+    // 刪除舊的頭像（如果存在）
+    const existingFiles = folder.getFilesByName(fileName);
+    while (existingFiles.hasNext()) {
+      existingFiles.next().setTrashed(true);
+    }
+    
+    // 上傳新頭像
+    const file = folder.createFile(blob);
+    const fileUrl = file.getDownloadUrl().replace(/=.*$/, ''); // 取得直接下載連結
+    
+    // 儲存到工作表
+    let avatarSheet = ss.getSheetByName(AVATAR_SHEET_NAME);
+    if (!avatarSheet) {
+      // 建立頭像工作表
+      avatarSheet = ss.insertSheet(AVATAR_SHEET_NAME);
+      avatarSheet.appendRow(['姓名', '頭像URL', '更新時間']);
+    }
+    
+    // 檢查是否已有記錄
+    const dataRange = avatarSheet.getDataRange().getValues();
+    let found = false;
+    for (let i = 1; i < dataRange.length; i++) {
+      if ((dataRange[i][0] || '').toString().trim() === userName.trim()) {
+        // 更新現有記錄
+        avatarSheet.getRange(i + 1, 2).setValue(fileUrl);
+        avatarSheet.getRange(i + 1, 3).setValue(new Date());
+        found = true;
+        break;
+      }
+    }
+    
+    if (!found) {
+      // 新增記錄
+      avatarSheet.appendRow([userName, fileUrl, new Date()]);
+    }
+    
+    Logger.log('頭像上傳成功: ' + userName + ' -> ' + fileUrl);
+    
+    return successResponse({
+      success: true,
+      message: '頭像上傳成功',
+      url: fileUrl
+    });
+  } catch (err) {
+    Logger.log('頭像上傳失敗: ' + err.message);
+    return errorResponse('頭像上傳失敗: ' + err.message);
   }
 }
 
