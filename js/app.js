@@ -899,11 +899,11 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
 }
 
 /**
- * 上傳頭像到 Google Drive（使用 GET，壓縮到 80x80）
+ * 上傳頭像到 Google Drive（使用 GET，壓縮到 150x150）
  */
 async function uploadAvatar(name, file) {
-  // 壓縮圖片到 80x80，品質 0.7（平衡清晰度和 URL 長度）
-  const compressedData = await compressImage(file, 80, 0.7);
+  // 壓縮圖片到 150x150，品質 0.8（更清楚）
+  const compressedData = await compressImage(file, 150, 0.8);
   
   console.log('頭像上傳開始，data URL 長度:', compressedData.length);
   
