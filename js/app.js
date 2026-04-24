@@ -897,7 +897,7 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
 }
 
 /**
- * 上傳頭像到 Google Drive（使用 POST + JSON）
+ * 上傳頭像到 Google Drive（使用 GET + URL 參數）
  */
 async function uploadAvatar(name, file) {
   // 先壓縮圖片
@@ -906,18 +906,16 @@ async function uploadAvatar(name, file) {
   
   console.log('頭像上傳開始，圖片大小:', base64.length, '字元');
   
-  // 使用 POST + JSON body
-  const res = await fetch(GAS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      action: 'uploadAvatar',
-      user_name: name,
-      image_data: base64,
-      file_name: 'avatar_' + name + '.jpg'
-    })
+  // 使用 GET 請求，base64 當作查詢參數
+  const url = new URL(GAS_URL);
+  url.searchParams.append('action', 'uploadAvatar');
+  url.searchParams.append('user_name', name);
+  url.searchParams.append('image_data', base64);
+  url.searchParams.append('file_name', 'avatar_' + name + '.jpg');
+  
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    redirect: 'follow'
   });
   
   if (!res.ok) {
@@ -952,8 +950,8 @@ if (avatarForm) {
       const file = e.target.files[0];
       if (file) {
         // 限制圖片大小，最大 500KB
-        if (file.size > 500 * 1024) {
-          alert('圖片太大，請選擇小於 500KB 的圖片或使用截圖工具壓縮');
+        if (file.size > 2 * 1024 * 1024) {
+          alert('圖片太大，請選擇小於 2MB 的圖片');
           e.target.value = '';
           return;
         }
