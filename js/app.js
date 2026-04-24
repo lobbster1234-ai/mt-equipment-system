@@ -820,7 +820,7 @@ function saveAvatarCache() {
 /**
  * 取得頭像 HTML（圖片或預設 emoji）
  */
-function getAvatarHtml(name, size = 40) {  // 預設改成 40px
+function getAvatarHtml(name, size = 55) {  // 改成 55px
   if (!name) return `<span style="font-size:${size}px;">👤</span>`;
   
   const url = avatarCache[name];
