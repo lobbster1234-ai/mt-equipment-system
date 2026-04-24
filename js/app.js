@@ -791,7 +791,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 let avatarCache = {};
 
 /**
- * 載入頭像快取
+ * 載入頭像快取（從 localStorage）
  */
 async function loadAvatarCache() {
   try {
@@ -799,6 +799,7 @@ async function loadAvatarCache() {
     const cached = localStorage.getItem('avatarCache');
     if (cached) {
       avatarCache = JSON.parse(cached);
+      console.log('從 localStorage 載入頭像快取:', Object.keys(avatarCache).length, '個');
     }
   } catch (err) {
     console.log('載入頭像快取失敗:', err);
@@ -819,7 +820,7 @@ function saveAvatarCache() {
 /**
  * 取得頭像 HTML（圖片或預設 emoji）
  */
-function getAvatarHtml(name, size = 24) {
+function getAvatarHtml(name, size = 40) {  // 預設改成 40px
   if (!name) return `<span style="font-size:${size}px;">👤</span>`;
   
   const url = avatarCache[name];
