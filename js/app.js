@@ -820,14 +820,14 @@ function saveAvatarCache() {
 /**
  * 取得頭像 HTML（圖片或預設 emoji）
  */
-function getAvatarHtml(name, size = 55) {  // 改成 55px
-  if (!name) return `<span style="font-size:${size}px;">👤</span>`;
+function getAvatarHtml(name, size = 55) {  // 圖片預設 55px
+  if (!name) return `<span style="font-size:30px;">👤</span>`;  // Emoji 固定 30px
   
   const url = avatarCache[name];
   if (url) {
-    return `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span style="font-size:${size}px;display:none;">👤</span>`;
+    return `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span style="font-size:30px;display:none;">👤</span>`;
   }
-  return `<span style="font-size:${size}px;">👤</span>`;
+  return `<span style="font-size:30px;">👤</span>`;
 }
 
 /**
