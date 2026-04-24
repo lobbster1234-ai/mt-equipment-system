@@ -899,15 +899,15 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
 }
 
 /**
- * 上傳頭像到 Google Sheet（使用 GET，圖片壓縮到 20x20）
+ * 上傳頭像到 Google Drive（使用 GET，壓縮到 80x80）
  */
 async function uploadAvatar(name, file) {
-  // 壓縮圖片到 20x20，品質 0.2（確保 URL 不會太長）
-  const compressedData = await compressImage(file, 20, 0.2);
+  // 壓縮圖片到 80x80，品質 0.7（平衡清晰度和 URL 長度）
+  const compressedData = await compressImage(file, 80, 0.7);
   
   console.log('頭像上傳開始，data URL 長度:', compressedData.length);
   
-  // 使用 GET 請求傳送（分段 base64 可能太長，先用完整試試）
+  // 使用 GET 請求傳送
   const url = new URL(GAS_URL);
   url.searchParams.append('action', 'uploadAvatar');
   url.searchParams.append('user_name', name);
