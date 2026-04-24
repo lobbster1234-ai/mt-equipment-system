@@ -930,38 +930,51 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
  * 上傳頭像到 Google Drive（使用 GET，壓縮到 150x150）
  */
 async function uploadAvatar(name, file) {
-  // 壓縮圖片到 150x150，品質 0.8（更清楚）
-  const compressedData = await compressImage(file, 150, 0.8);
-  
-  console.log('頭像上傳開始，data URL 長度:', compressedData.length);
-  
-  // 使用 GET 請求傳送
-  const url = new URL(GAS_URL);
-  url.searchParams.append('action', 'uploadAvatar');
-  url.searchParams.append('user_name', name);
-  url.searchParams.append('image_data', compressedData);
-  
-  console.log('GET URL 長度:', url.toString().length);
-  
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    redirect: 'follow'
-  });
-  
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error('HTTP ' + res.status + ': ' + errorText);
-  }
-  
-  const result = await res.json();
-  
-  if (result.success || result.url) {
-    // 更新本地快取
-    avatarCache[name] = result.url;
-    saveAvatarCache();
-    return result;
-  } else {
-    throw new Error(result.error || '上傳失敗');
+  try {
+    // 壓縮圖片到 150x150，品質 0.8（更清楚）
+    const compressedData = await compressImage(file, 150, 0.8);
+    
+    console.log('頭像上傳開始，data URL 長度:', compressedData.length);
+    
+    // 使用 GET 請求傳送
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'uploadAvatar');
+    url.searchParams.append('user_name', name);
+    url.searchParams.append('image_data', compressedData);
+    
+    console.log('GET URL 長度:', url.toString().length);
+    
+    // 檢查 URL 是否太長（超過 8000 字元可能會失敗）
+    if (url.toString().length > 8000) {
+      console.warn('URL 太長，可能失敗，嘗試再次壓縮...');
+      const recompressed = await compressImage(file, 80, 0.5);
+      url.searchParams.set('image_data', recompressed);
+      console.log('再次壓縮後 URL 長度:', url.toString().length);
+    }
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + errorText);
+    }
+    
+    const result = await res.json();
+    
+    if (result.success || result.url) {
+      // 更新本地快取
+      avatarCache[name] = result.url;
+      saveAvatarCache();
+      return result;
+    } else {
+      throw new Error(result.error || '上傳失敗');
+    }
+  } catch (err) {
+    console.error('上傳頭像失敗:', err);
+    throw err;  // 重新拋出讓調用者知道錯誤
   }
 }
 
