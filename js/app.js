@@ -113,7 +113,7 @@ function renderEquipment(equipment) {
       <div class="keeper-group">
         <div class="keeper-header" onclick="toggleKeeperGroup(this)" style="cursor:pointer;user-select:none;">
           <span class="keeper-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-          <span>${getAvatarHtml(keeper, 24)} ${keeper} (${items.length}項)</span>
+          <span>${getAvatarHtml(keeper, 55)} ${keeper} (${items.length}項)</span>
         </div>
         <div class="keeper-table-wrapper" style="${isExpanded ? 'display:block;' : 'display:none;'}">
           <table class="equipment-table">
