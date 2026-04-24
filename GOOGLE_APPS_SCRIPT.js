@@ -86,6 +86,8 @@ function doGet(e) {
         image_data: e.parameter.image_data,
         file_name: e.parameter.file_name
       });
+    } else if (action === 'getAvatarList') {
+      return getAvatarList();
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -730,6 +732,42 @@ function uploadAvatar(data) {
   }
 }
 
+
+/**
+ * 取得所有頭像列表
+ */
+function getAvatarList() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let avatarSheet = ss.getSheetByName(AVATAR_SHEET_NAME);
+    
+    if (!avatarSheet) {
+      return successResponse([]);
+    }
+    
+    const data = avatarSheet.getDataRange().getValues();
+    const result = [];
+    
+    // 跳過標題列
+    for (let i = 1; i < data.length; i++) {
+      const name = (data[i][0] || '').toString().trim();
+      const avatarUrl = (data[i][1] || '').toString().trim();
+      
+      if (name && avatarUrl) {
+        result.push({
+          name: name,
+          avatar_url: avatarUrl
+        });
+      }
+    }
+    
+    Logger.log('取得頭像列表：' + result.length + ' 個');
+    return successResponse(result);
+  } catch (err) {
+    Logger.log('取得頭像列表失敗：' + err.message);
+    return errorResponse('取得頭像列表失敗：' + err.message);
+  }
+}
 /**
  * 輔助函式：成功回應
  */

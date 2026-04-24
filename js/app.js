@@ -830,29 +830,56 @@ function getAvatarHtml(name, size = 24) {
 }
 
 /**
- * 載入所有頭像列表
+ * 載入所有頭像列表（從 Google Sheet）
  */
 async function loadAvatarList() {
-  // 從 localStorage 顯示已知的頭像
   const listEl = document.getElementById('avatar-list');
   if (!listEl) return;
   
-  if (Object.keys(avatarCache).length === 0) {
-    listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
-    return;
-  }
+  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">🔄 載入中...</p>';
   
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
-  for (const [name, url] of Object.entries(avatarCache)) {
-    html += `
-      <div style="text-align:center;">
-        <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
-        <div style="font-size:0.85em;margin-top:5px;">${name}</div>
-      </div>
-    `;
+  try {
+    // 從 GAS 取得頭像列表
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'getAvatarList');
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const data = await res.json();
+    const avatars = Array.isArray(data) ? data : (data.data || data.result || []);
+    
+    if (!avatars || avatars.length === 0) {
+      listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
+      return;
+    }
+    
+    // 更新本地快取
+    avatars.forEach(item => {
+      if (item.name && item.avatar_url) {
+        avatarCache[item.name] = item.avatar_url;
+      }
+    });
+    saveAvatarCache();
+    
+    // 顯示頭像列表
+    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
+    for (const [name, url] of Object.entries(avatarCache)) {
+      html += `
+        <div style="text-align:center;">
+          <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
+          <div style="font-size:0.85em;margin-top:5px;">${name}</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.error('載入頭像列表失敗:', err);
+    listEl.innerHTML = `<p style="color:red;">❌ 載入失敗：${err.message}</p>`;
   }
-  html += '</div>';
-  listEl.innerHTML = html;
 }
 
 /**
