@@ -899,25 +899,25 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
 }
 
 /**
- * 上傳頭像到 Google Drive（使用 GET + URL 參數）
+ * 上傳頭像到 Google Sheet（直接存 base64）
  */
 async function uploadAvatar(name, file) {
-  // 先壓縮圖片
-  const compressedData = await compressImage(file, 100, 0.7);
-  const base64 = compressedData.split(',')[1];
+  // 壓縮圖片到 30x30，品質 0.3（確保 base64 夠短）
+  const compressedData = await compressImage(file, 30, 0.3);
   
-  console.log('頭像上傳開始，圖片大小:', base64.length, '字元');
+  console.log('頭像上傳開始');
   
-  // 使用 GET 請求，base64 當作查詢參數
-  const url = new URL(GAS_URL);
-  url.searchParams.append('action', 'uploadAvatar');
-  url.searchParams.append('user_name', name);
-  url.searchParams.append('image_data', base64);
-  url.searchParams.append('file_name', 'avatar_' + name + '.jpg');
-  
-  const res = await fetch(url.toString(), {
-    method: 'GET',
-    redirect: 'follow'
+  // 使用 POST 請求傳送 base64（改用 POST 避免 URL 太長）
+  const res = await fetch(GAS_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      action: 'uploadAvatar',
+      user_name: name,
+      image_data: compressedData  // 完整的 data:image/jpeg;base64,xxx
+    })
   });
   
   if (!res.ok) {

@@ -15,7 +15,7 @@ const AVATAR_SHEET_NAME = '頭像資料';
 
 // 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
 // 建立方式：在 Google Drive 建立一個資料夾，分享為「知道連結的使用者」可檢視，然後複製資料夾網址的最後一段
-const AVATAR_FOLDER_ID = 'YOUR_AVATAR_FOLDER_ID';
+const AVATAR_FOLDER_ID = '15vkYY7wO1HyNKa0aruqDiLSDyKWuS1af';
 
 // 欄位索引對照（0-indexed）
 const COLS = {
@@ -80,6 +80,12 @@ function doGet(e) {
       return getEquipmentInfo(e.parameter.fix_no);
     } else if (action === 'history') {
       return queryHistory(e.parameter);
+    } else if (action === 'uploadAvatar') {
+      return uploadAvatar({
+        user_name: e.parameter.user_name,
+        image_data: e.parameter.image_data,
+        file_name: e.parameter.file_name
+      });
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -92,6 +98,14 @@ function doGet(e) {
   } catch (err) {
     return errorResponse(err.message);
   }
+}
+
+/**
+ * 處理 CORS preflight 請求
+ */
+function doOptions(e) {
+  return ContentService.createTextOutput('')
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -664,46 +678,25 @@ function getAvatarUrl(userName) {
 }
 
 /**
- * 上傳頭像圖片
+ * 上傳頭像圖片（存到 Sheet，不是 Drive）
  */
 function uploadAvatar(data) {
   try {
+    Logger.log('uploadAvatar 收到參數，user_name: ' + data.user_name);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const userName = data.user_name;
-    const imageData = data.image_data; // base64 編碼的圖片
-    const fileName = data.file_name || 'avatar_' + userName + '.png';
+    const imageData = data.image_data; // base64 編碼的圖片（含 data:image/jpeg;base64, 前綴）
     
     if (!userName || !imageData) {
       return errorResponse('缺少必要參數');
     }
-    
-    // 解碼 base64
-    const decoded = Utilities.base64Decode(imageData);
-    const blob = Utilities.newBlob(decoded, 'image/png', fileName);
-    
-    // 取得資料夾
-    let folder;
-    try {
-      folder = DriveApp.getFolderById(AVATAR_FOLDER_ID);
-    } catch (e) {
-      return errorResponse('找不到頭像資料夾，請確認 AVATAR_FOLDER_ID 設定正確');
-    }
-    
-    // 刪除舊的頭像（如果存在）
-    const existingFiles = folder.getFilesByName(fileName);
-    while (existingFiles.hasNext()) {
-      existingFiles.next().setTrashed(true);
-    }
-    
-    // 上傳新頭像
-    const file = folder.createFile(blob);
-    const fileUrl = file.getDownloadUrl().replace(/=.*$/, ''); // 取得直接下載連結
     
     // 儲存到工作表
     let avatarSheet = ss.getSheetByName(AVATAR_SHEET_NAME);
     if (!avatarSheet) {
       // 建立頭像工作表
       avatarSheet = ss.insertSheet(AVATAR_SHEET_NAME);
-      avatarSheet.appendRow(['姓名', '頭像URL', '更新時間']);
+      avatarSheet.appendRow(['姓名', '頭像Base64', '更新時間']);
     }
     
     // 檢查是否已有記錄
@@ -712,7 +705,7 @@ function uploadAvatar(data) {
     for (let i = 1; i < dataRange.length; i++) {
       if ((dataRange[i][0] || '').toString().trim() === userName.trim()) {
         // 更新現有記錄
-        avatarSheet.getRange(i + 1, 2).setValue(fileUrl);
+        avatarSheet.getRange(i + 1, 2).setValue(imageData);
         avatarSheet.getRange(i + 1, 3).setValue(new Date());
         found = true;
         break;
@@ -721,15 +714,15 @@ function uploadAvatar(data) {
     
     if (!found) {
       // 新增記錄
-      avatarSheet.appendRow([userName, fileUrl, new Date()]);
+      avatarSheet.appendRow([userName, imageData, new Date()]);
     }
     
-    Logger.log('頭像上傳成功: ' + userName + ' -> ' + fileUrl);
+    Logger.log('頭像儲存成功: ' + userName);
     
     return successResponse({
       success: true,
       message: '頭像上傳成功',
-      url: fileUrl
+      url: imageData  // 直接回傳 base64 data URL
     });
   } catch (err) {
     Logger.log('頭像上傳失敗: ' + err.message);
