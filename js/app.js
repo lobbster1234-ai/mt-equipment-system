@@ -884,9 +884,11 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
         const compressed = canvas.toDataURL('image/jpeg', quality);
         resolve(compressed);
       };
-      img.onerror = function() {
-        reject(new Error('圖片載入失敗'));
+      img.onerror = function(e) {
+        console.error('圖片載入失敗:', e);
+        reject(new Error('無法解碼圖片，請嘗試其他圖片格式（JPG/PNG）'));
       };
+      img.crossOrigin = 'anonymous';
       img.src = e.target.result;
     };
     reader.onerror = function() {
