@@ -484,8 +484,8 @@ function confirmReturn(data) {
   sheet.getRange(foundRow, dtBorrowCol + 1).setValue('');
   sheet.getRange(foundRow, dtDueCol + 1).setValue('');
   
-  // 記錄歷史紀錄（確認歸還）
-  logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtReturnVal || '', '', Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss'));
+  // 記錄歷史紀錄（確認歸還：借用日期、預計歸還、歸還日期）
+  logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtBorrowVal || '', dtDueVal || '', dtReturnVal || '');
   
   if (EMAIL_CONFIG.enabled && keeperName) {
     sendReturnConfirmEmail(keeperName, fixNo, deviceName);
