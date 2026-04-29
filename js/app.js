@@ -620,7 +620,7 @@ function renderHistory(history) {
           // 後端已修復：return/confirm 記錄的 dt_borrow=借用日期, dt_due=預計歸還, dt_confirmed=歸還日期
           if (record.dt_borrow) lastUser.dt_borrow = record.dt_borrow;
           if (record.dt_due) lastUser.dt_due = record.dt_due;
-          if (record.dt_return) lastUser.dt_return = record.dt_return;
+          // 後端回傳的是 dt_confirmed，不是 dt_return
           if (record.dt_confirmed) lastUser.dt_confirmed = record.dt_confirmed;
         }
       }
@@ -670,7 +670,7 @@ function renderHistory(history) {
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
               <div>借用日期：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'}</div>
               <div>預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}</div>
-              <div>歸還完成：${user.dt_confirmed ? user.dt_confirmed.split('T')[0] : (user.dt_return ? user.dt_return.split('T')[0] : '－')}</div>
+              <div>歸還完成：${user.dt_confirmed ? user.dt_confirmed.split('T')[0] : '－'}</div>
             </div>
           </div>
         </div>
