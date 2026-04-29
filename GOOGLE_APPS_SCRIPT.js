@@ -336,6 +336,8 @@ function returnEquipment(data) {
   const keeperCol = COLS.keeper;
   const deviceNameCol = COLS.device_name;
   const borrowerCol = COLS.borrower;
+  const dtBorrowCol = COLS.dt_borrow;
+  const dtDueCol = COLS.dt_due;
   
   let foundRow = -1;
   const lastRow = sheet.getLastRow();
