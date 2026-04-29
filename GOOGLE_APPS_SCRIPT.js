@@ -202,9 +202,9 @@ function queryEquipment(params) {
     keeper: row[COLS.keeper] || '',
     status: row[COLS.status] || 'available',
     borrower: row[COLS.borrower] || '',
-    dt_borrow: row[COLS.dt_borrow] || '',
-    dt_due: row[COLS.dt_due] || '',
-    dt_return: row[COLS.dt_return] || '',
+    dt_borrow: formatDate(row[COLS.dt_borrow]),
+    dt_due: formatDate(row[COLS.dt_due]),
+    dt_return: formatDate(row[COLS.dt_return]),
     return_confirmed: row[COLS.return_confirmed] || false
   }));
   
@@ -789,6 +789,25 @@ function errorResponse(message) {
 }
 
 /**
+ * 輔助函式：格式化日期為 yyyy-MM-dd 字串（台北時區）
+ */
+function formatDate(dateValue) {
+  if (!dateValue) return '';
+  
+  // 如果是 Date 物件，使用 Utilities.formatDate 格式化为台北时区
+  if (dateValue instanceof Date) {
+    return Utilities.formatDate(dateValue, 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+  
+  // 如果是字串，直接返回
+  if (typeof dateValue === 'string') {
+    return dateValue;
+  }
+  
+  return '';
+}
+
+/**
  * 記錄歷史紀錄
  */
 function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue, dtConfirmed) {
@@ -878,19 +897,19 @@ function queryHistory(params) {
     
     if (action === 'borrow') {
       // 借用：row[6]=借用日期，row[7]=預計歸還，row[8]=空
-      dt_borrow = row[6] || '';
-      dt_due = row[7] || '';
+      dt_borrow = formatDate(row[6]);
+      dt_due = formatDate(row[7]);
       dt_confirmed = '';
     } else if (action === 'return') {
-      // 歸還：row[6]=歸還日期，row[7]=空，row[8]=空
-      dt_borrow = row[6] || '';  // 歸還日期顯示在借用日期欄位
-      dt_due = '';
-      dt_confirmed = '';
+      // 歸還：row[6]=借用日期，row[7]=預計歸還，row[8]=歸還日期
+      dt_borrow = formatDate(row[6]);
+      dt_due = formatDate(row[7]);
+      dt_confirmed = formatDate(row[8]);
     } else if (action === 'confirm') {
-      // 確認：row[6]=歸還日期，row[7]=空，row[8]=確認日期
-      dt_borrow = row[6] || '';  // 歸還日期顯示在借用日期欄位
-      dt_due = '';
-      dt_confirmed = row[8] || '';
+      // 確認：row[6]=借用日期，row[7]=預計歸還，row[8]=確認日期
+      dt_borrow = formatDate(row[6]);
+      dt_due = formatDate(row[7]);
+      dt_confirmed = formatDate(row[8]);
     }
     
     return {
