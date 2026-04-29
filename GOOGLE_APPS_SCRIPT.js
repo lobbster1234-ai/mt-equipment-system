@@ -485,7 +485,7 @@ function confirmReturn(data) {
   sheet.getRange(foundRow, dtDueCol + 1).setValue('');
   
   // 記錄歷史紀錄（確認歸還）
-  logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtReturnVal || '', '', Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss'));
+  logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtBorrowVal || '', dtDueVal || '', dtReturnVal || '');
   
   if (EMAIL_CONFIG.enabled && keeperName) {
     sendReturnConfirmEmail(keeperName, fixNo, deviceName);
