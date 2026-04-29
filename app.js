@@ -607,6 +607,8 @@ function renderHistory(history) {
         keeper: record.keeper,
         dt_borrow: record.dt_borrow,
         dt_due: record.dt_due,
+        dt_return: '',
+        return_confirmed: false,
         records: [record]
       });
     } else {
