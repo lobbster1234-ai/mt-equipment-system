@@ -422,9 +422,9 @@ function getEquipmentInfo(fixNo) {
     keeper: row[COLS.keeper] || '',
     status: row[COLS.status] || 'available',
     borrower: row[COLS.borrower] || '',
-    dt_borrow: row[COLS.dt_borrow] || '',
-    dt_due: row[COLS.dt_due] || '',
-    dt_return: row[COLS.dt_return] || '',
+    dt_borrow: formatDate(row[COLS.dt_borrow]),
+    dt_due: formatDate(row[COLS.dt_due]),
+    dt_return: formatDate(row[COLS.dt_return]),
     return_confirmed: row[COLS.return_confirmed] || false
   });
 }
@@ -892,26 +892,30 @@ function queryHistory(params) {
     const action = row[1] || '';
     
     // 根據動作類型，正確對應日期欄位
-    // 欄位索引：0=時間戳，1=動作，2=設備編號，3=設備名稱，4=借用人，5=保管人，6=dtAction，7=dtDue，8=dtConfirmed
+    // 欄位索引：0=時間戳，1=動作，2=設備編號，3=設備名稱，4=借用人，5=保管人，6=借用日期，7=預計歸還，8=歸還日期
     let dt_borrow = '';
     let dt_due = '';
-    let dt_confirmed = '';
+    let dt_return = '';
+    let return_confirmed = false;
     
     if (action === 'borrow') {
       // 借用：row[6]=借用日期，row[7]=預計歸還，row[8]=空
       dt_borrow = formatDate(row[6]);
       dt_due = formatDate(row[7]);
-      dt_confirmed = '';
+      dt_return = '';
+      return_confirmed = false;
     } else if (action === 'return') {
       // 歸還：row[6]=借用日期，row[7]=預計歸還，row[8]=歸還日期
       dt_borrow = formatDate(row[6]);
       dt_due = formatDate(row[7]);
-      dt_confirmed = formatDate(row[8]);
+      dt_return = formatDate(row[8]);
+      return_confirmed = false;
     } else if (action === 'confirm') {
       // 確認：row[6]=借用日期，row[7]=預計歸還，row[8]=確認日期
       dt_borrow = formatDate(row[6]);
       dt_due = formatDate(row[7]);
-      dt_confirmed = formatDate(row[8]);
+      dt_return = formatDate(row[8]);
+      return_confirmed = true;
     }
     
     return {
@@ -923,7 +927,8 @@ function queryHistory(params) {
       keeper: row[5] || '',
       dt_borrow: dt_borrow,
       dt_due: dt_due,
-      dt_confirmed: dt_confirmed
+      dt_return: dt_return,
+      return_confirmed: return_confirmed
     };
   });
   
