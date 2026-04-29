@@ -362,11 +362,13 @@ function returnEquipment(data) {
   const keeper = sheet.getRange(foundRow, keeperCol + 1).getValue();
   const deviceName = sheet.getRange(foundRow, deviceNameCol + 1).getValue();
   const borrower = sheet.getRange(foundRow, borrowerCol + 1).getValue();
+  const dtBorrowVal = sheet.getRange(foundRow, dtBorrowCol + 1).getValue();
+  const dtDueVal = sheet.getRange(foundRow, dtDueCol + 1).getValue();
   
   sheet.getRange(foundRow, dtReturnCol + 1).setValue(dtReturn);
   
-  // 記錄歷史紀錄（歸還動作，dtConfirmed 設為空，等確認時再更新）
-  logHistory('return', fixNo, deviceName, borrower, keeper, dtReturn, '', '');
+  // 記錄歷史紀錄（歸還動作：借用日期、預計歸還、實際歸還日期）
+  logHistory('return', fixNo, deviceName, borrower, keeper, dtBorrowVal, dtDueVal, dtReturn);
   
   if (EMAIL_CONFIG.enabled && keeper) {
     sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn);
