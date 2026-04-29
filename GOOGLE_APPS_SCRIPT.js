@@ -42,6 +42,18 @@ function queryHistory(params) {
  return bTime - aTime;
  });
  
+ // 輔助函式：格式化日期為 yyyy-MM-dd 字串（台北時區）
+ function formatDate(dateValue) {
+ if (!dateValue) return '';
+ if (dateValue instanceof Date) {
+ return Utilities.formatDate(dateValue, 'Asia/Taipei', 'yyyy-MM-dd');
+ }
+ if (typeof dateValue === 'string') {
+ return dateValue;
+ }
+ return '';
+ }
+ 
  const result = filtered.map(row => {
  const action = row[1] || '';
  
