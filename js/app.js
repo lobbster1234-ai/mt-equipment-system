@@ -615,11 +615,13 @@ function renderHistory(history) {
       if (users.length > 0) {
         const lastUser = users[users.length - 1];
         lastUser.records.push(record);
-        if (record.action === 'return' && !lastUser.dt_return) {
-          lastUser.dt_return = record.dt_return;
-        }
-        if (record.action === 'confirm' && !lastUser.dt_confirmed) {
-          lastUser.dt_confirmed = record.dt_confirmed;
+        // 從 return/confirm 記錄中讀取正確的借用日期和預計歸還
+        if (record.action === 'return' || record.action === 'confirm') {
+          // 後端已修復：return/confirm 記錄的 dt_borrow=借用日期, dt_due=預計歸還, dt_confirmed=歸還日期
+          if (record.dt_borrow) lastUser.dt_borrow = record.dt_borrow;
+          if (record.dt_due) lastUser.dt_due = record.dt_due;
+          if (record.dt_return) lastUser.dt_return = record.dt_return;
+          if (record.dt_confirmed) lastUser.dt_confirmed = record.dt_confirmed;
         }
       }
     }
