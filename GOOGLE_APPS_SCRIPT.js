@@ -804,10 +804,19 @@ function formatDate(dateValue) {
     return Utilities.formatDate(dateValue, 'Asia/Taipei', 'yyyy-MM-dd');
   }
   
-  // 如果是字串，檢查是否為有效日期格式
+  // 如果是字串，檢查是否為 yyyy-MM-dd 格式
   if (typeof dateValue === 'string') {
     const trimmed = dateValue.trim();
+    // 如果已經是 yyyy-MM-dd 格式，直接返回
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    // 嘗試解析為 Date
     if (trimmed) {
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd');
+      }
       return trimmed;
     }
     return '';
@@ -818,7 +827,7 @@ function formatDate(dateValue) {
     return Utilities.formatDate(new Date(dateValue), 'Asia/Taipei', 'yyyy-MM-dd');
   }
   
-  return '';
+  return String(dateValue);
 }
 
 /**
