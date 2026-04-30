@@ -787,8 +787,7 @@ function getAvatarList() {
  */
 function successResponse(data) {
   return ContentService.createTextOutput(JSON.stringify({ success: true, ...data }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' });
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -800,8 +799,7 @@ function errorResponse(message) {
     error: message,
     timestamp: new Date().toISOString()
   }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeaders({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' });
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
