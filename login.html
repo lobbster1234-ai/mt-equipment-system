@@ -295,12 +295,18 @@
         return;
       }
       
+      console.log('訪客登入：', name);
+      
       // 儲存訪客資訊
-      localStorage.setItem('mt_user', JSON.stringify({
+      const userData = {
         role: 'guest',
         name: name,
         timestamp: Date.now()
-      }));
+      };
+      
+      console.log('準備儲存:', userData);
+      localStorage.setItem('mt_user', JSON.stringify(userData));
+      console.log('儲存後讀取:', JSON.parse(localStorage.getItem('mt_user')));
       
       // 跳轉到主頁面
       window.location.href = './index.html';
