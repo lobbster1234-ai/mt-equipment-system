@@ -859,38 +859,39 @@ function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue
 function formatDisplayDate(value) {
   if (!value) return '';
   
-  // 如果已經是 yyyy-MM-dd 格式，直接返回
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-      return trimmed;
-    }
-    // 嘗試解析日期字串
-    const date = new Date(trimmed);
-    if (!isNaN(date.getTime())) {
-      return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd');
-    }
-    return trimmed;
-  }
+  let dateObj;
   
   // 如果是 Date 物件
   if (value instanceof Date) {
-    if (!isNaN(value.getTime())) {
-      return Utilities.formatDate(value, 'Asia/Taipei', 'yyyy-MM-dd');
-    }
-    return '';
+    dateObj = value;
   }
-  
   // 如果是數字（時間戳）
-  if (typeof value === 'number') {
-    try {
-      return Utilities.formatDate(new Date(value), 'Asia/Taipei', 'yyyy-MM-dd');
-    } catch (e) {
-      return '';
+  else if (typeof value === 'number') {
+    dateObj = new Date(value);
+  }
+  // 如果是字串，嘗試解析
+  else if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    
+    // 如果已經是 yyyy-MM-dd 格式，直接返回
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
     }
+    
+    // 嘗試解析為 Date
+    dateObj = new Date(trimmed);
+  }
+  else {
+    return String(value).trim();
   }
   
-  return String(value).trim();
+  // 格式化為 yyyy-MM-dd（台北時間）
+  if (!isNaN(dateObj.getTime())) {
+    return Utilities.formatDate(dateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+  }
+  
+  return '';
 }
 
 /**
