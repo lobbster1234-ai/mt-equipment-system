@@ -4,6 +4,35 @@
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
 
+/**
+ * 格式化日期為 yyyy-MM-dd（處理各種輸入格式）
+ */
+function formatDateSimple(value) {
+  if (!value) return '';
+  
+  // 如果已經是 yyyy-MM-dd 格式，直接返回
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return value.trim();
+  }
+  
+  // 嘗試解析為 Date
+  const date = new Date(value);
+  if (isNaN(date.getTime())) {
+    return String(value).trim();
+  }
+  
+  // 格式化為 yyyy-MM-dd（台北時間 GMT+8）
+  const taipeiOffset = 8 * 60; // 8小時轉分鐘
+  const localOffset = date.getTimezoneOffset(); // 本地時區偏移（分鐘）
+  const offsetDiff = taipeiOffset + localOffset;
+  const taipeiDate = new Date(date.getTime() + offsetDiff * 60000);
+  
+  const year = taipeiDate.getFullYear();
+  const month = String(taipeiDate.getMonth() + 1).padStart(2, '0');
+  const day = String(taipeiDate.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // 重要：GAS 部署設定必須為：
 // 1. 執行身分：我 (stella_fan)
 // 2. 誰有權存取：任何人 (Anyone, even anonymous)
@@ -678,9 +707,9 @@ function renderHistory(history) {
           </div>
           <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
-              <div>借用日期：${user.dt_borrow || '－'}</div>
-              <div>預計歸還：${user.dt_due || '－'}</div>
-              <div>歸還完成：${user.dt_return || '－'}</div>
+              <div>借用日期：${formatDateSimple(user.dt_borrow) || '－'}</div>
+              <div>預計歸還：${formatDateSimple(user.dt_due) || '－'}</div>
+              <div>歸還完成：${formatDateSimple(user.dt_return) || '－'}</div>
             </div>
           </div>
         </div>
