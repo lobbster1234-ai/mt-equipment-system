@@ -210,7 +210,7 @@ function renderEquipment(equipment) {
                     <td>
                       ${statusHtml}
                       <div style="margin-top:5px;">${actionButton}</div>
-                      ${!isAvailable && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;">👤 ${eq.borrower} | 📅 ${eq.dt_borrow ? eq.dt_borrow.split('T')[0] : '未設定'} ${eq.dt_due ? '| ⏰ ' + eq.dt_due.split('T')[0] : ''}</div>` : ''}
+                      ${!isAvailable && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;">👤 ${eq.borrower} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'} ${eq.dt_due ? '| ⏰ ' + formatDateTime(eq.dt_due) : ''}</div>` : ''}
                     </td>
                   </tr>
                 `;
