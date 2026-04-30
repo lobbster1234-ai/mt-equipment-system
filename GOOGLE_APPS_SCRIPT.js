@@ -1088,6 +1088,7 @@ function loginAdmin(data) {
     }
     
     const sheetData = keeperSheet.getDataRange().getValues();
+    Logger.log('Keeper 工作表資料筆數：' + sheetData.length);
     
     // 從第 2 列開始（跳過標題）
     for (let i = 1; i < sheetData.length; i++) {
@@ -1097,8 +1098,35 @@ function loginAdmin(data) {
       const rowAccount = (row[2] || '').toString().trim();   // C 欄 - 帳號
       const rowPassword = (row[3] || '').toString().trim();  // D 欄 - 密碼
       
+      Logger.log('檢查第 ' + (i+1) + ' 列：email=' + rowEmail + ', account=' + rowAccount + ', name=' + rowName);
+      
       // 檢查電子郵件或帳號是否匹配
       if (rowEmail === email || rowAccount === email) {
+        Logger.log('找到匹配：' + email);
+        
+        // 找到匹配的電子郵件，檢查密碼
+        if (!rowPassword) {
+          Logger.log('密碼為空');
+          return errorResponse('此帳號尚未設定密碼，請聯繫管理員');
+        }
+        
+        if (rowPassword === password) {
+          Logger.log('登入成功：' + rowName);
+          // 登入成功
+          return successResponse({
+            name: rowName,
+            email: rowEmail,
+            role: 'admin'
+          });
+        } else {
+          Logger.log('密碼錯誤');
+          // 密碼錯誤
+          return errorResponse('密碼錯誤');
+        }
+      }
+    }
+    
+    Logger.log('找不到帳號：' + email);
         // 找到匹配的電子郵件，檢查密碼
         if (!rowPassword) {
           return errorResponse('此帳號尚未設定密碼，請聯繫管理員');
