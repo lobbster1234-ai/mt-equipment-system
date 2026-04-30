@@ -541,6 +541,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const formData = new FormData(e.target);
       const data = Object.fromEntries(formData);
+      
+      // 強制使用登入者的姓名作為 keeper（防止竄改）
+      const user = JSON.parse(localStorage.getItem('mt_user'));
+      if (user && user.name) {
+        data.keeper = user.name;
+      }
 
       const submitBtn = e.target.querySelector('button[type="submit"]');
       if (submitBtn) {
