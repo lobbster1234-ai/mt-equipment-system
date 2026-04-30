@@ -959,21 +959,21 @@ function queryHistory(params) {
     
     if (action === 'borrow') {
       // 借用：row[6]=借用日期，row[7]=預計歸還，row[8]=空
-      dt_borrow = parseHistoryDate(row[6]);
-      dt_due = parseHistoryDate(row[7]);
+      dt_borrow = String(row[6] || '').trim();
+      dt_due = String(row[7] || '').trim();
       dt_return = '';
       return_confirmed = false;
     } else if (action === 'return') {
       // 歸還：row[6]=借用日期，row[7]=預計歸還，row[8]=歸還日期
-      dt_borrow = parseHistoryDate(row[6]);
-      dt_due = parseHistoryDate(row[7]);
-      dt_return = parseHistoryDate(row[8]);
+      dt_borrow = String(row[6] || '').trim();
+      dt_due = String(row[7] || '').trim();
+      dt_return = String(row[8] || '').trim();
       return_confirmed = false;
     } else if (action === 'confirm') {
       // 確認：row[6]=借用日期，row[7]=預計歸還，row[8]=確認日期
-      dt_borrow = parseHistoryDate(row[6]);
-      dt_due = parseHistoryDate(row[7]);
-      dt_return = parseHistoryDate(row[8]);
+      dt_borrow = String(row[6] || '').trim();
+      dt_due = String(row[7] || '').trim();
+      dt_return = String(row[8] || '').trim();
       return_confirmed = true;
     }
     
