@@ -166,32 +166,37 @@ function renderEquipment(equipment) {
             <tbody>
               ${items.map(eq => {
                 const isAvailable = eq.status === 'available' || eq.status === '可借用' || !eq.status;
-                const statusHtml = isAvailable
-                  ? '<span style="color:#0a0;">✅ 可借用</span>'
-                  : '<span style="color:#c00;">📤 借用中</span>';
+                const isReturnPending = eq.status === 'return_pending' || eq.status === '歸還認證中';
+                const isConfirmed = eq.return_confirmed === true || eq.return_confirmed === 'true' || eq.return_confirmed === 1;
+                
+                let statusHtml;
+                if (isAvailable) {
+                  statusHtml = '<span style="color:#0a0;">✅ 可借用</span>';
+                } else if (isReturnPending) {
+                  statusHtml = '<span style="color:#17a2b8;">⏳ 歸還認證中</span>';
+                } else if (isConfirmed) {
+                  statusHtml = '<span style="color:#999;">✅ 已確認</span>';
+                } else {
+                  statusHtml = '<span style="color:#c00;">📤 借用中</span>';
+                }
                 
                 // 借用/歸還按鈕
                 let actionButton = '';
                 if (isAvailable) {
                   actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', '${eq.device_name}', '${eq.keeper}')">借用</button>`;
-                } else {
-                  // 已借出，顯示歸還按鈕（借用者使用）或等待確認狀態
-                  const isConfirmed = eq.return_confirmed === true || eq.return_confirmed === 'true' || eq.return_confirmed === 1;
+                } else if (isReturnPending) {
+                  // 歸還認證中，不顯示按鈕
+                  actionButton = '<span style="color:#17a2b8;font-size:0.85em;">等待 Keeper 確認</span>';
+                } else if (!isConfirmed) {
+                  // 借用中，未歸還
                   const hasReturnDate = eq.dt_return && eq.dt_return.toString().trim() !== '';
-                  const isReturnPending = eq.status === 'return_pending' || eq.status === '歸還認證中';
-                  
-                  if (isConfirmed) {
-                    actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
-                  } else if (isReturnPending) {
-                    // 歸還認證中，不顯示按鈕
-                    actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 歸還認證中</span>';
-                  } else if (hasReturnDate) {
-                    // 已歸還，等待 Keeper 確認
+                  if (hasReturnDate) {
                     actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';
                   } else {
-                    // 借用中，未歸還
                     actionButton = `<button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', '${eq.device_name}', '${eq.borrower}')">📧 歸還</button>`;
                   }
+                } else {
+                  actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
                 }
                 
                 return `
