@@ -26,10 +26,10 @@ const COLS = {
   keeper: 4,
   status: 5,
   borrower: 6,
-  dt_borrow: 7,
-  dt_due: 8,
-  dt_return: 9,
-  return_confirmed: 10
+  dt_borrow: 6,  // G 欄
+  dt_due: 7,     // H 欄
+  dt_return: 8,  // I 欄
+  return_confirmed: 9  // J 欄
 };
 
 // 電子郵件設定
