@@ -367,8 +367,6 @@ function borrowEquipment(data) {
     dt_due: dtDue
   });
 }
-  });
-}
 
 /**
  * 歸還設備
