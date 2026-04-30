@@ -256,6 +256,8 @@
         const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
         const data = await res.json();
         
+        console.log('登入回應:', data);  // 除錯用
+        
         if (data.success) {
           // 儲存登入資訊
           localStorage.setItem('mt_user', JSON.stringify({
