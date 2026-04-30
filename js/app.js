@@ -182,10 +182,10 @@ function renderEquipment(equipment) {
                 
                 // 借用/歸還按鈕
                 let actionButton = '';
-                // 跳脫設備名稱中的特殊字元，避免破壞 HTML/JavaScript 語法
-                const escapedDeviceName = (eq.device_name || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+                // URL 編碼設備名稱，避免特殊字元破壞 HTML/JavaScript 語法
+                const encodedDeviceName = encodeURIComponent(eq.device_name || '');
                 if (isAvailable) {
-                  actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', '${escapedDeviceName}', '${eq.keeper}')">借用</button>`;
+                  actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.keeper}')">借用</button>`;
                 } else if (isReturnPending) {
                   // 歸還認證中，不顯示按鈕
                   actionButton = '<span style="color:#17a2b8;font-size:0.85em;">等待 Keeper 確認</span>';
@@ -195,7 +195,7 @@ function renderEquipment(equipment) {
                   if (hasReturnDate) {
                     actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';
                   } else {
-                    actionButton = `<button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', '${escapedDeviceName}', '${eq.borrower}')">📧 歸還</button>`;
+                    actionButton = `<button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.borrower}')">📧 歸還</button>`;
                   }
                 } else {
                   actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
