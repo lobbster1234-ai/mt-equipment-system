@@ -256,7 +256,12 @@
         url.searchParams.append('email', encodeURIComponent(email));
         url.searchParams.append('password', encodeURIComponent(password));
         
+        console.log('發送登入請求 URL:', url.toString());  // 除錯用
+        
         const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+        
+        console.log('回應狀態:', res.status);  // 除錯用
+        
         const data = await res.json();
         
         console.log('登入回應:', data);  // 除錯用
