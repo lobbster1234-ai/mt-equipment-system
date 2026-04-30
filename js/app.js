@@ -658,8 +658,16 @@ function renderHistory(history, sortOrder = 'newest') {
       deviceGroups[fixNo] = {
         fix_no: fixNo,
         device_name: record.device_name,
-        users: []
+        users: [],
+        lastTimestamp: record.timestamp || ''  // 記錄該設備的最新時間戳
       };
+    }
+    
+    // 更新最新時間戳（如果這筆紀錄更新）
+    const recordTime = new Date(record.timestamp || 0).getTime();
+    const currentLastTime = new Date(deviceGroups[fixNo].lastTimestamp || 0).getTime();
+    if (recordTime > currentLastTime) {
+      deviceGroups[fixNo].lastTimestamp = record.timestamp;
     }
     
     // 檢查是否為新的借用週期（borrow 動作）
@@ -694,7 +702,17 @@ function renderHistory(history, sortOrder = 'newest') {
   });
 
   let html = '';
-  Object.keys(deviceGroups).forEach((fixNo, deviceIndex) => {
+  
+  // 將設備組按最新時間戳排序
+  const sortedDeviceKeys = Object.keys(deviceGroups).sort((a, b) => {
+    const timeA = new Date(deviceGroups[a].lastTimestamp || 0).getTime();
+    const timeB = new Date(deviceGroups[b].lastTimestamp || 0).getTime();
+    return sortOrder === 'newest' ? (timeB - timeA) : (timeA - timeB);
+  });
+  
+  console.log('設備排序（' + sortOrder + '）:', sortedDeviceKeys.map(k => k + ':' + deviceGroups[k].lastTimestamp));
+  
+  sortedDeviceKeys.forEach((fixNo, deviceIndex) => {
     const group = deviceGroups[fixNo];
     const deviceExpanded = deviceIndex === 0; // 第一個設備預設展開
     
