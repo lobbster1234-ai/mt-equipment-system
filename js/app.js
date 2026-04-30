@@ -5,13 +5,13 @@
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
 
 /**
- * 格式化日期為 yyyy-MM-dd（處理各種輸入格式）
+ * 格式化日期時間為 yyyy-MM-dd HH:mm:ss（處理各種輸入格式）
  */
-function formatDateSimple(value) {
+function formatDateTime(value) {
   if (!value) return '';
   
-  // 如果已經是 yyyy-MM-dd 格式，直接返回
-  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+  // 如果已經是 yyyy-MM-dd HH:mm:ss 格式，直接返回
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(value.trim())) {
     return value.trim();
   }
   
@@ -21,16 +21,24 @@ function formatDateSimple(value) {
     return String(value).trim();
   }
   
-  // 格式化為 yyyy-MM-dd（台北時間 GMT+8）
-  const taipeiOffset = 8 * 60; // 8小時轉分鐘
-  const localOffset = date.getTimezoneOffset(); // 本地時區偏移（分鐘）
+  // 格式化為 yyyy-MM-dd HH:mm:ss（台北時間 GMT+8）
+  const taipeiOffset = 8 * 60;
+  const localOffset = date.getTimezoneOffset();
   const offsetDiff = taipeiOffset + localOffset;
   const taipeiDate = new Date(date.getTime() + offsetDiff * 60000);
   
   const year = taipeiDate.getFullYear();
   const month = String(taipeiDate.getMonth() + 1).padStart(2, '0');
   const day = String(taipeiDate.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const hours = String(taipeiDate.getHours()).padStart(2, '0');
+  const minutes = String(taipeiDate.getMinutes()).padStart(2, '0');
+  const seconds = String(taipeiDate.getSeconds()).padStart(2, '0');
+  
+  // 如果是 00:00:00 就只顯示日期，否則顯示日期+時間
+  if (hours === '00' && minutes === '00' && seconds === '00') {
+    return `${year}-${month}-${day}`;
+  }
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 // 重要：GAS 部署設定必須為：
@@ -707,9 +715,9 @@ function renderHistory(history) {
           </div>
           <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
-              <div>借用日期：${formatDateSimple(user.dt_borrow) || '－'}</div>
-              <div>預計歸還：${formatDateSimple(user.dt_due) || '－'}</div>
-              <div>歸還完成：${formatDateSimple(user.dt_return) || '－'}</div>
+              <div>借用日期：${formatDateTime(user.dt_borrow) || '－'}</div>
+              <div>預計歸還：${formatDateTime(user.dt_due) || '－'}</div>
+              <div>歸還完成：${formatDateTime(user.dt_return) || '－'}</div>
             </div>
           </div>
         </div>
