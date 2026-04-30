@@ -678,9 +678,9 @@ function renderHistory(history) {
           </div>
           <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
-              <div>借用日期：${user.dt_borrow ? user.dt_borrow.split('T')[0] : '－'}</div>
-              <div>預計歸還：${user.dt_due ? user.dt_due.split('T')[0] : '－'}</div>
-              <div>歸還完成：${user.dt_return ? user.dt_return.split('T')[0] : '－'}</div>
+              <div>借用日期：${user.dt_borrow || '－'}</div>
+              <div>預計歸還：${user.dt_due || '－'}</div>
+              <div>歸還完成：${user.dt_return || '－'}</div>
             </div>
           </div>
         </div>
