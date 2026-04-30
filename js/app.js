@@ -831,13 +831,8 @@ if (historyInput) {
   });
 }
 
-// 綁定歷史排序選單變更事件
-const historySortSelect = document.getElementById('history-sort');
-if (historySortSelect) {
-  historySortSelect.addEventListener('change', () => {
-    searchHistory();  // 排序變更時自動重新搜尋
-  });
-}
+// 注意：排序選單事件綁定移到分頁切換時（因為元素預設隱藏）
+// 綁定歷史排序選單變更事件 - 在分頁切換到 history 時綁定
 
 // 綁定分頁切換
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -852,9 +847,18 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     this.classList.add('active');
     document.getElementById(`${tab}-tab`).classList.add('active');
     
-    // 如果切換到歷史紀錄分頁，自動載入
+    // 如果切換到歷史紀錄分頁，自動載入並綁定排序事件
     if (tab === 'history') {
       searchHistory();
+      
+      // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
+      const historySortSelect = document.getElementById('history-sort');
+      if (historySortSelect && !historySortSelect._hasEventListener) {
+        historySortSelect.addEventListener('change', () => {
+          searchHistory();  // 排序變更時自動重新搜尋
+        });
+        historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
+      }
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
