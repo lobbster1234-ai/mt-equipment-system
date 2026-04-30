@@ -788,7 +788,12 @@ function getAvatarList() {
  * 輔助函式：成功回應
  */
 function successResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify({ success: true, ...data }))
+  // 如果 data 是陣列，回傳 { success: true, data: [...] }
+  // 否則回傳 { success: true, ...data }
+  const output = Array.isArray(data) 
+    ? { success: true, data: data }
+    : { success: true, ...data };
+  return ContentService.createTextOutput(JSON.stringify(output))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
