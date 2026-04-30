@@ -250,8 +250,8 @@
       try {
         const url = new URL(GAS_URL);
         url.searchParams.append('action', 'loginAdmin');
-        url.searchParams.append('email', email);
-        url.searchParams.append('password', password);
+        url.searchParams.append('email', encodeURIComponent(email));
+        url.searchParams.append('password', encodeURIComponent(password));
         
         const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
         const data = await res.json();
