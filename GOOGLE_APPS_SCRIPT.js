@@ -786,8 +786,9 @@ function getAvatarList() {
  * 輔助函式：成功回應
  */
 function successResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({ success: true, ...data }))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' });
 }
 
 /**
@@ -795,9 +796,12 @@ function successResponse(data) {
  */
 function errorResponse(message) {
   return ContentService.createTextOutput(JSON.stringify({
+    success: false,
     error: message,
     timestamp: new Date().toISOString()
-  })).setMimeType(ContentService.MimeType.JSON);
+  }))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET,POST,OPTIONS' });
 }
 
 /**
