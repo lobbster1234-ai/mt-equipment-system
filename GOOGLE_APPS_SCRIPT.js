@@ -422,9 +422,9 @@ function getEquipmentInfo(fixNo) {
     keeper: row[COLS.keeper] || '',
     status: row[COLS.status] || 'available',
     borrower: row[COLS.borrower] || '',
-    dt_borrow: formatDate(row[COLS.dt_borrow]),
-    dt_due: formatDate(row[COLS.dt_due]),
-    dt_return: formatDate(row[COLS.dt_return]),
+    dt_borrow: forceFormatDate(row[COLS.dt_borrow]),
+    dt_due: forceFormatDate(row[COLS.dt_due]),
+    dt_return: forceFormatDate(row[COLS.dt_return]),
     return_confirmed: row[COLS.return_confirmed] || false
   });
 }
