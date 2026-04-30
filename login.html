@@ -267,7 +267,20 @@
         console.log('登入回應:', data);
         
         if (data.success) {
-          // 儲存登入資訊
+          // 檢查是否需要設定密碼（首次登入）
+          if (data.needSetupPassword) {
+            console.log('首次登入，需要設定密碼');
+            // 儲存使用者資訊到 sessionStorage，用於設定密碼頁面
+            sessionStorage.setItem('mt_setup_password', JSON.stringify({
+              email: email,
+              name: data.name
+            }));
+            // 跳轉到設定密碼頁面
+            window.location.href = './setup-password.html';
+            return;
+          }
+          
+          // 正常登入成功
           localStorage.setItem('mt_user', JSON.stringify({
             role: 'admin',
             email: email,
