@@ -589,6 +589,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function searchHistory() {
   const keyword = document.getElementById('history-keyword')?.value.trim() || '';
   const actionFilter = document.getElementById('history-action')?.value || '';
+  const sortOrder = document.getElementById('history-sort')?.value || 'newest';  // 預設由新到舊
 
   const listEl = document.getElementById('history-list');
   if (listEl) {
@@ -616,7 +617,7 @@ async function searchHistory() {
     }
 
     const history = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
-    renderHistory(history);
+    renderHistory(history, sortOrder);  // 傳遞排序參數
   } catch (err) {
     console.error('查詢歷史紀錄失敗:', err);
     if (listEl) {
@@ -626,7 +627,7 @@ async function searchHistory() {
 }
 
 // 渲染歷史紀錄 - 按設備編號 + 借用人分組
-function renderHistory(history) {
+function renderHistory(history, sortOrder = 'newest') {
   const list = document.getElementById('history-list');
   if (!list) return;
 
@@ -635,7 +636,16 @@ function renderHistory(history) {
     return;
   }
 
-  // 先排序：新的在後面（舊的在上面）
+  // 根據排序選項排序
+  history.sort((a, b) => {
+    const dateA = new Date(a.timestamp || 0);
+    const dateB = new Date(b.timestamp || 0);
+    if (sortOrder === 'newest') {
+      return dateB - dateA;  // 由新到舊（降序）
+    } else {
+      return dateA - dateB;  // 由舊到新（升序）
+    }
+  });
   const sortedHistory = [...history].sort((a, b) => {
     const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
     const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
@@ -818,6 +828,14 @@ if (historyInput) {
       e.preventDefault();
       searchHistory();
     }
+  });
+}
+
+// 綁定歷史排序選單變更事件
+const historySortSelect = document.getElementById('history-sort');
+if (historySortSelect) {
+  historySortSelect.addEventListener('change', () => {
+    searchHistory();  // 排序變更時自動重新搜尋
   });
 }
 
