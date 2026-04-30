@@ -70,7 +70,12 @@ function doGet(e) {
         keeper_email: e.parameter.keeper_email
       });
     } else if (action === 'loginAdmin') {
-      return loginAdmin(e.parameter);
+      const params = {
+        email: e.parameter.email,
+        password: e.parameter.password
+      };
+      Logger.log('loginAdmin 參數：' + JSON.stringify(params));
+      return loginAdmin(params);
     } else if (action === 'borrow') {
       return borrowEquipment({
         fix_no: e.parameter.fix_no,
@@ -1069,8 +1074,13 @@ function queryHistory(params) {
  * 管理員登入驗證
  */
 function loginAdmin(data) {
-  const email = data.email;
-  const password = data.password;
+  // 防護：確保 data 存在
+  if (!data) {
+    return errorResponse('參數錯誤：資料為空');
+  }
+  
+  const email = data.email || '';
+  const password = data.password || '';
   
   if (!email || !password) {
     return errorResponse('請提供電子郵件和密碼');
