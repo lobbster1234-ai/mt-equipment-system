@@ -8,7 +8,8 @@
 const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
 
 // 設定：工作表名稱
-const SHEET_NAME = '工作表 1';
+const SHEET_NAME = '工作表 1';           // 主要設備清單（部門助理年度更新）
+const SHEET_NAME_WEB = '網站新增設備';    // 網站新增的設備（管理員手動新增）
 const KEEPER_SHEET_NAME = 'Keeper 聯絡資訊';
 const HISTORY_SHEET_NAME = '歷史紀錄';
 const AVATAR_SHEET_NAME = '頭像資料';
@@ -157,19 +158,33 @@ function doPost(e) {
  */
 function queryEquipment(params) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
   
-  if (!sheet) {
+  // 同時讀取兩個工作表
+  const sheet1 = ss.getSheetByName(SHEET_NAME);
+  const sheet2 = ss.getSheetByName(SHEET_NAME_WEB);
+  
+  if (!sheet1) {
     return errorResponse(`找不到工作表：${SHEET_NAME}`);
   }
   
-  const data = sheet.getDataRange().getValues();
-  const rows = data.slice(1);
+  // 合併兩個工作表的資料
+  let allData = [];
+  
+  // 讀取工作表 1（主要清單）
+  const data1 = sheet1.getDataRange().getValues();
+  allData = allData.concat(data1.slice(1));  // 跳過標題列
+  
+  // 讀取工作表 2（網站新增設備），如果存在的話
+  if (sheet2) {
+    const data2 = sheet2.getDataRange().getValues();
+    allData = allData.concat(data2.slice(1));  // 跳過標題列
+    Logger.log('合併網站新增設備：' + (data2.length - 1) + '筆');
+  }
   
   const keyword = (params.keyword || '').toLowerCase();
   const status = params.status || '';
   
-  const filtered = rows.filter((row) => {
+  const filtered = allData.filter((row) => {
     if (!row[COLS.fix_no] && !row[COLS.device_name]) return false;
     
     if (keyword) {
@@ -222,6 +237,7 @@ function queryEquipment(params) {
     return_confirmed: row[COLS.return_confirmed] || false
   }));
   
+  Logger.log('查詢結果：共 ' + result.length + ' 筆設備');
   return successResponse(result);
 }
 
@@ -230,10 +246,11 @@ function queryEquipment(params) {
  */
 function registerEquipment(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
+  // 網站新增的設備寫入「網站新增設備」工作表
+  const sheet = ss.getSheetByName(SHEET_NAME_WEB);
   
   if (!sheet) {
-    return errorResponse(`找不到工作表：${SHEET_NAME}`);
+    return errorResponse(`找不到工作表：${SHEET_NAME_WEB}，請先建立此工作表`);
   }
   
   const newRow = [
@@ -254,21 +271,16 @@ function registerEquipment(data) {
   
   return successResponse({
     success: true,
-    message: '設備登記成功',
+    message: '設備登記成功（已存入網站新增設備工作表）',
     fix_no: data.fix_no
   });
 }
 
 /**
- * 借用設備
+ * 借用設備 - 支援兩個工作表
  */
 function borrowEquipment(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  
-  if (!sheet) {
-    return errorResponse(`找不到工作表：${SHEET_NAME}`);
-  }
   
   const fixNo = data.fix_no;
   const borrower = data.borrower;
@@ -284,43 +296,69 @@ function borrowEquipment(data) {
   const keeperCol = COLS.keeper;
   const deviceNameCol = COLS.device_name;
   
+  // 先在「工作表 1」查找
+  let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
-  const lastRow = sheet.getLastRow();
+  let targetSheet = null;
+  let sheetSource = '';
   
-  for (let i = 2; i <= lastRow; i++) {
-    const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-    if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
-      foundRow = i;
-      break;
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        sheetSource = SHEET_NAME;
+        break;
+      }
     }
   }
   
+  // 如果「工作表 1」找不到，在「網站新增設備」查找
   if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          sheetSource = SHEET_NAME_WEB;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
     return errorResponse(`找不到設備編號：${fixNo}`);
   }
   
-  const currentStatus = sheet.getRange(foundRow, statusCol + 1).getValue();
+  const currentStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
   if (currentStatus === 'borrowed') {
     return errorResponse('設備已經借出');
   }
   
-  sheet.getRange(foundRow, statusCol + 1).setValue('borrowed');
-  sheet.getRange(foundRow, borrowerCol + 1).setValue(borrower);
-  sheet.getRange(foundRow, dtBorrowCol + 1).setValue(dtBorrow);
-  sheet.getRange(foundRow, dtDueCol + 1).setValue(dtDue);
-  sheet.getRange(foundRow, dtReturnCol + 1).setValue(''); // 清除歸還日期
-  sheet.getRange(foundRow, COLS.return_confirmed + 1).setValue(false);
+  targetSheet.getRange(foundRow, statusCol + 1).setValue('borrowed');
+  targetSheet.getRange(foundRow, borrowerCol + 1).setValue(borrower);
+  targetSheet.getRange(foundRow, dtBorrowCol + 1).setValue(dtBorrow);
+  targetSheet.getRange(foundRow, dtDueCol + 1).setValue(dtDue);
+  targetSheet.getRange(foundRow, dtReturnCol + 1).setValue('');
+  targetSheet.getRange(foundRow, COLS.return_confirmed + 1).setValue(false);
   
-  const keeper = sheet.getRange(foundRow, keeperCol + 1).getValue();
-  const deviceName = sheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+  const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
   
-  // 記錄歷史紀錄
+  // 記錄歷史
   logHistory('borrow', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   
   if (EMAIL_CONFIG.enabled && keeper) {
     sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue);
   }
   
+  Logger.log(`借用成功：${fixNo}，來自「${sheetSource}」`);
   return successResponse({
     message: '借用成功',
     fix_no: fixNo,
@@ -329,20 +367,17 @@ function borrowEquipment(data) {
     dt_due: dtDue
   });
 }
+  });
+}
 
 /**
  * 歸還設備
  */
 function returnEquipment(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  
-  if (!sheet) {
-    return errorResponse(`找不到工作表：${SHEET_NAME}`);
-  }
   
   const fixNo = data.fix_no;
-  // 強制使用當天台北時間，忽略前端傳來的日期
+  // 強制使用當天台北時間
   const dtReturn = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   
   const fixNoCol = COLS.fix_no;
@@ -354,39 +389,59 @@ function returnEquipment(data) {
   const dtBorrowCol = COLS.dt_borrow;
   const dtDueCol = COLS.dt_due;
   
+  // 先在「工作表 1」查找
+  let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
-  const lastRow = sheet.getLastRow();
+  let targetSheet = null;
   
-  for (let i = 2; i <= lastRow; i++) {
-    const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-    if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
-      foundRow = i;
-      break;
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        break;
+      }
     }
   }
   
+  // 如果找不到，在「網站新增設備」查找
   if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
     return errorResponse(`找不到設備編號：${fixNo}`);
   }
   
-  const currentStatus = (sheet.getRange(foundRow, statusCol + 1).getValue() || '').toString().trim().toLowerCase();
+  const currentStatus = (targetSheet.getRange(foundRow, statusCol + 1).getValue() || '').toString().trim().toLowerCase();
   const isBorrowed = currentStatus === 'borrowed' || currentStatus === '借用中' || currentStatus === '已借出' || currentStatus === '使用中';
   
   if (!isBorrowed) {
     return errorResponse(`設備狀態不是借用中（當前狀態：${currentStatus || '空'}）`);
   }
   
-  const keeper = sheet.getRange(foundRow, keeperCol + 1).getValue();
-  const deviceName = sheet.getRange(foundRow, deviceNameCol + 1).getValue();
-  const borrower = sheet.getRange(foundRow, borrowerCol + 1).getValue();
-  const dtBorrowVal = sheet.getRange(foundRow, dtBorrowCol + 1).getValue();
-  const dtDueVal = sheet.getRange(foundRow, dtDueCol + 1).getValue();
+  const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+  const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  const borrower = targetSheet.getRange(foundRow, borrowerCol + 1).getValue();
+  const dtBorrowVal = targetSheet.getRange(foundRow, dtBorrowCol + 1).getValue();
+  const dtDueVal = targetSheet.getRange(foundRow, dtDueCol + 1).getValue();
   
-  sheet.getRange(foundRow, dtReturnCol + 1).setValue(dtReturn);
-  // 更新狀態為「歸還認證中」，避免重複按下歸還按鈕
-  sheet.getRange(foundRow, statusCol + 1).setValue('return_pending');
+  targetSheet.getRange(foundRow, dtReturnCol + 1).setValue(dtReturn);
+  targetSheet.getRange(foundRow, statusCol + 1).setValue('return_pending');
   
-  // 記錄歷史紀錄（歸還動作：借用日期、預計歸還、實際歸還日期）
   logHistory('return', fixNo, deviceName, borrower, keeper, dtBorrowVal, dtDueVal, dtReturn);
   
   if (EMAIL_CONFIG.enabled && keeper) {
@@ -405,31 +460,48 @@ function returnEquipment(data) {
  */
 function getEquipmentInfo(fixNo) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  
-  if (!sheet) {
-    return errorResponse(`找不到工作表：${SHEET_NAME}`);
-  }
   
   const fixNoCol = COLS.fix_no;
   const keeperCol = COLS.keeper;
   
+  // 先在「工作表 1」查找
+  let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
-  const lastRow = sheet.getLastRow();
+  let targetSheet = null;
   
-  for (let i = 2; i <= lastRow; i++) {
-    const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-    if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
-      foundRow = i;
-      break;
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        break;
+      }
     }
   }
   
+  // 如果找不到，在「網站新增設備」查找
   if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
     return errorResponse(`找不到設備編號：${fixNo}`);
   }
   
-  const row = sheet.getRange(foundRow, 1, 1, 11).getValues()[0];
+  const row = targetSheet.getRange(foundRow, 1, 1, 11).getValues()[0];
   
   return successResponse({
     fix_type: row[COLS.fix_type] || '',
@@ -451,14 +523,8 @@ function getEquipmentInfo(fixNo) {
  */
 function confirmReturn(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheet = ss.getSheetByName(SHEET_NAME);
-  
-  if (!sheet) {
-    return errorResponse(`找不到工作表：${SHEET_NAME}`);
-  }
   
   const fixNo = data.fix_no;
-  // 不再需要 keeper_email 驗證，因為 token 已經由系統生成並發送給正確的 Keeper
   
   const fixNoCol = COLS.fix_no;
   const statusCol = COLS.status;
@@ -470,38 +536,58 @@ function confirmReturn(data) {
   const keeperCol = COLS.keeper;
   const deviceNameCol = COLS.device_name;
   
+  // 先在「工作表 1」查找
+  let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
-  const lastRow = sheet.getLastRow();
+  let targetSheet = null;
   
-  for (let i = 2; i <= lastRow; i++) {
-    const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-    if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
-      foundRow = i;
-      break;
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        break;
+      }
     }
   }
   
+  // 如果找不到，在「網站新增設備」查找
   if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
     return errorResponse(`找不到設備編號：${fixNo}`);
   }
   
-  const keeperName = sheet.getRange(foundRow, keeperCol + 1).getValue();
-  const deviceName = sheet.getRange(foundRow, deviceNameCol + 1).getValue();
-  const borrower = sheet.getRange(foundRow, borrowerCol + 1).getValue();
-  const dtBorrowVal = sheet.getRange(foundRow, dtBorrowCol + 1).getValue();
-  const dtDueVal = sheet.getRange(foundRow, dtDueCol + 1).getValue();
-  const dtReturnVal = sheet.getRange(foundRow, dtReturnCol + 1).getValue();
+  const keeperName = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+  const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  const borrower = targetSheet.getRange(foundRow, borrowerCol + 1).getValue();
+  const dtBorrowVal = targetSheet.getRange(foundRow, dtBorrowCol + 1).getValue();
+  const dtDueVal = targetSheet.getRange(foundRow, dtDueCol + 1).getValue();
+  const dtReturnVal = targetSheet.getRange(foundRow, dtReturnCol + 1).getValue();
   
-  // 直接確認歸還，不再驗證 email
   Logger.log(`確認歸還：${fixNo}，保管人：${keeperName}`);
   
-  sheet.getRange(foundRow, statusCol + 1).setValue('available');
-  sheet.getRange(foundRow, returnConfirmedCol + 1).setValue(true);
-  sheet.getRange(foundRow, borrowerCol + 1).setValue('');
-  sheet.getRange(foundRow, dtBorrowCol + 1).setValue('');
-  sheet.getRange(foundRow, dtDueCol + 1).setValue('');
+  targetSheet.getRange(foundRow, statusCol + 1).setValue('available');
+  targetSheet.getRange(foundRow, returnConfirmedCol + 1).setValue(true);
+  targetSheet.getRange(foundRow, borrowerCol + 1).setValue('');
+  targetSheet.getRange(foundRow, dtBorrowCol + 1).setValue('');
+  targetSheet.getRange(foundRow, dtDueCol + 1).setValue('');
   
-  // 記錄歷史紀錄（確認歸還）
   logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtBorrowVal || '', dtDueVal || '', dtReturnVal || '');
   
   if (EMAIL_CONFIG.enabled && keeperName) {
