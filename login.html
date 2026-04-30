@@ -251,19 +251,14 @@
       showLoading(true);
       
       try {
-        // 改用 POST 請求避免 CORB 問題
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            action: 'loginAdmin',
-            email: email,
-            password: password
-          }),
-          redirect: 'follow'
-        });
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'loginAdmin');
+        url.searchParams.append('email', email);
+        url.searchParams.append('password', password);
+        
+        console.log('發送登入請求 URL:', url.toString());
+        
+        const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
         
         console.log('回應狀態:', res.status);
         
