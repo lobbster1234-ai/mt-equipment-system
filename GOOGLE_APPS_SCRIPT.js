@@ -854,6 +854,46 @@ function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue
 }
 
 /**
+ * 格式化日期顯示為 yyyy-MM-dd
+ */
+function formatDisplayDate(value) {
+  if (!value) return '';
+  
+  // 如果已經是 yyyy-MM-dd 格式，直接返回
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      return trimmed;
+    }
+    // 嘗試解析日期字串
+    const date = new Date(trimmed);
+    if (!isNaN(date.getTime())) {
+      return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd');
+    }
+    return trimmed;
+  }
+  
+  // 如果是 Date 物件
+  if (value instanceof Date) {
+    if (!isNaN(value.getTime())) {
+      return Utilities.formatDate(value, 'Asia/Taipei', 'yyyy-MM-dd');
+    }
+    return '';
+  }
+  
+  // 如果是數字（時間戳）
+  if (typeof value === 'number') {
+    try {
+      return Utilities.formatDate(new Date(value), 'Asia/Taipei', 'yyyy-MM-dd');
+    } catch (e) {
+      return '';
+    }
+  }
+  
+  return String(value).trim();
+}
+
+/**
  * 解析歷史紀錄中的日期（處理各種格式）
  */
 function parseHistoryDate(value) {
@@ -959,21 +999,21 @@ function queryHistory(params) {
     
     if (action === 'borrow') {
       // 借用：row[6]=借用日期，row[7]=預計歸還，row[8]=空
-      dt_borrow = String(row[6] || '').trim();
-      dt_due = String(row[7] || '').trim();
+      dt_borrow = formatDisplayDate(row[6]);
+      dt_due = formatDisplayDate(row[7]);
       dt_return = '';
       return_confirmed = false;
     } else if (action === 'return') {
       // 歸還：row[6]=借用日期，row[7]=預計歸還，row[8]=歸還日期
-      dt_borrow = String(row[6] || '').trim();
-      dt_due = String(row[7] || '').trim();
-      dt_return = String(row[8] || '').trim();
+      dt_borrow = formatDisplayDate(row[6]);
+      dt_due = formatDisplayDate(row[7]);
+      dt_return = formatDisplayDate(row[8]);
       return_confirmed = false;
     } else if (action === 'confirm') {
       // 確認：row[6]=借用日期，row[7]=預計歸還，row[8]=確認日期
-      dt_borrow = String(row[6] || '').trim();
-      dt_due = String(row[7] || '').trim();
-      dt_return = String(row[8] || '').trim();
+      dt_borrow = formatDisplayDate(row[6]);
+      dt_due = formatDisplayDate(row[7]);
+      dt_return = formatDisplayDate(row[8]);
       return_confirmed = true;
     }
     
