@@ -1127,26 +1127,6 @@ function loginAdmin(data) {
     }
     
     Logger.log('找不到帳號：' + email);
-        // 找到匹配的電子郵件，檢查密碼
-        if (!rowPassword) {
-          return errorResponse('此帳號尚未設定密碼，請聯繫管理員');
-        }
-        
-        if (rowPassword === password) {
-          // 登入成功
-          return successResponse({
-            name: rowName,
-            email: rowEmail,
-            role: 'admin'
-          });
-        } else {
-          // 密碼錯誤
-          return errorResponse('密碼錯誤');
-        }
-      }
-    }
-    
-    // 找不到此電子郵件
     return errorResponse('找不到此管理員帳號');
     
   } catch (err) {
