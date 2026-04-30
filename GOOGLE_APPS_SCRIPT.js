@@ -1110,6 +1110,9 @@ function loginAdmin(data) {
       // 檢查電子郵件或帳號是否匹配
       if (rowEmail === email || rowAccount === email) {
         Logger.log('找到匹配：' + email);
+        Logger.log('收到的密碼："' + password + '"，長度=' + password.length);
+        Logger.log('資料庫密碼："' + rowPassword + '"，長度=' + rowPassword.length);
+        Logger.log('兩者相等？' + (rowPassword === password));
         
         // 找到匹配的電子郵件，檢查密碼
         if (!rowPassword) {
