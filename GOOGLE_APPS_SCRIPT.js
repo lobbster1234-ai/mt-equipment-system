@@ -70,10 +70,7 @@ function doGet(e) {
         keeper_email: e.parameter.keeper_email
       });
     } else if (action === 'loginAdmin') {
-      return loginAdmin({
-        email: e.parameter.email,
-        password: e.parameter.password
-      });
+      return loginAdmin(e.parameter);
     } else if (action === 'borrow') {
       return borrowEquipment({
         fix_no: e.parameter.fix_no,
