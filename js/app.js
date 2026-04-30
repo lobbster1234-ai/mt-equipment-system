@@ -726,7 +726,9 @@ function renderHistory(history) {
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
               <div>借用日期：${formatDateTime(user.dt_borrow) || '－'}</div>
               <div>預計歸還：${formatDateTime(user.dt_due) || '－'}</div>
-              <div>歸還完成：${formatDateTime(user.dt_return) || '－'}</div>
+              ${user.dt_return ? `
+                <div>${user.return_confirmed ? '歸還完成' : '歸還日期'}：${formatDateTime(user.dt_return)}${user.return_confirmed ? '' : '（待確認）'}</div>
+              ` : '<div>歸還完成：－</div>'}
             </div>
           </div>
         </div>
