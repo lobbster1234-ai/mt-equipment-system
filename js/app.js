@@ -216,9 +216,11 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   
   document.getElementById('borrow-fix-no').value = fixNo;
   
-  // 設定最小日期為今天
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('borrow-due-date').min = today;
+  // 設定最小日期為今天（台北時間）
+  const now = new Date();
+  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  const taipeiDate = taipeiTime.toISOString().split('T')[0];
+  document.getElementById('borrow-due-date').min = taipeiDate;
   
   if (modal) modal.style.display = 'block';
 }
@@ -244,9 +246,11 @@ function openReturnModal(fixNo, deviceName, borrower) {
   
   document.getElementById('return-fix-no').value = fixNo;
   
-  // 設定預設日期為今天
-  const today = new Date().toISOString().split('T')[0];
-  document.getElementById('return-date').value = today;
+  // 設定預設日期為今天（台北時間）
+  const today = new Date();
+  const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
+  const taipeiDate = taipeiTime.toISOString().split('T')[0];
+  document.getElementById('return-date').value = taipeiDate;
   
   if (modal) modal.style.display = 'block';
 }
@@ -423,7 +427,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const fixNo = document.getElementById('borrow-fix-no').value;
       const borrower = document.getElementById('borrow-name').value;
       const dtDue = document.getElementById('borrow-due-date').value;
-      const dtBorrow = new Date().toISOString().split('T')[0]; // 今天日期
+      // 今天日期（台北時間）
+      const now = new Date();
+      const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+      const dtBorrow = taipeiTime.toISOString().split('T')[0];
 
       const submitBtn = e.target.querySelector('button[type="submit"]');
       if (submitBtn) {

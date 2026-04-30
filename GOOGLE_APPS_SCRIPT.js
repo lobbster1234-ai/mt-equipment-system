@@ -801,9 +801,18 @@ function formatDate(dateValue) {
     return Utilities.formatDate(dateValue, 'Asia/Taipei', 'yyyy-MM-dd');
   }
   
-  // 如果是字串，直接返回
+  // 如果是字串，檢查是否為有效日期格式
   if (typeof dateValue === 'string') {
-    return dateValue;
+    const trimmed = dateValue.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+    return '';
+  }
+  
+  // 如果是數字（時間戳），轉換為 Date
+  if (typeof dateValue === 'number') {
+    return Utilities.formatDate(new Date(dateValue), 'Asia/Taipei', 'yyyy-MM-dd');
   }
   
   return '';
