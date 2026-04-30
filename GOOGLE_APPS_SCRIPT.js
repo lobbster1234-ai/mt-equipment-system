@@ -129,6 +129,8 @@ function doPost(e) {
       return queryEquipment(data);
     } else if (action === 'register') {
       return registerEquipment(data);
+    } else if (action === 'loginAdmin') {
+      return loginAdmin(data);
     } else if (action === 'uploadAvatar') {
       return uploadAvatar(data);
     } else if (action === 'test') {

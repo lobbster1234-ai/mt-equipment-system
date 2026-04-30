@@ -251,20 +251,25 @@
       showLoading(true);
       
       try {
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', 'loginAdmin');
-        url.searchParams.append('email', email);
-        url.searchParams.append('password', password);
+        // 改用 POST 請求避免 CORB 問題
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'loginAdmin',
+            email: email,
+            password: password
+          }),
+          redirect: 'follow'
+        });
         
-        console.log('發送登入請求 URL:', url.toString());  // 除錯用
-        
-        const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-        
-        console.log('回應狀態:', res.status);  // 除錯用
+        console.log('回應狀態:', res.status);
         
         const data = await res.json();
         
-        console.log('登入回應:', data);  // 除錯用
+        console.log('登入回應:', data);
         
         if (data.success) {
           // 儲存登入資訊
