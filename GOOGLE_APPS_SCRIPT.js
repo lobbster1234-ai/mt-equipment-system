@@ -854,6 +854,56 @@ function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue
 }
 
 /**
+ * 解析歷史紀錄中的日期（處理各種格式）
+ */
+function parseHistoryDate(value) {
+  if (!value) return '';
+  
+  // 如果已經是 yyyy-MM-dd 格式，直接返回
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value.trim())) {
+    return value.trim();
+  }
+  
+  // 如果是 Date 物件
+  if (value instanceof Date) {
+    if (!isNaN(value.getTime())) {
+      return Utilities.formatDate(value, 'Asia/Taipei', 'yyyy-MM-dd');
+    }
+    return '';
+  }
+  
+  // 如果是數字（時間戳）
+  if (typeof value === 'number') {
+    try {
+      return Utilities.formatDate(new Date(value), 'Asia/Taipei', 'yyyy-MM-dd');
+    } catch (e) {
+      return '';
+    }
+  }
+  
+  // 如果是字串，嘗試解析
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    
+    // 嘗試解析常見日期格式
+    try {
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        return Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd');
+      }
+    } catch (e) {
+      // 解析失敗，返回原始字串（如果看起來像日期）
+      if (/\d{4}[-/]\d{2}[-/]\d{2}/.test(trimmed)) {
+        return trimmed;
+      }
+    }
+  }
+  
+  return '';
+}
+
+/**
  * 查詢歷史紀錄
  */
 function queryHistory(params) {
@@ -909,21 +959,21 @@ function queryHistory(params) {
     
     if (action === 'borrow') {
       // 借用：row[6]=借用日期，row[7]=預計歸還，row[8]=空
-      dt_borrow = formatDate(row[6]);
-      dt_due = formatDate(row[7]);
+      dt_borrow = parseHistoryDate(row[6]);
+      dt_due = parseHistoryDate(row[7]);
       dt_return = '';
       return_confirmed = false;
     } else if (action === 'return') {
       // 歸還：row[6]=借用日期，row[7]=預計歸還，row[8]=歸還日期
-      dt_borrow = formatDate(row[6]);
-      dt_due = formatDate(row[7]);
-      dt_return = formatDate(row[8]);
+      dt_borrow = parseHistoryDate(row[6]);
+      dt_due = parseHistoryDate(row[7]);
+      dt_return = parseHistoryDate(row[8]);
       return_confirmed = false;
     } else if (action === 'confirm') {
       // 確認：row[6]=借用日期，row[7]=預計歸還，row[8]=確認日期
-      dt_borrow = formatDate(row[6]);
-      dt_due = formatDate(row[7]);
-      dt_return = formatDate(row[8]);
+      dt_borrow = parseHistoryDate(row[6]);
+      dt_due = parseHistoryDate(row[7]);
+      dt_return = parseHistoryDate(row[8]);
       return_confirmed = true;
     }
     
