@@ -1079,9 +1079,8 @@ function loginAdmin(data) {
     return errorResponse('參數錯誤：資料為空');
   }
   
-  // 解碼 URL 編碼的參數
-  const email = decodeURIComponent(data.email || '');
-  const password = decodeURIComponent(data.password || '');
+  const email = data.email || '';
+  const password = data.password || '';
   
   if (!email || !password) {
     return errorResponse('請提供電子郵件和密碼');
