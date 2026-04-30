@@ -69,6 +69,11 @@ function doGet(e) {
         fix_no: e.parameter.fix_no,
         keeper_email: e.parameter.keeper_email
       });
+    } else if (action === 'loginAdmin') {
+      return loginAdmin({
+        email: e.parameter.email,
+        password: e.parameter.password
+      });
     } else if (action === 'borrow') {
       return borrowEquipment({
         fix_no: e.parameter.fix_no,
@@ -1061,4 +1066,61 @@ function queryHistory(params) {
   });
   
   return successResponse(result);
+}
+
+/**
+ * 管理員登入驗證
+ */
+function loginAdmin(data) {
+  const email = data.email;
+  const password = data.password;
+  
+  if (!email || !password) {
+    return errorResponse('請提供電子郵件和密碼');
+  }
+  
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const keeperSheet = ss.getSheetByName(KEEPER_SHEET_NAME);
+    
+    if (!keeperSheet) {
+      return errorResponse('找不到 Keeper 聯絡資訊工作表');
+    }
+    
+    const sheetData = keeperSheet.getDataRange().getValues();
+    
+    // 從第 2 列開始（跳過標題）
+    for (let i = 1; i < sheetData.length; i++) {
+      const row = sheetData[i];
+      const rowEmail = (row[1] || '').toString().trim();  // 第 2 欄是電子郵件
+      const rowPassword = (row[2] || '').toString().trim();  // 第 3 欄是密碼
+      const rowName = (row[0] || '').toString().trim();  // 第 1 欄是姓名
+      
+      if (rowEmail === email) {
+        // 找到匹配的電子郵件，檢查密碼
+        if (!rowPassword) {
+          return errorResponse('此帳號尚未設定密碼，請聯繫管理員');
+        }
+        
+        if (rowPassword === password) {
+          // 登入成功
+          return successResponse({
+            name: rowName,
+            email: rowEmail,
+            role: 'admin'
+          });
+        } else {
+          // 密碼錯誤
+          return errorResponse('密碼錯誤');
+        }
+      }
+    }
+    
+    // 找不到此電子郵件
+    return errorResponse('找不到此管理員帳號');
+    
+  } catch (err) {
+    Logger.error('登入失敗:', err);
+    return errorResponse('登入失敗：' + err.message);
+  }
 }
