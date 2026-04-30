@@ -637,24 +637,22 @@ function renderHistory(history, sortOrder = 'newest') {
   }
 
   // 根據排序選項排序
+  console.log('排序前:', history.length, '筆紀錄');
+  console.log('第一筆時間戳:', history[0]?.timestamp);
+  console.log('最後一筆時間戳:', history[history.length-1]?.timestamp);
+  
   history.sort((a, b) => {
     const dateA = new Date(a.timestamp || 0);
     const dateB = new Date(b.timestamp || 0);
-    if (sortOrder === 'newest') {
-      return dateB - dateA;  // 由新到舊（降序）
-    } else {
-      return dateA - dateB;  // 由舊到新（升序）
-    }
+    const result = sortOrder === 'newest' ? (dateB - dateA) : (dateA - dateB);
+    return result;
   });
-  const sortedHistory = [...history].sort((a, b) => {
-    const tsA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const tsB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-    return tsA - tsB; // 舊的在前，新的在後
-  });
+  
+  console.log('排序後（' + sortOrder + '）:', history[0]?.timestamp, '到', history[history.length-1]?.timestamp);
 
   // 按設備編號分組
   const deviceGroups = {};
-  sortedHistory.forEach(record => {
+  history.forEach(record => {
     const fixNo = record.fix_no || '無編號';
     if (!deviceGroups[fixNo]) {
       deviceGroups[fixNo] = {
