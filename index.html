@@ -4,7 +4,47 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MT 部門儀器借用系統</title>
-  <link rel="stylesheet" href="css/style.css?v=20260430-1052">
+  <link rel="stylesheet" href="css/style.css?v=20260430-1347">
+  <script>
+    // 檢查登入狀態
+    const user = JSON.parse(localStorage.getItem('mt_user'));
+    if (!user) {
+      window.location.href = './login.html';
+    }
+    
+    // 頁面載入後根據角色顯示功能
+    window.addEventListener('DOMContentLoaded', function() {
+      const user = JSON.parse(localStorage.getItem('mt_user'));
+      if (!user) return;
+      
+      // 顯示使用者資訊
+      const nav = document.querySelector('nav');
+      if (nav) {
+        const userInfo = document.createElement('div');
+        userInfo.style.cssText = 'margin-left:auto;display:flex;align-items:center;gap:10px;font-size:0.9em;';
+        const roleIcon = user.role === 'admin' ? '👑' : '👤';
+        userInfo.innerHTML = `
+          <span>${roleIcon} ${user.name || user.email || '訪客'}</span>
+          <button onclick="logout()" style="padding:5px 10px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85em;">登出</button>
+        `;
+        nav.appendChild(userInfo);
+      }
+      
+      // 訪客隱藏「設備登記」按鈕
+      if (user.role !== 'admin') {
+        const registerBtn = document.querySelector('[data-tab="register"]');
+        if (registerBtn) {
+          registerBtn.style.display = 'none';
+        }
+      }
+    });
+    
+    // 登出函數
+    function logout() {
+      localStorage.removeItem('mt_user');
+      window.location.href = './login.html';
+    }
+  </script>
 </head>
 <body>
   <div class="container">
