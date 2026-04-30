@@ -328,7 +328,8 @@ function returnEquipment(data) {
   }
   
   const fixNo = data.fix_no;
-  const dtReturn = data.dt_return || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  // 強制使用當天台北時間，忽略前端傳來的日期
+  const dtReturn = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   
   const fixNoCol = COLS.fix_no;
   const statusCol = COLS.status;
