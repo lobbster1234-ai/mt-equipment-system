@@ -854,9 +854,9 @@ function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue
 }
 
 /**
- * 格式化日期顯示為 yyyy-MM-dd
+ * 強制格式化日期為 yyyy-MM-dd（不使用 Utilities.formatDate）
  */
-function formatDisplayDate(value) {
+function forceFormatDate(value) {
   if (!value) return '';
   
   let dateObj;
@@ -869,7 +869,7 @@ function formatDisplayDate(value) {
   else if (typeof value === 'number') {
     dateObj = new Date(value);
   }
-  // 如果是字串，嘗試解析
+  // 如果是字串
   else if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) return '';
@@ -886,12 +886,28 @@ function formatDisplayDate(value) {
     return String(value).trim();
   }
   
-  // 格式化為 yyyy-MM-dd（台北時間）
+  // 格式化為 yyyy-MM-dd
   if (!isNaN(dateObj.getTime())) {
-    return Utilities.formatDate(dateObj, 'Asia/Taipei', 'yyyy-MM-dd');
+    // 使用台北時區（GMT+8）
+    const taipeiOffset = 8 * 60; // 8小時轉分鐘
+    const localOffset = dateObj.getTimezoneOffset(); // 本地時區偏移（分鐘）
+    const offsetDiff = taipeiOffset + localOffset; // 差異
+    const taipeiDate = new Date(dateObj.getTime() + offsetDiff * 60000);
+    
+    const year = taipeiDate.getFullYear();
+    const month = String(taipeiDate.getMonth() + 1).padStart(2, '0');
+    const day = String(taipeiDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
   
   return '';
+}
+
+/**
+ * 格式化日期顯示為 yyyy-MM-dd
+ */
+function formatDisplayDate(value) {
+  return forceFormatDate(value);
 }
 
 /**
