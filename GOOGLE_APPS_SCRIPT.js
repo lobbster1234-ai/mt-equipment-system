@@ -1092,11 +1092,13 @@ function loginAdmin(data) {
     // 從第 2 列開始（跳過標題）
     for (let i = 1; i < sheetData.length; i++) {
       const row = sheetData[i];
-      const rowEmail = (row[1] || '').toString().trim();  // 第 2 欄是電子郵件
-      const rowPassword = (row[2] || '').toString().trim();  // 第 3 欄是密碼
-      const rowName = (row[0] || '').toString().trim();  // 第 1 欄是姓名
+      const rowName = (row[0] || '').toString().trim();      // A 欄 - 姓名
+      const rowEmail = (row[1] || '').toString().trim();      // B 欄 - 電子郵件
+      const rowAccount = (row[2] || '').toString().trim();   // C 欄 - 帳號
+      const rowPassword = (row[3] || '').toString().trim();  // D 欄 - 密碼
       
-      if (rowEmail === email) {
+      // 檢查電子郵件或帳號是否匹配
+      if (rowEmail === email || rowAccount === email) {
         // 找到匹配的電子郵件，檢查密碼
         if (!rowPassword) {
           return errorResponse('此帳號尚未設定密碼，請聯繫管理員');
