@@ -19,17 +19,17 @@ const AVATAR_FOLDER_ID = '15vkYY7wO1HyNKa0aruqDiLSDyKWuS1af';
 
 // 欄位索引對照（0-indexed）
 const COLS = {
-  fix_type: 0,
-  fix_no: 1,
-  device_name: 2,
-  qty_asset: 3,
-  keeper: 4,
-  status: 5,
-  borrower: 6,
-  dt_borrow: 6,  // G 欄
-  dt_due: 7,     // H 欄
-  dt_return: 8,  // I 欄
-  return_confirmed: 9  // J 欄
+  fix_type: 0,     // A 欄
+  fix_no: 1,       // B 欄
+  device_name: 2,  // C 欄
+  qty_asset: 3,    // D 欄
+  keeper: 4,       // E 欄
+  status: 5,       // F 欄
+  borrower: 6,     // G 欄
+  dt_borrow: 7,    // H 欄
+  dt_due: 8,       // I 欄
+  dt_return: 9,    // J 欄
+  return_confirmed: 10  // K 欄
 };
 
 // 電子郵件設定
