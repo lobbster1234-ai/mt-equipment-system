@@ -178,9 +178,13 @@ function renderEquipment(equipment) {
                   // 已借出，顯示歸還按鈕（借用者使用）或等待確認狀態
                   const isConfirmed = eq.return_confirmed === true || eq.return_confirmed === 'true' || eq.return_confirmed === 1;
                   const hasReturnDate = eq.dt_return && eq.dt_return.toString().trim() !== '';
+                  const isReturnPending = eq.status === 'return_pending' || eq.status === '歸還認證中';
                   
                   if (isConfirmed) {
                     actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
+                  } else if (isReturnPending) {
+                    // 歸還認證中，不顯示按鈕
+                    actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 歸還認證中</span>';
                   } else if (hasReturnDate) {
                     // 已歸還，等待 Keeper 確認
                     actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';

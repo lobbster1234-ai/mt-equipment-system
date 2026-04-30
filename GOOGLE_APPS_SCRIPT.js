@@ -369,6 +369,8 @@ function returnEquipment(data) {
   const dtDueVal = sheet.getRange(foundRow, dtDueCol + 1).getValue();
   
   sheet.getRange(foundRow, dtReturnCol + 1).setValue(dtReturn);
+  // 更新狀態為「歸還認證中」，避免重複按下歸還按鈕
+  sheet.getRange(foundRow, statusCol + 1).setValue('return_pending');
   
   // 記錄歷史紀錄（歸還動作：借用日期、預計歸還、實際歸還日期）
   logHistory('return', fixNo, deviceName, borrower, keeper, dtBorrowVal, dtDueVal, dtReturn);
