@@ -264,6 +264,21 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   
   document.getElementById('borrow-fix-no').value = fixNo;
   
+  // 自動填入登入者姓名
+  const user = JSON.parse(localStorage.getItem('mt_user'));
+  const borrowNameInput = document.getElementById('borrow-name');
+  if (user && user.name && borrowNameInput) {
+    borrowNameInput.value = user.name;
+    // 如果已經有值，設為只讀，防止修改
+    borrowNameInput.readOnly = true;
+    borrowNameInput.style.background = '#e9ecef';
+  } else if (borrowNameInput) {
+    // 沒有登入或沒有姓名，清空並允許手動輸入
+    borrowNameInput.value = '';
+    borrowNameInput.readOnly = false;
+    borrowNameInput.style.background = '#fff';
+  }
+  
   // 設定最小日期為今天（台北時間）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
