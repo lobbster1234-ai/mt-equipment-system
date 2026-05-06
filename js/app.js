@@ -1236,6 +1236,7 @@ async function loadMyEquipment() {
     
     // 顯示設備列表
     let html = '<div style="display:grid;gap:15px;">';
+    console.log('所有設備狀態:', allEquipment.map(eq => eq.status));
     myEquipment.forEach((eq, index) => {
       const isBorrowed = eq.status === 'borrowed' || eq.status === '借用中' || eq.status === '已借出' || eq.status === '使用中';
       const isReturnPending = eq.status === 'return_pending';
@@ -1259,8 +1260,8 @@ async function loadMyEquipment() {
             </div>
           </div>
           <div style="margin-top:15px;display:flex;gap:10px;">
-            ${isBorrowed ? 
-              '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="已借出無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="已借出無法刪除">🗑️ 刪除</button>' :
+            ${(isBorrowed || isReturnPending) ? 
+              '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button>' :
               '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>'
             }
           </div>
