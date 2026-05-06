@@ -1244,14 +1244,10 @@ async function loadMyEquipment() {
             </div>
           </div>
           <div style="margin-top:15px;display:flex;gap:10px;">
-            <button onclick="openEditEquipmentModal('${eq.fix_no}')" 
-                    style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">
-              ✏️ 修改
-            </button>
-            <button onclick="confirmDeleteEquipment('${eq.fix_no}', '${eq.device_name}')" 
-                    style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">
-              🗑️ 刪除
-            </button>
+            ${(isBorrowed || isReturnPending) ? 
+              '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button>' :
+              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>'
+            }
           </div>
         </div>
       `;
