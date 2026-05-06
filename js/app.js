@@ -682,9 +682,8 @@ function renderHistory(history, sortOrder = 'newest') {
   
   console.log('排序後（' + sortOrder + '）:', history[0]?.timestamp, '到', history[history.length-1]?.timestamp);
 
-  // 按設備編號 + 借用人 + 借用週期分組（每個完整的借用週期顯示一筆）
+  // 先按設備編號分組，每個設備下再按借用週期分組
   const deviceGroups = {};
-  let cycleCounter = 0;
   
   // 先按時間排序（舊的在前，新的在後）
   const sortedHistory = [...history].sort((a, b) => {
@@ -695,13 +694,17 @@ function renderHistory(history, sortOrder = 'newest') {
     const fixNo = record.fix_no || '無編號';
     const borrower = record.borrower || '未知';
     
-    // borrow 動作表示新的借用週期開始
-    if (record.action === 'borrow') {
-      cycleCounter++;
-      const groupKey = fixNo + '###' + borrower + '###' + cycleCounter;
-      deviceGroups[groupKey] = {
+    if (!deviceGroups[fixNo]) {
+      deviceGroups[fixNo] = {
         fix_no: fixNo,
         device_name: record.device_name,
+        cycles: []  // 每個設備有多個借用週期
+      };
+    }
+    
+    // borrow 動作表示新的借用週期開始
+    if (record.action === 'borrow') {
+      const newCycle = {
         borrower: borrower,
         keeper: record.keeper,
         dt_borrow: record.dt_borrow || '',
@@ -711,28 +714,29 @@ function renderHistory(history, sortOrder = 'newest') {
         records: [record],
         lastTimestamp: record.timestamp || ''
       };
+      deviceGroups[fixNo].cycles.push(newCycle);
     } else {
       // return/confirm 歸到最新的未完成週期
-      const groupKey = Object.keys(deviceGroups).reverse().find(key => {
-        const g = deviceGroups[key];
-        return g.fix_no === fixNo && g.borrower === borrower && !g.return_confirmed;
+      const cycles = deviceGroups[fixNo].cycles;
+      const targetCycle = cycles.reverse().find(cycle => {
+        return cycle.borrower === borrower && !cycle.return_confirmed;
       });
       
-      if (groupKey) {
-        deviceGroups[groupKey].records.push(record);
+      if (targetCycle) {
+        targetCycle.records.push(record);
         
         const recordTime = new Date(record.timestamp || 0).getTime();
-        const currentLastTime = new Date(deviceGroups[groupKey].lastTimestamp || 0).getTime();
+        const currentLastTime = new Date(targetCycle.lastTimestamp || 0).getTime();
         if (recordTime > currentLastTime) {
-          deviceGroups[groupKey].lastTimestamp = record.timestamp;
+          targetCycle.lastTimestamp = record.timestamp;
         }
         
         if (record.action === 'return') {
-          deviceGroups[groupKey].dt_return = record.dt_return || '';
-          deviceGroups[groupKey].return_confirmed = false;
+          targetCycle.dt_return = record.dt_return || '';
+          targetCycle.return_confirmed = false;
         } else if (record.action === 'confirm' || record.action === 'confirmed') {
-          deviceGroups[groupKey].dt_return = record.dt_return || '';
-          deviceGroups[groupKey].return_confirmed = true;
+          targetCycle.dt_return = record.dt_return || '';
+          targetCycle.return_confirmed = true;
         }
       }
     }
@@ -741,60 +745,65 @@ function renderHistory(history, sortOrder = 'newest') {
   let html = '';
   
   
-  // 將設備組按最新時間戳排序
+  // 將設備組按最新時間戳排序（取每個設備的最新借用週期）
   const sortedDeviceKeys = Object.keys(deviceGroups).sort((a, b) => {
-    const timeA = new Date(deviceGroups[a].lastTimestamp || 0).getTime();
-    const timeB = new Date(deviceGroups[b].lastTimestamp || 0).getTime();
+    const deviceA = deviceGroups[a];
+    const deviceB = deviceGroups[b];
+    const timeA = deviceA.cycles.length > 0 ? new Date(deviceA.cycles[deviceA.cycles.length - 1].lastTimestamp || 0).getTime() : 0;
+    const timeB = deviceB.cycles.length > 0 ? new Date(deviceB.cycles[deviceB.cycles.length - 1].lastTimestamp || 0).getTime() : 0;
     return sortOrder === 'newest' ? (timeB - timeA) : (timeA - timeB);
   });
   
-  sortedDeviceKeys.forEach((groupKey, deviceIndex) => {
-    const group = deviceGroups[groupKey];
+  sortedDeviceKeys.forEach((fixNo, deviceIndex) => {
+    const device = deviceGroups[fixNo];
     const deviceExpanded = deviceIndex === 0; // 第一個設備預設展開
     
     html += `
       <div class="history-device-group" style="margin-bottom:20px;">
         <div class="history-device-header" onclick="toggleHistoryDevice(this)" style="cursor:pointer;user-select:none;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:12px 15px;border-radius:6px;margin-bottom:10px;font-weight:bold;font-size:1.1em;display:flex;align-items:center;">
           <span class="device-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${deviceExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-          <span>📦 ${group.fix_no} - ${group.device_name || '未知設備'}</span>
+          <span>📦 ${device.fix_no} - ${device.device_name || '未知設備'}</span>
         </div>
         <div class="history-device-content" style="${deviceExpanded ? 'display:block;' : 'display:none;'}">
     `;
     
-    // 每個借用人只顯示一筆最終狀態
-    const hasConfirm = group.return_confirmed;
-    const hasReturn = !hasConfirm && group.dt_return && group.dt_return !== '';
-    
-    // 判斷狀態
-    let statusIcon, statusText;
-    if (hasConfirm) {
-      statusIcon = '✅';
-      statusText = '已歸還';
-    } else if (hasReturn) {
-      statusIcon = '📥';
-      statusText = '歸還（待確認）';
-    } else {
-      statusIcon = '📤';
-      statusText = '借用';
-    }
-    
-    html += `
-      <div class="history-borrow-cycle" style="margin-bottom:10px;">
-        <div class="history-borrow-header" onclick="toggleHistoryBorrow(event, this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
-          <span class="borrow-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;transform:rotate(90deg)">▶</span>
-          <span style="font-weight:bold;font-size:0.95em;">---> ${getAvatarHtml(group.borrower, 24)} ${group.borrower} ${statusIcon} ${statusText}</span>
-        </div>
-        <div class="history-borrow-detail" style="display:block;margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
-          <div style="font-size:0.9em;color:#666;line-height:1.8;">
-            <div>借用日期：${formatDateTime(group.dt_borrow) || '－'}</div>
-            <div>預計歸還：${formatDateTime(group.dt_due) || '－'}</div>
-            ${group.dt_return ? `
-              <div>${group.return_confirmed ? '歸還完成' : '歸還日期'}：${formatDateTime(group.dt_return)}${group.return_confirmed ? '' : '（待確認）'}</div>
-            ` : '<div>歸還完成：－</div>'}
+    // 每個借用週期顯示一筆
+    device.cycles.forEach((cycle, cycleIndex) => {
+      const hasConfirm = cycle.return_confirmed;
+      const hasReturn = !hasConfirm && cycle.dt_return && cycle.dt_return !== '';
+      const isExpanded = cycleIndex === device.cycles.length - 1; // 最新的預設展開
+      
+      // 判斷狀態
+      let statusIcon, statusText;
+      if (hasConfirm) {
+        statusIcon = '✅';
+        statusText = '已歸還';
+      } else if (hasReturn) {
+        statusIcon = '📥';
+        statusText = '歸還（待確認）';
+      } else {
+        statusIcon = '📤';
+        statusText = '借用';
+      }
+      
+      html += `
+        <div class="history-borrow-cycle" style="margin-bottom:10px;">
+          <div class="history-borrow-header" onclick="toggleHistoryBorrow(event, this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
+            <span class="borrow-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
+            <span style="font-weight:bold;font-size:0.95em;">---> ${getAvatarHtml(cycle.borrower, 24)} ${cycle.borrower} ${statusIcon} ${statusText}</span>
+          </div>
+          <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
+            <div style="font-size:0.9em;color:#666;line-height:1.8;">
+              <div>借用日期：${formatDateTime(cycle.dt_borrow) || '－'}</div>
+              <div>預計歸還：${formatDateTime(cycle.dt_due) || '－'}</div>
+              ${cycle.dt_return ? `
+                <div>${cycle.return_confirmed ? '歸還完成' : '歸還日期'}：${formatDateTime(cycle.dt_return)}${cycle.return_confirmed ? '' : '（待確認）'}</div>
+              ` : '<div>歸還完成：－</div>'}
+            </div>
           </div>
         </div>
-      </div>
-    `;
+      `;
+    });
     
     html += `</div></div>`;
   });
