@@ -513,6 +513,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) {
         closeBorrowModal();
         searchEquipment();
+        // 如果目前在看「我的設備」分頁，也重新整理
+        const myEquipmentTab = document.getElementById('my-equipment-tab');
+        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+          loadMyEquipment();
+        }
       }
     });
   }
@@ -544,6 +549,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) {
         closeReturnModal();
         searchEquipment();
+        // 如果目前在看「我的設備」分頁，也重新整理
+        const myEquipmentTab = document.getElementById('my-equipment-tab');
+        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+          loadMyEquipment();
+        }
       }
     });
   }
@@ -585,6 +595,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (equipmentTab) {
           equipmentTab.click();
           searchEquipment();
+        }
+        // 如果目前在看「我的設備」分頁，也重新整理
+        const myEquipmentTab = document.getElementById('my-equipment-tab');
+        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+          loadMyEquipment();
         }
       }
     });
