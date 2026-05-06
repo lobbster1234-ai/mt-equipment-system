@@ -1259,7 +1259,7 @@ async function loadMyEquipment() {
             </div>
           </div>
           <div style="margin-top:15px;display:flex;gap:10px;">
-            <button onclick="openEditEquipmentModal('${eq.fix_no}')" 
+            <button onclick="openEditEquipmentModal('${eq.fix_no}', '${encodeURIComponent(eq.device_name || '')}', '${encodeURIComponent(eq.fix_type || '')}')" 
                     style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">
               ✏️ 修改
             </button>
@@ -1283,20 +1283,15 @@ async function loadMyEquipment() {
 /**
  * 開啟修改設備 Modal
  */
-function openEditEquipmentModal(fixNo) {
-  // 找到設備資料
-  const user = JSON.parse(localStorage.getItem('mt_user'));
-  if (!user) return;
-  
-  // 從當前載入的資料中找到設備
-  // 這裡我們簡單地用 prompt 讓使用者輸入新值
-  const newDeviceName = prompt('請輸入新的設備名稱：');
-  if (newDeviceName === null) return;
-  
-  const newFixType = prompt('請輸入新的設備類型：\n(儀器設備/其他設備/雜項購置/電腦週邊用品)');
-  if (newFixType === null) return;
-  
-  updateEquipment(fixNo, { device_name: newDeviceName, fix_type: newFixType });
+function openEditEquipmentModal(fixNo, deviceName, fixType) {
+  document.getElementById('edit-fix-no').value = fixNo;
+  document.getElementById('edit-device-name').value = deviceName || '';
+  document.getElementById('edit-fix-type').value = fixType || '儀器設備';
+  document.getElementById('edit-equipment-modal').style.display = 'block';
+}
+
+function closeEditEquipmentModal() {
+  document.getElementById('edit-equipment-modal').style.display = 'none';
 }
 
 /**
@@ -1356,3 +1351,37 @@ async function deleteEquipment(fixNo) {
     alert('❌ 刪除失敗：' + err.message);
   }
 }
+
+// 修改設備表單提交
+document.getElementById('edit-equipment-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const fixNo = document.getElementById('edit-fix-no').value;
+  const deviceName = document.getElementById('edit-device-name').value;
+  const fixType = document.getElementById('edit-fix-type').value;
+  
+  if (!fixNo || !deviceName) {
+    alert('請填寫設備名稱');
+    return;
+  }
+  
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'updateEquipment');
+    url.searchParams.append('fix_no', fixNo);
+    url.searchParams.append('device_name', deviceName);
+    url.searchParams.append('fix_type', fixType);
+    
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const data = await res.json();
+    
+    if (data.success) {
+      alert('✅ 設備已更新');
+      closeEditEquipmentModal();
+      loadMyEquipment();
+    } else {
+      alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (err) {
+    alert('❌ 更新失敗：' + err.message);
+  }
+});
