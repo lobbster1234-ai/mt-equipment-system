@@ -1004,6 +1004,15 @@ async function loadAvatarList() {
   const listEl = document.getElementById('avatar-list');
   if (!listEl) return;
   
+  // 自動填入登入者姓名
+  const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
+  if (user && user.name) {
+    const nameInput = document.getElementById('avatar-name');
+    if (nameInput) {
+      nameInput.value = user.name;
+    }
+  }
+  
   listEl.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">🔄 載入中...</p>';
   
   try {
