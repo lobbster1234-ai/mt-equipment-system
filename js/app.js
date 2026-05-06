@@ -1182,8 +1182,12 @@ if (avatarForm) {
  * 載入管理員自己的設備列表
  */
 async function loadMyEquipment() {
+  console.log('loadMyEquipment 開始');
   const user = JSON.parse(localStorage.getItem('mt_user'));
+  console.log('使用者資料:', user);
+  
   if (!user || user.role !== 'admin') {
+    console.log('不是管理員或未登入');
     document.getElementById('my-equipment-list').innerHTML = 
       '<p style="text-align:center;color:#c00;padding:40px;">❌ 只有管理員可以查看此頁面</p>';
     return;
@@ -1196,18 +1200,29 @@ async function loadMyEquipment() {
     // 查詢所有設備（從兩個工作表）
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'query');
+    console.log('查詢 URL:', url.toString());
     
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    console.log('GAS 回應狀態:', res.status);
+    
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status);
+    }
+    
     const data = await res.json();
+    console.log('GAS 回應資料:', data);
     
     if (data.error) {
       throw new Error(data.error);
     }
     
     const allEquipment = Array.isArray(data) ? data : (data.data || []);
+    console.log('總設備數量:', allEquipment.length);
+    console.log('登入者姓名:', user.name);
     
     // 只顯示 keeper = 登入者的設備
     const myEquipment = allEquipment.filter(eq => eq.keeper === user.name);
+    console.log('我的設備數量:', myEquipment.length);
     
     if (myEquipment.length === 0) {
       listEl.innerHTML = `
