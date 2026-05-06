@@ -264,21 +264,6 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   
   document.getElementById('borrow-fix-no').value = fixNo;
   
-  // 自動填入登入者姓名
-  const user = JSON.parse(localStorage.getItem('mt_user'));
-  const borrowNameInput = document.getElementById('borrow-name');
-  if (user && user.name && borrowNameInput) {
-    borrowNameInput.value = user.name;
-    // 如果已經有值，設為只讀，防止修改
-    borrowNameInput.readOnly = true;
-    borrowNameInput.style.background = '#e9ecef';
-  } else if (borrowNameInput) {
-    // 沒有登入或沒有姓名，清空並允許手動輸入
-    borrowNameInput.value = '';
-    borrowNameInput.readOnly = false;
-    borrowNameInput.style.background = '#fff';
-  }
-  
   // 設定最小日期為今天（台北時間）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
@@ -481,33 +466,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // =============================================
-// 全域刷新功能 - 保持所有分頁資料同步
-// =============================================
-
-function refreshAllTabs() {
-  // 刷新設備列表
-  if (typeof searchEquipment === 'function') {
-    searchEquipment();
-  }
-  // 刷新歷史紀錄
-  if (typeof searchHistory === 'function') {
-    searchHistory();
-  }
-  // 刷新我的設備
-  if (typeof loadMyEquipment === 'function') {
-    const myEquipmentTab = document.getElementById('my-equipment-tab');
-    if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-      loadMyEquipment();
-    }
-  }
-}
-
-// =============================================
-// 表單提交處理
-// =============================================
-
-// 綁定借用表單
+  // 綁定借用表單
   const borrowForm = document.getElementById('borrow-form');
   if (borrowForm) {
     borrowForm.addEventListener('submit', async (e) => {
@@ -539,11 +498,6 @@ function refreshAllTabs() {
       if (result.success) {
         closeBorrowModal();
         searchEquipment();
-        searchHistory();
-        const myEquipmentTab = document.getElementById('my-equipment-tab');
-        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-          loadMyEquipment();
-        }
       }
     });
   }
@@ -575,11 +529,6 @@ function refreshAllTabs() {
       if (result.success) {
         closeReturnModal();
         searchEquipment();
-        searchHistory();
-        const myEquipmentTab = document.getElementById('my-equipment-tab');
-        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-          loadMyEquipment();
-        }
       }
     });
   }
@@ -616,12 +565,11 @@ function refreshAllTabs() {
 
       if (result.success) {
         e.target.reset();
-        // 刷新所有分頁
-        searchEquipment();
-        searchHistory();
-        const myEquipmentTab = document.getElementById('my-equipment-tab');
-        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-          loadMyEquipment();
+        // 切換到設備列表分頁並重新查詢
+        const equipmentTab = document.querySelector('[data-tab="equipment"]');
+        if (equipmentTab) {
+          equipmentTab.click();
+          searchEquipment();
         }
       }
     });
@@ -921,22 +869,18 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     this.classList.add('active');
     document.getElementById(`${tab}-tab`).classList.add('active');
     
-    // 如果切換到歷史紀錄分頁，自動載入
+    // 如果切換到歷史紀錄分頁，自動載入並綁定排序事件
     if (tab === 'history') {
-      // 不自動載入，只在手動點擊或操作成功後更新
+      searchHistory();
       
       // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
       const historySortSelect = document.getElementById('history-sort');
       if (historySortSelect && !historySortSelect._hasEventListener) {
         historySortSelect.addEventListener('change', () => {
-          searchHistory();
+          searchHistory();  // 排序變更時自動重新搜尋
         });
-        historySortSelect._hasEventListener = true;
+        historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
       }
-    }
-    // 如果切換到「我的設備」分頁
-    if (tab === 'my-equipment') {
-      // 不自動載入，只在手動點擊或操作成功後更新
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
@@ -1210,236 +1154,3 @@ if (avatarForm) {
     }
   });
 }
-
-// =============================================
-// 我的設備功能（管理員專屬）
-// =============================================
-
-/**
- * 載入管理員自己的設備列表
- */
-async function loadMyEquipment() {
-  console.log('loadMyEquipment 開始');
-  const user = JSON.parse(localStorage.getItem('mt_user'));
-  console.log('使用者資料:', user);
-  
-  if (!user || user.role !== 'admin') {
-    console.log('不是管理員或未登入');
-    document.getElementById('my-equipment-list').innerHTML = 
-      '<p style="text-align:center;color:#c00;padding:40px;">❌ 只有管理員可以查看此頁面</p>';
-    return;
-  }
-  
-  const listEl = document.getElementById('my-equipment-list');
-  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
-  
-  try {
-    // 查詢所有設備（從兩個工作表）
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'query');
-    console.log('查詢 URL:', url.toString());
-    
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    console.log('GAS 回應狀態:', res.status);
-    
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status);
-    }
-    
-    const data = await res.json();
-    console.log('GAS 回應資料:', data);
-    
-    if (data.error) {
-      throw new Error(data.error);
-    }
-    
-    const allEquipment = Array.isArray(data) ? data : (data.data || []);
-    console.log('總設備數量:', allEquipment.length);
-    console.log('登入者姓名:', user.name);
-    
-    // 只顯示 keeper = 登入者的設備
-    const myEquipment = allEquipment.filter(eq => eq.keeper === user.name);
-    console.log('我的設備數量:', myEquipment.length);
-    
-    if (myEquipment.length === 0) {
-      listEl.innerHTML = `
-        <div style="text-align:center;padding:40px;color:#666;">
-          <p style="font-size:1.2em;">📭 您還沒有保管任何設備</p>
-          <p style="margin-top:10px;">點擊「設備登記」新增設備</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // 顯示設備列表
-    let html = '<div style="display:grid;gap:15px;">';
-    myEquipment.forEach((eq, index) => {
-      const isBorrowed = eq.status === 'borrowed' || eq.status === '借用中' || eq.status === '已借出' || eq.status === '使用中';
-      const isReturnPending = eq.status === 'return_pending';
-      console.log('設備:', eq.fix_no, '狀態:', eq.status, 'isBorrowed:', isBorrowed, 'isReturnPending:', isReturnPending);
-      
-      html += `
-        <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;">
-          <div style="display:flex;justify-content:space-between;align-items:start;">
-            <div>
-              <strong style="font-size:1.1em;">${eq.device_name || '未知設備'}</strong>
-              <div style="color:#666;font-size:0.85em;margin-top:5px;">
-                📋 編號：${eq.fix_no || '-'}
-              </div>
-              <div style="color:#666;font-size:0.85em;">
-                📦 類型：${eq.fix_type || '-'}
-              </div>
-            </div>
-            <div style="text-align:right;">
-              ${isBorrowed ? '<span style="background:#ffc107;padding:4px 8px;border-radius:4px;font-size:0.85em;">📤 已借出</span>' : ''}
-              ${isReturnPending ? '<span style="background:#17a2b8;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">⏳ 歸還中</span>' : ''}
-              ${eq.status === 'available' ? '<span style="background:#28a745;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">✓ 可借用</span>' : ''}
-            </div>
-          </div>
-          <div style="margin-top:15px;display:flex;gap:10px;">
-            ${(isBorrowed || isReturnPending) ? 
-              '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button>' :
-              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>'
-            }
-          </div>
-        </div>
-      `;
-    });
-    html += '</div>';
-    
-    listEl.innerHTML = html;
-  } catch (err) {
-    console.error('載入我的設備失敗:', err);
-    listEl.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${err.message}</p>`;
-  }
-}
-
-/**
- * 開啟修改設備 Modal
- */
-function openEditEquipmentModal(fixNo, deviceName, fixType, qtyAsset) {
-  document.getElementById('edit-fix-no').value = fixNo;
-  document.getElementById('edit-fix-no-display').value = fixNo || '';
-  document.getElementById('edit-device-name').value = decodeURIComponent(deviceName || '');
-  document.getElementById('edit-fix-type').value = decodeURIComponent(fixType || '儀器設備');
-  document.getElementById('edit-qty-asset').value = qtyAsset || '1';
-  document.getElementById('edit-equipment-modal').style.display = 'block';
-}
-
-function closeEditEquipmentModal() {
-  document.getElementById('edit-equipment-modal').style.display = 'none';
-}
-
-/**
- * 更新設備
- */
-async function updateEquipment(fixNo, updateData) {
-  try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'updateEquipment');
-    url.searchParams.append('fix_no', fixNo);
-    url.searchParams.append('device_name', updateData.device_name || '');
-    url.searchParams.append('fix_type', updateData.fix_type || '');
-    
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const data = await res.json();
-    
-    if (data.success) {
-      alert('✅ 設備已更新');
-      loadMyEquipment();  // 重新載入列表
-    } else {
-      alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
-    }
-  } catch (err) {
-    alert('❌ 更新失敗：' + err.message);
-  }
-}
-
-/**
- * 確認刪除設備
- */
-function confirmDeleteEquipment(fixNo, deviceName) {
-  if (!confirm('確定要刪除設備「' + deviceName + '」嗎？\n此操作無法撤銷！')) {
-    return;
-  }
-  deleteEquipment(fixNo);
-}
-
-/**
- * 刪除設備
- */
-async function deleteEquipment(fixNo) {
-  try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'deleteEquipment');
-    url.searchParams.append('fix_no', fixNo);
-    
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const data = await res.json();
-    
-    if (data.success) {
-      alert('✅ 設備已刪除');
-      searchEquipment();
-      searchHistory();
-      const myEquipmentTab = document.getElementById('my-equipment-tab');
-      if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-        loadMyEquipment();
-      }
-    } else {
-      alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
-    }
-  } catch (err) {
-    alert('❌ 刪除失敗：' + err.message);
-  }
-}
-
-// 修改設備表單提交
-document.getElementById('edit-equipment-form').addEventListener('submit', async function(e) {
-  e.preventDefault();
-  console.log('表單提交了');
-  // originalFixNo 是隱藏欄位，用來找資料列
-  // newFixNo 是顯示欄位，是使用者輸入的新編號
-  const originalFixNo = document.getElementById('edit-fix-no').value;
-  const newFixNo = document.getElementById('edit-fix-no-display').value;
-  const deviceName = document.getElementById('edit-device-name').value;
-  const fixType = document.getElementById('edit-fix-type').value;
-  const qtyAsset = document.getElementById('edit-qty-asset').value;
-  
-  if (!originalFixNo || !deviceName) {
-    alert('請填寫設備名稱');
-    return;
-  }
-  
-    try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'updateEquipment');
-    url.searchParams.append('fix_no', originalFixNo);
-    url.searchParams.append('new_fix_no', newFixNo);
-    url.searchParams.append('device_name', deviceName);
-    url.searchParams.append('fix_type', fixType);
-    url.searchParams.append('qty_asset', qtyAsset || '1');
-    
-    console.log('更新設備 URL:', url.toString());
-    
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    console.log('更新設備 HTTP 狀態:', res.status);
-    const data = await res.json();
-    console.log('更新設備回應:', data);
-    
-    if (data.success) {
-      alert('✅ 設備已更新');
-      closeEditEquipmentModal();
-      searchEquipment();
-      searchHistory();
-      const myEquipmentTab = document.getElementById('my-equipment-tab');
-      if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-        loadMyEquipment();
-      }
-    } else {
-      alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
-    }
-  } catch (err) {
-    console.error('更新設備錯誤:', err);
-    alert('❌ 更新失敗：' + err.message);
-  }
-});
