@@ -714,13 +714,16 @@ function renderHistory(history, sortOrder = 'newest') {
       deviceGroups[groupKey].lastTimestamp = record.timestamp;
     }
     
-    // 根據動作更新最終狀態
+    // 根據動作更新最終狀態（只更新，不覆蓋已有的 confirm 狀態）
     if (record.action === 'borrow') {
       deviceGroups[groupKey].dt_borrow = record.dt_borrow || '';
       deviceGroups[groupKey].dt_due = record.dt_due || '';
     } else if (record.action === 'return') {
-      deviceGroups[groupKey].dt_return = record.dt_return || '';
-      deviceGroups[groupKey].return_confirmed = false;
+      // 只有在還沒有 confirm 的情況下才設定 return
+      if (!deviceGroups[groupKey].return_confirmed) {
+        deviceGroups[groupKey].dt_return = record.dt_return || '';
+        deviceGroups[groupKey].return_confirmed = false;
+      }
     } else if (record.action === 'confirm' || record.action === 'confirmed') {
       deviceGroups[groupKey].dt_return = record.dt_return || '';
       deviceGroups[groupKey].return_confirmed = true;
@@ -729,8 +732,6 @@ function renderHistory(history, sortOrder = 'newest') {
 
   let html = '';
   
-  console.log('deviceGroups keys:', Object.keys(deviceGroups));
-  console.log('deviceGroups content:', deviceGroups);
   
   // 將設備組按最新時間戳排序
   const sortedDeviceKeys = Object.keys(deviceGroups).sort((a, b) => {
