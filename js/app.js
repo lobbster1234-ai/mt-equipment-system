@@ -1182,8 +1182,12 @@ if (avatarForm) {
  * 載入管理員自己的設備列表
  */
 async function loadMyEquipment() {
+  console.log('loadMyEquipment 開始');
   const user = JSON.parse(localStorage.getItem('mt_user'));
+  console.log('使用者資料:', user);
+  
   if (!user || user.role !== 'admin') {
+    console.log('不是管理員或未登入');
     document.getElementById('my-equipment-list').innerHTML = 
       '<p style="text-align:center;color:#c00;padding:40px;">❌ 只有管理員可以查看此頁面</p>';
     return;
@@ -1196,18 +1200,29 @@ async function loadMyEquipment() {
     // 查詢所有設備（從兩個工作表）
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'query');
+    console.log('查詢 URL:', url.toString());
     
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    console.log('GAS 回應狀態:', res.status);
+    
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status);
+    }
+    
     const data = await res.json();
+    console.log('GAS 回應資料:', data);
     
     if (data.error) {
       throw new Error(data.error);
     }
     
     const allEquipment = Array.isArray(data) ? data : (data.data || []);
+    console.log('總設備數量:', allEquipment.length);
+    console.log('登入者姓名:', user.name);
     
     // 只顯示 keeper = 登入者的設備
     const myEquipment = allEquipment.filter(eq => eq.keeper === user.name);
+    console.log('我的設備數量:', myEquipment.length);
     
     if (myEquipment.length === 0) {
       listEl.innerHTML = `
@@ -1221,10 +1236,10 @@ async function loadMyEquipment() {
     
     // 顯示設備列表
     let html = '<div style="display:grid;gap:15px;">';
+    console.log('所有設備狀態:', allEquipment.map(eq => eq.status));
     myEquipment.forEach((eq, index) => {
       const isBorrowed = eq.status === 'borrowed' || eq.status === '借用中' || eq.status === '已借出' || eq.status === '使用中';
       const isReturnPending = eq.status === 'return_pending';
-      console.log('設備:', eq.fix_no, '狀態:', eq.status, 'isBorrowed:', isBorrowed, 'isReturnPending:', isReturnPending);
       
       html += `
         <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;">
@@ -1247,7 +1262,7 @@ async function loadMyEquipment() {
           <div style="margin-top:15px;display:flex;gap:10px;">
             ${(isBorrowed || isReturnPending) ? 
               '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button>' :
-              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>'
+              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>'
             }
           </div>
         </div>
@@ -1265,20 +1280,17 @@ async function loadMyEquipment() {
 /**
  * 開啟修改設備 Modal
  */
-function openEditEquipmentModal(fixNo) {
-  // 找到設備資料
-  const user = JSON.parse(localStorage.getItem('mt_user'));
-  if (!user) return;
-  
-  // 從當前載入的資料中找到設備
-  // 這裡我們簡單地用 prompt 讓使用者輸入新值
-  const newDeviceName = prompt('請輸入新的設備名稱：');
-  if (newDeviceName === null) return;
-  
-  const newFixType = prompt('請輸入新的設備類型：\n(儀器設備/其他設備/雜項購置/電腦週邊用品)');
-  if (newFixType === null) return;
-  
-  updateEquipment(fixNo, { device_name: newDeviceName, fix_type: newFixType });
+function openEditEquipmentModal(fixNo, deviceName, fixType, qtyAsset) {
+  document.getElementById('edit-fix-no').value = fixNo;
+  document.getElementById('edit-fix-no-display').value = fixNo || '';
+  document.getElementById('edit-device-name').value = decodeURIComponent(deviceName || '');
+  document.getElementById('edit-fix-type').value = decodeURIComponent(fixType || '儀器設備');
+  document.getElementById('edit-qty-asset').value = qtyAsset || '1';
+  document.getElementById('edit-equipment-modal').style.display = 'block';
+}
+
+function closeEditEquipmentModal() {
+  document.getElementById('edit-equipment-modal').style.display = 'none';
 }
 
 /**
@@ -1338,3 +1350,49 @@ async function deleteEquipment(fixNo) {
     alert('❌ 刪除失敗：' + err.message);
   }
 }
+
+// 修改設備表單提交
+document.getElementById('edit-equipment-form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  console.log('表單提交了');
+  // originalFixNo 是隱藏欄位，用來找資料列
+  // newFixNo 是顯示欄位，是使用者輸入的新編號
+  const originalFixNo = document.getElementById('edit-fix-no').value;
+  const newFixNo = document.getElementById('edit-fix-no-display').value;
+  const deviceName = document.getElementById('edit-device-name').value;
+  const fixType = document.getElementById('edit-fix-type').value;
+  const qtyAsset = document.getElementById('edit-qty-asset').value;
+  
+  if (!originalFixNo || !deviceName) {
+    alert('請填寫設備名稱');
+    return;
+  }
+  
+    try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'updateEquipment');
+    url.searchParams.append('fix_no', originalFixNo);
+    url.searchParams.append('new_fix_no', newFixNo);
+    url.searchParams.append('device_name', deviceName);
+    url.searchParams.append('fix_type', fixType);
+    url.searchParams.append('qty_asset', qtyAsset || '1');
+    
+    console.log('更新設備 URL:', url.toString());
+    
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    console.log('更新設備 HTTP 狀態:', res.status);
+    const data = await res.json();
+    console.log('更新設備回應:', data);
+    
+    if (data.success) {
+      alert('✅ 設備已更新');
+      closeEditEquipmentModal();
+      loadMyEquipment();
+    } else {
+      alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (err) {
+    console.error('更新設備錯誤:', err);
+    alert('❌ 更新失敗：' + err.message);
+  }
+});
