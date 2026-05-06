@@ -706,17 +706,32 @@ function renderHistory(history, sortOrder = 'newest') {
     if (record.action === 'borrow') {
       const borrower = record.borrower || '未知';
       const users = deviceGroups[fixNo].users;
+      console.log('borrow 記錄：users.length =', users.length, 'fix_no =', fixNo);
       
       // 如果已經有用戶（從 return/confirm 建立的），更新它而不是建立新的
       if (users.length > 0) {
         const existingUser = users[users.length - 1];
-        if (!existingUser.dt_borrow) {
+        console.log('existingUser.dt_borrow =', existingUser.dt_borrow);
+        if (!existingUser.dt_borrow || existingUser.dt_borrow === '') {
+          console.log('更新現有使用者');
           existingUser.dt_borrow = record.dt_borrow;
           existingUser.dt_due = record.dt_due;
           existingUser.borrower = borrower;
+        } else {
+          console.log('dt_borrow 已存在，建立新使用者');
+          deviceGroups[fixNo].users.push({
+            borrower: borrower,
+            keeper: record.keeper,
+            dt_borrow: record.dt_borrow,
+            dt_due: record.dt_due,
+            dt_return: '',
+            return_confirmed: false,
+            records: [record]
+          });
         }
       } else {
         // 沒有現有用戶，建立新的
+        console.log('沒有現有使用者，建立新的');
         deviceGroups[fixNo].users.push({
           borrower: borrower,
           keeper: record.keeper,
