@@ -922,8 +922,13 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     document.getElementById(`${tab}-tab`).classList.add('active');
     
     // 如果切換到歷史紀錄分頁，自動載入並綁定排序事件
+    // 只有資料為空時才自動載入，避免每次點擊都重新整理
     if (tab === 'history') {
-      searchHistory();
+      const historyContent = document.getElementById('history-content');
+      if (historyContent && !historyContent.dataset.loaded) {
+        searchHistory();
+        historyContent.dataset.loaded = 'true';
+      }
       
       // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
       const historySortSelect = document.getElementById('history-sort');
@@ -934,9 +939,12 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
       }
     }
-    // 如果切換到「我的設備」分頁，載入管理員的設備
+    // 如果切換到「我的設備」分頁，只在從未載入過時自動載入
     if (tab === 'my-equipment') {
-      loadMyEquipment();
+      const myEquipContent = document.getElementById('my-equipment-list');
+      if (myEquipContent && myEquipContent.innerHTML.includes('載入中')) {
+        loadMyEquipment();
+      }
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
