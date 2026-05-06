@@ -159,6 +159,41 @@
       </div>
     </section>
 
+    <!-- 修改設備 Modal -->
+    <div id="edit-equipment-modal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <span class="close" onclick="closeEditEquipmentModal()">&times;</span>
+        <h2>✏️ 修改設備</h2>
+        <form id="edit-equipment-form">
+          <input type="hidden" id="edit-fix-no">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+            <div class="form-group">
+              <label>設備編號</label>
+              <input type="text" id="edit-fix-no-display" placeholder="設備編號">
+            </div>
+            <div class="form-group">
+              <label>數量</label>
+              <input type="text" id="edit-qty-asset" placeholder="數量">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>設備名稱 *</label>
+            <input type="text" id="edit-device-name" required placeholder="設備名稱">
+          </div>
+          <div class="form-group">
+            <label>設備類型</label>
+            <select id="edit-fix-type" required>
+              <option value="儀器設備">儀器設備</option>
+              <option value="其他設備">其他設備</option>
+              <option value="雜項購置">雜項購置</option>
+              <option value="電腦週邊用品">電腦週邊用品</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary">儲存修改</button>
+        </form>
+      </div>
+    </div>
+
     <!-- 個人設定 -->
     <section id="settings-tab" class="tab-content">
       <div class="form-card" style="max-width:500px;margin:0 auto;">
