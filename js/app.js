@@ -729,6 +729,9 @@ function renderHistory(history, sortOrder = 'newest') {
 
   let html = '';
   
+  console.log('deviceGroups keys:', Object.keys(deviceGroups));
+  console.log('deviceGroups content:', deviceGroups);
+  
   // 將設備組按最新時間戳排序
   const sortedDeviceKeys = Object.keys(deviceGroups).sort((a, b) => {
     const timeA = new Date(deviceGroups[a].lastTimestamp || 0).getTime();
