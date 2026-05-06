@@ -513,7 +513,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) {
         closeBorrowModal();
         searchEquipment();
-        searchHistory();
       }
     });
   }
@@ -545,7 +544,6 @@ document.addEventListener('DOMContentLoaded', () => {
       if (result.success) {
         closeReturnModal();
         searchEquipment();
-        searchHistory();
       }
     });
   }
@@ -582,9 +580,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (result.success) {
         e.target.reset();
-        // 只刷新設備列表和歷史紀錄
-        searchEquipment();
-        searchHistory();
+        // 切換到設備列表分頁並重新查詢
+        const equipmentTab = document.querySelector('[data-tab="equipment"]');
+        if (equipmentTab) {
+          equipmentTab.click();
+          searchEquipment();
+        }
       }
     });
   }
@@ -883,8 +884,11 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     this.classList.add('active');
     document.getElementById(`${tab}-tab`).classList.add('active');
     
-    // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
+    // 如果切換到歷史紀錄分頁，自動載入並綁定排序事件
     if (tab === 'history') {
+      searchHistory();
+      
+      // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
       const historySortSelect = document.getElementById('history-sort');
       if (historySortSelect && !historySortSelect._hasEventListener) {
         historySortSelect.addEventListener('change', () => {
@@ -892,6 +896,14 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         });
         historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
       }
+    }
+    // 如果切換到「我的設備」分頁，載入管理員的設備
+    if (tab === 'my-equipment') {
+      loadMyEquipment();
+    }
+    // 如果切換到個人設定分頁，載入頭像列表
+    if (tab === 'settings') {
+      loadAvatarList();
     }
   });
 });
@@ -1330,10 +1342,7 @@ async function deleteEquipment(fixNo) {
     
     if (data.success) {
       alert('✅ 設備已刪除');
-      // 更新所有分頁
-      searchEquipment();
-      searchHistory();
-      loadMyEquipment();
+      loadMyEquipment();  // 重新載入列表
     } else {
       alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
     }
@@ -1378,9 +1387,6 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     if (data.success) {
       alert('✅ 設備已更新');
       closeEditEquipmentModal();
-      // 更新所有分頁
-      searchEquipment();
-      searchHistory();
       loadMyEquipment();
     } else {
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));

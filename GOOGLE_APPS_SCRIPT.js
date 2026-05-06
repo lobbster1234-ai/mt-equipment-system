@@ -104,6 +104,7 @@ function doGet(e) {
     } else if (action === 'updateEquipment') {
       return updateEquipment({
         fix_no: e.parameter.fix_no,
+        new_fix_no: e.parameter.new_fix_no,
         device_name: e.parameter.device_name,
         fix_type: e.parameter.fix_type,
         qty_asset: e.parameter.qty_asset
@@ -1323,6 +1324,8 @@ function updateEquipment(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const fixNo = data.fix_no;
   
+  Logger.log('updateEquipment 收到資料: ' + JSON.stringify(data));
+  
   if (!fixNo) {
     return errorResponse('缺少設備編號');
   }
@@ -1333,6 +1336,8 @@ function updateEquipment(data) {
   const qtyAssetCol = COLS.qty_asset;
   const keeperCol = COLS.keeper;
   
+  Logger.log('搜尋設備編號: ' + fixNo);
+  
   // 先在「工作表 1」查找
   let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
@@ -1340,9 +1345,11 @@ function updateEquipment(data) {
   
   if (sheet) {
     const lastRow = sheet.getLastRow();
+    Logger.log('工作表 1 有 ' + lastRow + ' 列');
     for (let i = 2; i <= lastRow; i++) {
       const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
       if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        Logger.log('在工作表 1 第 ' + i + ' 列找到：' + rowFixNo);
         foundRow = i;
         targetSheet = sheet;
         break;
@@ -1355,9 +1362,11 @@ function updateEquipment(data) {
     sheet = ss.getSheetByName(SHEET_NAME_WEB);
     if (sheet) {
       const lastRow = sheet.getLastRow();
+      Logger.log('網站新增設備 有 ' + lastRow + ' 列');
       for (let i = 2; i <= lastRow; i++) {
         const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
         if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          Logger.log('在網站新增設備 第 ' + i + ' 列找到：' + rowFixNo);
           foundRow = i;
           targetSheet = sheet;
           break;
@@ -1367,10 +1376,15 @@ function updateEquipment(data) {
   }
   
   if (foundRow === -1 || !targetSheet) {
+    Logger.log('找不到設備：' + fixNo);
     return errorResponse('找不到設備編號：' + fixNo);
   }
   
-  // 更新資料
+  // 更新資料（用 new_fix_no 寫入新編號，如果有的話）
+  const finalFixNo = data.new_fix_no || data.fix_no;
+  if (finalFixNo) {
+    targetSheet.getRange(foundRow, fixNoCol + 1).setValue(finalFixNo);
+  }
   if (data.device_name) {
     targetSheet.getRange(foundRow, deviceNameCol + 1).setValue(data.device_name);
   }
