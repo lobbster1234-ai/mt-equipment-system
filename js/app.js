@@ -705,15 +705,28 @@ function renderHistory(history, sortOrder = 'newest') {
     // 檢查是否為新的借用週期（borrow 動作）
     if (record.action === 'borrow') {
       const borrower = record.borrower || '未知';
-      deviceGroups[fixNo].users.push({
-        borrower: borrower,
-        keeper: record.keeper,
-        dt_borrow: record.dt_borrow,
-        dt_due: record.dt_due,
-        dt_return: '',
-        return_confirmed: false,
-        records: [record]
-      });
+      const users = deviceGroups[fixNo].users;
+      
+      // 如果已經有用戶（從 return/confirm 建立的），更新它而不是建立新的
+      if (users.length > 0) {
+        const existingUser = users[users.length - 1];
+        if (!existingUser.dt_borrow) {
+          existingUser.dt_borrow = record.dt_borrow;
+          existingUser.dt_due = record.dt_due;
+          existingUser.borrower = borrower;
+        }
+      } else {
+        // 沒有現有用戶，建立新的
+        deviceGroups[fixNo].users.push({
+          borrower: borrower,
+          keeper: record.keeper,
+          dt_borrow: record.dt_borrow,
+          dt_due: record.dt_due,
+          dt_return: '',
+          return_confirmed: false,
+          records: [record]
+        });
+      }
     } else {
       // return 或 confirm，歸到最後一個借用週期
       const users = deviceGroups[fixNo].users;
