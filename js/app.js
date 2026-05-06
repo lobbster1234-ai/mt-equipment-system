@@ -774,6 +774,8 @@ function renderHistory(history, sortOrder = 'newest') {
       const hasReturn = user.records.some(r => r.action === 'return');
       const isExpanded = userIndex === 0; // 第一個預設展開
       
+      console.log('使用者紀錄:', user.borrower, 'dt_return:', user.dt_return, 'return_confirmed:', user.return_confirmed);
+      
       // 判斷狀態
       let statusIcon, statusText;
       if (hasConfirm) {
