@@ -923,8 +923,7 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     
     // 如果切換到歷史紀錄分頁，自動載入
     if (tab === 'history') {
-      // 每次點擊都重新載入
-      searchHistory();
+      // 不自動載入，只在手動點擊或操作成功後更新
       
       // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
       const historySortSelect = document.getElementById('history-sort');
@@ -935,10 +934,9 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         historySortSelect._hasEventListener = true;
       }
     }
-    // 如果切換到「我的設備」分頁，自動載入
+    // 如果切換到「我的設備」分頁
     if (tab === 'my-equipment') {
-      // 每次點擊都重新載入
-      loadMyEquipment();
+      // 不自動載入，只在手動點擊或操作成功後更新
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
