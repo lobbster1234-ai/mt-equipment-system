@@ -36,6 +36,10 @@
         if (registerBtn) {
           registerBtn.style.display = 'none';
         }
+        const myEquipBtn = document.querySelector('[data-tab="my-equipment"]');
+        if (myEquipBtn) {
+          myEquipBtn.style.display = 'none';
+        }
       }
       
       // 管理員自動填入保管人（Keeper聯絡資訊的姓名）
@@ -60,6 +64,7 @@
       <h1>🦐 MT 部門儀器借用系統</h1>
       <nav>
         <button class="nav-btn active" data-tab="equipment">📦 設備列表</button>
+        <button class="nav-btn" data-tab="my-equipment">📋 我的設備</button>
         <button class="nav-btn" data-tab="history">📜 歷史紀錄</button>
         <button class="nav-btn" data-tab="register">➕ 設備登記</button>
         <button class="nav-btn" data-tab="settings">⚙️ 個人設定</button>
@@ -145,6 +150,15 @@
       </form>
     </section>
 
+    <!-- 我的設備（管理員專屬） -->
+    <section id="my-equipment-tab" class="tab-content">
+      <h2 style="margin-bottom:20px;">📋 我的設備</h2>
+      <p style="color:#666;margin-bottom:20px;">這裡顯示您保管的設備，您可以修改或刪除。</p>
+      <div id="my-equipment-list" class="equipment-list">
+        <p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>
+      </div>
+    </section>
+
     <!-- 個人設定 -->
     <section id="settings-tab" class="tab-content">
       <div class="form-card" style="max-width:500px;margin:0 auto;">
@@ -185,7 +199,10 @@
         <input type="hidden" id="borrow-fix-no">
         <div class="form-group">
           <label>借用人姓名 *</label>
-          <input type="text" id="borrow-name" required placeholder="請輸入您的姓名">
+          <input type="text" id="borrow-name" required 
+                 style="background:#f8f9fa;" 
+                 placeholder="登入後自動填入">
+          <p style="color:#888;font-size:0.8em;margin-top:5px;">✓ 自動填入登入者姓名</p>
         </div>
         <div class="form-group">
           <label>預計歸還日期 *</label>

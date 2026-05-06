@@ -264,6 +264,21 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   
   document.getElementById('borrow-fix-no').value = fixNo;
   
+  // 自動填入登入者姓名
+  const user = JSON.parse(localStorage.getItem('mt_user'));
+  const borrowNameInput = document.getElementById('borrow-name');
+  if (user && user.name && borrowNameInput) {
+    borrowNameInput.value = user.name;
+    // 如果已經有值，設為只讀，防止修改
+    borrowNameInput.readOnly = true;
+    borrowNameInput.style.background = '#e9ecef';
+  } else if (borrowNameInput) {
+    // 沒有登入或沒有姓名，清空並允許手動輸入
+    borrowNameInput.value = '';
+    borrowNameInput.readOnly = false;
+    borrowNameInput.style.background = '#fff';
+  }
+  
   // 設定最小日期為今天（台北時間）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
@@ -882,6 +897,10 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
       }
     }
+    // 如果切換到「我的設備」分頁，載入管理員的設備
+    if (tab === 'my-equipment') {
+      loadMyEquipment();
+    }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
       loadAvatarList();
@@ -1153,4 +1172,172 @@ if (avatarForm) {
       submitBtn.textContent = '上傳頭像';
     }
   });
+}
+
+// =============================================
+// 我的設備功能（管理員專屬）
+// =============================================
+
+/**
+ * 載入管理員自己的設備列表
+ */
+async function loadMyEquipment() {
+  const user = JSON.parse(localStorage.getItem('mt_user'));
+  if (!user || user.role !== 'admin') {
+    document.getElementById('my-equipment-list').innerHTML = 
+      '<p style="text-align:center;color:#c00;padding:40px;">❌ 只有管理員可以查看此頁面</p>';
+    return;
+  }
+  
+  const listEl = document.getElementById('my-equipment-list');
+  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+  
+  try {
+    // 查詢所有設備（從兩個工作表）
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'query');
+    
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const data = await res.json();
+    
+    if (data.error) {
+      throw new Error(data.error);
+    }
+    
+    const allEquipment = Array.isArray(data) ? data : (data.data || []);
+    
+    // 只顯示 keeper = 登入者的設備
+    const myEquipment = allEquipment.filter(eq => eq.keeper === user.name);
+    
+    if (myEquipment.length === 0) {
+      listEl.innerHTML = `
+        <div style="text-align:center;padding:40px;color:#666;">
+          <p style="font-size:1.2em;">📭 您還沒有保管任何設備</p>
+          <p style="margin-top:10px;">點擊「設備登記」新增設備</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // 顯示設備列表
+    let html = '<div style="display:grid;gap:15px;">';
+    myEquipment.forEach((eq, index) => {
+      const isBorrowed = eq.status === 'borrowed' || eq.status === '借用中' || eq.status === '已借出' || eq.status === '使用中';
+      const isReturnPending = eq.status === 'return_pending';
+      
+      html += `
+        <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;">
+          <div style="display:flex;justify-content:space-between;align-items:start;">
+            <div>
+              <strong style="font-size:1.1em;">${eq.device_name || '未知設備'}</strong>
+              <div style="color:#666;font-size:0.85em;margin-top:5px;">
+                📋 編號：${eq.fix_no || '-'}
+              </div>
+              <div style="color:#666;font-size:0.85em;">
+                📦 類型：${eq.fix_type || '-'}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              ${isBorrowed ? '<span style="background:#ffc107;padding:4px 8px;border-radius:4px;font-size:0.85em;">📤 已借出</span>' : ''}
+              ${isReturnPending ? '<span style="background:#17a2b8;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">⏳ 歸還中</span>' : ''}
+              ${eq.status === 'available' ? '<span style="background:#28a745;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">✓ 可借用</span>' : ''}
+            </div>
+          </div>
+          <div style="margin-top:15px;display:flex;gap:10px;">
+            <button onclick="openEditEquipmentModal('${eq.fix_no}')" 
+                    style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">
+              ✏️ 修改
+            </button>
+            <button onclick="confirmDeleteEquipment('${eq.fix_no}', '${eq.device_name}')" 
+                    style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">
+              🗑️ 刪除
+            </button>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.error('載入我的設備失敗:', err);
+    listEl.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${err.message}</p>`;
+  }
+}
+
+/**
+ * 開啟修改設備 Modal
+ */
+function openEditEquipmentModal(fixNo) {
+  // 找到設備資料
+  const user = JSON.parse(localStorage.getItem('mt_user'));
+  if (!user) return;
+  
+  // 從當前載入的資料中找到設備
+  // 這裡我們簡單地用 prompt 讓使用者輸入新值
+  const newDeviceName = prompt('請輸入新的設備名稱：');
+  if (newDeviceName === null) return;
+  
+  const newFixType = prompt('請輸入新的設備類型：\n(儀器設備/其他設備/雜項購置/電腦週邊用品)');
+  if (newFixType === null) return;
+  
+  updateEquipment(fixNo, { device_name: newDeviceName, fix_type: newFixType });
+}
+
+/**
+ * 更新設備
+ */
+async function updateEquipment(fixNo, updateData) {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'updateEquipment');
+    url.searchParams.append('fix_no', fixNo);
+    url.searchParams.append('device_name', updateData.device_name || '');
+    url.searchParams.append('fix_type', updateData.fix_type || '');
+    
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const data = await res.json();
+    
+    if (data.success) {
+      alert('✅ 設備已更新');
+      loadMyEquipment();  // 重新載入列表
+    } else {
+      alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (err) {
+    alert('❌ 更新失敗：' + err.message);
+  }
+}
+
+/**
+ * 確認刪除設備
+ */
+function confirmDeleteEquipment(fixNo, deviceName) {
+  if (!confirm('確定要刪除設備「' + deviceName + '」嗎？\n此操作無法撤銷！')) {
+    return;
+  }
+  deleteEquipment(fixNo);
+}
+
+/**
+ * 刪除設備
+ */
+async function deleteEquipment(fixNo) {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'deleteEquipment');
+    url.searchParams.append('fix_no', fixNo);
+    
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const data = await res.json();
+    
+    if (data.success) {
+      alert('✅ 設備已刪除');
+      loadMyEquipment();  // 重新載入列表
+    } else {
+      alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (err) {
+    alert('❌ 刪除失敗：' + err.message);
+  }
 }

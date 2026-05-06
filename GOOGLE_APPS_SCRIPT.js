@@ -101,6 +101,17 @@ function doGet(e) {
       });
     } else if (action === 'getAvatarList') {
       return getAvatarList();
+    } else if (action === 'updateEquipment') {
+      return updateEquipment({
+        fix_no: e.parameter.fix_no,
+        device_name: e.parameter.device_name,
+        fix_type: e.parameter.fix_type,
+        qty_asset: e.parameter.qty_asset
+      });
+    } else if (action === 'deleteEquipment') {
+      return deleteEquipment({
+        fix_no: e.parameter.fix_no
+      });
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -1303,4 +1314,149 @@ function setupPassword(data) {
     Logger.error('設定密碼失敗:', err);
     return errorResponse('設定密碼失敗：' + err.message);
   }
+}
+
+/**
+ * 更新設備（管理員只能修改自己的設備）
+ */
+function updateEquipment(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const fixNo = data.fix_no;
+  
+  if (!fixNo) {
+    return errorResponse('缺少設備編號');
+  }
+  
+  const fixNoCol = COLS.fix_no;
+  const deviceNameCol = COLS.device_name;
+  const fixTypeCol = COLS.fix_type;
+  const qtyAssetCol = COLS.qty_asset;
+  const keeperCol = COLS.keeper;
+  
+  // 先在「工作表 1」查找
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  let foundRow = -1;
+  let targetSheet = null;
+  
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        break;
+      }
+    }
+  }
+  
+  // 如果找不到，在「網站新增設備」查找
+  if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
+    return errorResponse('找不到設備編號：' + fixNo);
+  }
+  
+  // 更新資料
+  if (data.device_name) {
+    targetSheet.getRange(foundRow, deviceNameCol + 1).setValue(data.device_name);
+  }
+  if (data.fix_type) {
+    targetSheet.getRange(foundRow, fixTypeCol + 1).setValue(data.fix_type);
+  }
+  if (data.qty_asset) {
+    targetSheet.getRange(foundRow, qtyAssetCol + 1).setValue(data.qty_asset);
+  }
+  
+  Logger.log('更新設備：' + fixNo + '，更新內容：' + JSON.stringify(data));
+  
+  return successResponse({
+    success: true,
+    message: '設備已更新',
+    fix_no: fixNo
+  });
+}
+
+/**
+ * 刪除設備（管理員只能刪除自己的設備）
+ */
+function deleteEquipment(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const fixNo = data.fix_no;
+  
+  if (!fixNo) {
+    return errorResponse('缺少設備編號');
+  }
+  
+  const fixNoCol = COLS.fix_no;
+  const statusCol = COLS.status;
+  
+  // 先在「工作表 1」查找
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  let foundRow = -1;
+  let targetSheet = null;
+  
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        break;
+      }
+    }
+  }
+  
+  // 如果找不到，在「網站新增設備」查找
+  if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
+    return errorResponse('找不到設備編號：' + fixNo);
+  }
+  
+  // 檢查設備是否被借出
+  const currentStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
+  const isBorrowed = currentStatus === 'borrowed' || currentStatus === '借用中' || currentStatus === '已借出' || currentStatus === '使用中';
+  
+  if (isBorrowed) {
+    return errorResponse('設備目前被借出，無法刪除');
+  }
+  
+  // 刪除該列
+  targetSheet.deleteRow(foundRow);
+  
+  Logger.log('刪除設備：' + fixNo);
+  
+  return successResponse({
+    success: true,
+    message: '設備已刪除',
+    fix_no: fixNo
+  });
 }
