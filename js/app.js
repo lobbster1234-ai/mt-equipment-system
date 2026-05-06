@@ -15,6 +15,17 @@ function formatDateTime(value) {
     return value.trim();
   }
   
+  // 處理 JavaScript Date 物件字串格式："Thu Apr 30 2026 00:00:00 GMT+0800 (台北標準時間)"
+  if (typeof value === 'string' && value.includes('GMT')) {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }
+  
   // 嘗試解析為 Date
   const date = new Date(value);
   if (isNaN(date.getTime())) {
