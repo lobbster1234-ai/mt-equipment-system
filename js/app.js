@@ -723,6 +723,7 @@ function renderHistory(history, sortOrder = 'newest') {
       });
       
       if (targetCycle) {
+        // 找到現有週期，更新它
         targetCycle.records.push(record);
         
         const recordTime = new Date(record.timestamp || 0).getTime();
@@ -738,6 +739,19 @@ function renderHistory(history, sortOrder = 'newest') {
           targetCycle.dt_return = record.dt_return || '';
           targetCycle.return_confirmed = true;
         }
+      } else {
+        // 沒有找到現有週期（可能只有 return/confirm，沒有 borrow），建立新週期
+        const newCycle = {
+          borrower: borrower,
+          keeper: record.keeper,
+          dt_borrow: record.dt_borrow || '',
+          dt_due: record.dt_due || '',
+          dt_return: record.dt_return || '',
+          return_confirmed: record.action === 'confirm' || record.action === 'confirmed',
+          records: [record],
+          lastTimestamp: record.timestamp || ''
+        };
+        deviceGroups[fixNo].cycles.push(newCycle);
       }
     }
   });
