@@ -682,52 +682,59 @@ function renderHistory(history, sortOrder = 'newest') {
   
   console.log('排序後（' + sortOrder + '）:', history[0]?.timestamp, '到', history[history.length-1]?.timestamp);
 
-  // 按設備編號 + 借用人分組（每個借用人 + 設備只显示最新的一筆狀態）
+  // 按設備編號 + 借用人 + 借用週期分組（每個完整的借用週期顯示一筆）
   const deviceGroups = {};
+  let cycleCounter = 0;
   
-  history.forEach(record => {
+  // 先按時間排序（舊的在前，新的在後）
+  const sortedHistory = [...history].sort((a, b) => {
+    return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime();
+  });
+  
+  sortedHistory.forEach(record => {
     const fixNo = record.fix_no || '無編號';
     const borrower = record.borrower || '未知';
-    const groupKey = fixNo + '###' + borrower; // 用設備編號 + 借用人作為唯一鍵
     
-    if (!deviceGroups[groupKey]) {
+    // borrow 動作表示新的借用週期開始
+    if (record.action === 'borrow') {
+      cycleCounter++;
+      const groupKey = fixNo + '###' + borrower + '###' + cycleCounter;
       deviceGroups[groupKey] = {
         fix_no: fixNo,
         device_name: record.device_name,
         borrower: borrower,
         keeper: record.keeper,
-        dt_borrow: '',
-        dt_due: '',
+        dt_borrow: record.dt_borrow || '',
+        dt_due: record.dt_due || '',
         dt_return: '',
         return_confirmed: false,
-        records: [],
+        records: [record],
         lastTimestamp: record.timestamp || ''
       };
-    }
-    
-    // 更新紀錄
-    deviceGroups[groupKey].records.push(record);
-    
-    // 更新最新時間戳
-    const recordTime = new Date(record.timestamp || 0).getTime();
-    const currentLastTime = new Date(deviceGroups[groupKey].lastTimestamp || 0).getTime();
-    if (recordTime > currentLastTime) {
-      deviceGroups[groupKey].lastTimestamp = record.timestamp;
-    }
-    
-    // 根據動作更新最終狀態（borrow 會覆蓋之前的狀態）
-    if (record.action === 'borrow') {
-      // 新的借用週期開始，重置狀態
-      deviceGroups[groupKey].dt_borrow = record.dt_borrow || '';
-      deviceGroups[groupKey].dt_due = record.dt_due || '';
-      deviceGroups[groupKey].dt_return = '';
-      deviceGroups[groupKey].return_confirmed = false;
-    } else if (record.action === 'return') {
-      deviceGroups[groupKey].dt_return = record.dt_return || '';
-      deviceGroups[groupKey].return_confirmed = false;
-    } else if (record.action === 'confirm' || record.action === 'confirmed') {
-      deviceGroups[groupKey].dt_return = record.dt_return || '';
-      deviceGroups[groupKey].return_confirmed = true;
+    } else {
+      // return/confirm 歸到最新的未完成週期
+      const groupKey = Object.keys(deviceGroups).reverse().find(key => {
+        const g = deviceGroups[key];
+        return g.fix_no === fixNo && g.borrower === borrower && !g.return_confirmed;
+      });
+      
+      if (groupKey) {
+        deviceGroups[groupKey].records.push(record);
+        
+        const recordTime = new Date(record.timestamp || 0).getTime();
+        const currentLastTime = new Date(deviceGroups[groupKey].lastTimestamp || 0).getTime();
+        if (recordTime > currentLastTime) {
+          deviceGroups[groupKey].lastTimestamp = record.timestamp;
+        }
+        
+        if (record.action === 'return') {
+          deviceGroups[groupKey].dt_return = record.dt_return || '';
+          deviceGroups[groupKey].return_confirmed = false;
+        } else if (record.action === 'confirm' || record.action === 'confirmed') {
+          deviceGroups[groupKey].dt_return = record.dt_return || '';
+          deviceGroups[groupKey].return_confirmed = true;
+        }
+      }
     }
   });
 
