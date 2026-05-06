@@ -481,7 +481,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 綁定借用表單
+  // =============================================
+// 全域刷新功能 - 保持所有分頁資料同步
+// =============================================
+
+function refreshAllTabs() {
+  // 刷新設備列表
+  if (typeof searchEquipment === 'function') {
+    searchEquipment();
+  }
+  // 刷新歷史紀錄
+  if (typeof searchHistory === 'function') {
+    searchHistory();
+  }
+  // 刷新我的設備
+  if (typeof loadMyEquipment === 'function') {
+    const myEquipmentTab = document.getElementById('my-equipment-tab');
+    if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+      loadMyEquipment();
+    }
+  }
+}
+
+// =============================================
+// 表單提交處理
+// =============================================
+
+// 綁定借用表單
   const borrowForm = document.getElementById('borrow-form');
   if (borrowForm) {
     borrowForm.addEventListener('submit', async (e) => {
@@ -512,12 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (result.success) {
         closeBorrowModal();
-        searchEquipment();
-        // 如果目前在看「我的設備」分頁，也重新整理
-        const myEquipmentTab = document.getElementById('my-equipment-tab');
-        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-          loadMyEquipment();
-        }
+        refreshAllTabs();
       }
     });
   }
@@ -548,12 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (result.success) {
         closeReturnModal();
-        searchEquipment();
-        // 如果目前在看「我的設備」分頁，也重新整理
-        const myEquipmentTab = document.getElementById('my-equipment-tab');
-        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-          loadMyEquipment();
-        }
+        refreshAllTabs();
       }
     });
   }
@@ -590,17 +606,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (result.success) {
         e.target.reset();
-        // 切換到設備列表分頁並重新查詢
-        const equipmentTab = document.querySelector('[data-tab="equipment"]');
-        if (equipmentTab) {
-          equipmentTab.click();
-          searchEquipment();
-        }
-        // 如果目前在看「我的設備」分頁，也重新整理
-        const myEquipmentTab = document.getElementById('my-equipment-tab');
-        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
-          loadMyEquipment();
-        }
+        // 刷新所有分頁，保持目前在當前分頁
+        refreshAllTabs();
       }
     });
   }
@@ -1357,7 +1364,7 @@ async function deleteEquipment(fixNo) {
     
     if (data.success) {
       alert('✅ 設備已刪除');
-      loadMyEquipment();  // 重新載入列表
+      refreshAllTabs();  // 刷新所有分頁
     } else {
       alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
     }
@@ -1402,7 +1409,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     if (data.success) {
       alert('✅ 設備已更新');
       closeEditEquipmentModal();
-      loadMyEquipment();
+      refreshAllTabs();
     } else {
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
     }
