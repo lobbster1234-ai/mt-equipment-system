@@ -1231,7 +1231,12 @@ async function loadMyEquipment() {
   }
   
   const listEl = document.getElementById('my-equipment-list');
+  if (!listEl) {
+    console.error('找不到 my-equipment-list 元素');
+    return;
+  }
   listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+  console.log('開始查詢設備...');
   
   try {
     // 查詢所有設備（從兩個工作表）
