@@ -921,33 +921,6 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     this.classList.add('active');
     document.getElementById(`${tab}-tab`).classList.add('active');
     
-    // 如果切換到歷史紀錄分頁，自動載入並綁定排序事件
-    // 只有資料為空時才自動載入，避免每次點擊都重新整理
-    if (tab === 'history') {
-      const historyList = document.getElementById('history-list');
-      if (historyList && !historyList.dataset.loaded) {
-        searchHistory();
-        historyList.dataset.loaded = 'true';
-      }
-      
-      // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
-      const historySortSelect = document.getElementById('history-sort');
-      if (historySortSelect && !historySortSelect._hasEventListener) {
-        historySortSelect.addEventListener('change', () => {
-          searchHistory();  // 排序變更時自動重新搜尋
-        });
-        historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
-      }
-    }
-    // 如果切換到「我的設備」分頁，只在從未載入過時自動載入
-    if (tab === 'my-equipment') {
-      const myEquipList = document.getElementById('my-equipment-list');
-      // 只在從未載入過（沒有 loaded 標記）且目前顯示載入中時才載入
-      if (myEquipList && !myEquipList.dataset.loaded && myEquipList.innerHTML.includes('載入中')) {
-        loadMyEquipment();
-        myEquipList.dataset.loaded = 'true';
-      }
-    }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
       loadAvatarList();
