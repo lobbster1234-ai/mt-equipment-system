@@ -1259,7 +1259,7 @@ async function loadMyEquipment() {
             </div>
           </div>
           <div style="margin-top:15px;display:flex;gap:10px;">
-            <button onclick="openEditEquipmentModal('${eq.fix_no}', '${encodeURIComponent(eq.device_name || '')}', '${encodeURIComponent(eq.fix_type || '')}')" 
+            <button onclick="openEditEquipmentModal('${eq.fix_no}', '${encodeURIComponent(eq.device_name || '')}', '${encodeURIComponent(eq.fix_type || '')}', '${eq.qty_asset || '1'}')" 
                     style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">
               ✏️ 修改
             </button>
@@ -1283,10 +1283,12 @@ async function loadMyEquipment() {
 /**
  * 開啟修改設備 Modal
  */
-function openEditEquipmentModal(fixNo, deviceName, fixType) {
+function openEditEquipmentModal(fixNo, deviceName, fixType, qtyAsset) {
   document.getElementById('edit-fix-no').value = fixNo;
-  document.getElementById('edit-device-name').value = deviceName || '';
-  document.getElementById('edit-fix-type').value = fixType || '儀器設備';
+  document.getElementById('edit-fix-no-display').value = fixNo || '';
+  document.getElementById('edit-device-name').value = decodeURIComponent(deviceName || '');
+  document.getElementById('edit-fix-type').value = decodeURIComponent(fixType || '儀器設備');
+  document.getElementById('edit-qty-asset').value = qtyAsset || '1';
   document.getElementById('edit-equipment-modal').style.display = 'block';
 }
 
@@ -1358,6 +1360,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
   const fixNo = document.getElementById('edit-fix-no').value;
   const deviceName = document.getElementById('edit-device-name').value;
   const fixType = document.getElementById('edit-fix-type').value;
+  const qtyAsset = document.getElementById('edit-qty-asset').value;
   
   if (!fixNo || !deviceName) {
     alert('請填寫設備名稱');
@@ -1370,6 +1373,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     url.searchParams.append('fix_no', fixNo);
     url.searchParams.append('device_name', deviceName);
     url.searchParams.append('fix_type', fixType);
+    url.searchParams.append('qty_asset', qtyAsset || '1');
     
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
     const data = await res.json();
