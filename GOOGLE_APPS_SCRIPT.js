@@ -104,6 +104,7 @@ function doGet(e) {
     } else if (action === 'updateEquipment') {
       return updateEquipment({
         fix_no: e.parameter.fix_no,
+        new_fix_no: e.parameter.new_fix_no,
         device_name: e.parameter.device_name,
         fix_type: e.parameter.fix_type,
         qty_asset: e.parameter.qty_asset
@@ -1370,7 +1371,11 @@ function updateEquipment(data) {
     return errorResponse('找不到設備編號：' + fixNo);
   }
   
-  // 更新資料
+  // 更新資料（用 new_fix_no 寫入新編號，如果有的話）
+  const finalFixNo = data.new_fix_no || data.fix_no;
+  if (finalFixNo) {
+    targetSheet.getRange(foundRow, fixNoCol + 1).setValue(finalFixNo);
+  }
   if (data.device_name) {
     targetSheet.getRange(foundRow, deviceNameCol + 1).setValue(data.device_name);
   }
