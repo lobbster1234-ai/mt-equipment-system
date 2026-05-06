@@ -538,7 +538,12 @@ function refreshAllTabs() {
 
       if (result.success) {
         closeBorrowModal();
-        refreshAllTabs();
+        searchEquipment();
+        searchHistory();
+        const myEquipmentTab = document.getElementById('my-equipment-tab');
+        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+          loadMyEquipment();
+        }
       }
     });
   }
@@ -569,7 +574,12 @@ function refreshAllTabs() {
 
       if (result.success) {
         closeReturnModal();
-        refreshAllTabs();
+        searchEquipment();
+        searchHistory();
+        const myEquipmentTab = document.getElementById('my-equipment-tab');
+        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+          loadMyEquipment();
+        }
       }
     });
   }
@@ -606,8 +616,13 @@ function refreshAllTabs() {
 
       if (result.success) {
         e.target.reset();
-        // 刷新所有分頁，保持目前在當前分頁
-        refreshAllTabs();
+        // 刷新所有分頁
+        searchEquipment();
+        searchHistory();
+        const myEquipmentTab = document.getElementById('my-equipment-tab');
+        if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+          loadMyEquipment();
+        }
       }
     });
   }
@@ -1364,7 +1379,12 @@ async function deleteEquipment(fixNo) {
     
     if (data.success) {
       alert('✅ 設備已刪除');
-      refreshAllTabs();  // 刷新所有分頁
+      searchEquipment();
+      searchHistory();
+      const myEquipmentTab = document.getElementById('my-equipment-tab');
+      if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+        loadMyEquipment();
+      }
     } else {
       alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
     }
@@ -1409,7 +1429,12 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     if (data.success) {
       alert('✅ 設備已更新');
       closeEditEquipmentModal();
-      refreshAllTabs();
+      searchEquipment();
+      searchHistory();
+      const myEquipmentTab = document.getElementById('my-equipment-tab');
+      if (myEquipmentTab && myEquipmentTab.classList.contains('active')) {
+        loadMyEquipment();
+      }
     } else {
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
     }
