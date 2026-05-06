@@ -729,6 +729,17 @@ function renderHistory(history, sortOrder = 'newest') {
           if (record.dt_return) lastUser.dt_return = record.dt_return;
           if (record.return_confirmed) lastUser.return_confirmed = record.return_confirmed;
         }
+      } else {
+        // 如果沒有 borrow 記錄（只有 return/confirm），直接建立使用者
+        deviceGroups[fixNo].users.push({
+          borrower: record.borrower || '未知',
+          keeper: record.keeper,
+          dt_borrow: record.dt_borrow || '',
+          dt_due: record.dt_due || '',
+          dt_return: record.dt_return || '',
+          return_confirmed: record.return_confirmed || false,
+          records: [record]
+        });
       }
     }
   });
