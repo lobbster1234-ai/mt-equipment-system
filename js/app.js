@@ -1370,17 +1370,21 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     return;
   }
   
-  try {
+    try {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'updateEquipment');
-    url.searchParams.append('fix_no', originalFixNo);  // 原始編號用來找資料列
-    url.searchParams.append('new_fix_no', newFixNo);   // 新編號用來更新
+    url.searchParams.append('fix_no', originalFixNo);
+    url.searchParams.append('new_fix_no', newFixNo);
     url.searchParams.append('device_name', deviceName);
     url.searchParams.append('fix_type', fixType);
     url.searchParams.append('qty_asset', qtyAsset || '1');
     
+    console.log('更新設備 URL:', url.toString());
+    
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    console.log('更新設備 HTTP 狀態:', res.status);
     const data = await res.json();
+    console.log('更新設備回應:', data);
     
     if (data.success) {
       alert('✅ 設備已更新');
@@ -1390,6 +1394,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
+    console.error('更新設備錯誤:', err);
     alert('❌ 更新失敗：' + err.message);
   }
 });
