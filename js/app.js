@@ -767,11 +767,18 @@ function renderHistory(history, sortOrder = 'newest') {
         <div class="history-device-content" style="${deviceExpanded ? 'display:block;' : 'display:none;'}">
     `;
     
-    // 每個借用週期顯示一筆
-    device.cycles.forEach((cycle, cycleIndex) => {
+    // 每個借用週期顯示一筆，按時間排序
+    const sortedCycles = [...device.cycles].sort((a, b) => {
+      const timeA = new Date(a.lastTimestamp || 0).getTime();
+      const timeB = new Date(b.lastTimestamp || 0).getTime();
+      return sortOrder === 'newest' ? (timeB - timeA) : (timeA - timeB);
+    });
+    
+    sortedCycles.forEach((cycle, cycleIndex) => {
       const hasConfirm = cycle.return_confirmed;
       const hasReturn = !hasConfirm && cycle.dt_return && cycle.dt_return !== '';
-      const isExpanded = cycleIndex === device.cycles.length - 1; // 最新的預設展開
+      // 最新的預設展開（根據排序方向）
+      const isExpanded = cycleIndex === 0;
       
       // 判斷狀態
       let statusIcon, statusText;
