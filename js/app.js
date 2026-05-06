@@ -1236,10 +1236,10 @@ async function loadMyEquipment() {
     
     // 顯示設備列表
     let html = '<div style="display:grid;gap:15px;">';
-    console.log('所有設備狀態:', allEquipment.map(eq => eq.status));
     myEquipment.forEach((eq, index) => {
       const isBorrowed = eq.status === 'borrowed' || eq.status === '借用中' || eq.status === '已借出' || eq.status === '使用中';
       const isReturnPending = eq.status === 'return_pending';
+      console.log('設備:', eq.fix_no, '狀態:', eq.status, 'isBorrowed:', isBorrowed, 'isReturnPending:', isReturnPending);
       
       html += `
         <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;">
