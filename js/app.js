@@ -1365,7 +1365,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
   const fixType = document.getElementById('edit-fix-type').value;
   const qtyAsset = document.getElementById('edit-qty-asset').value;
   
-  if (!fixNo || !deviceName) {
+  if (!originalFixNo || !deviceName) {
     alert('請填寫設備名稱');
     return;
   }
