@@ -682,15 +682,53 @@ function renderHistory(history, sortOrder = 'newest') {
   
   console.log('排序後（' + sortOrder + '）:', history[0]?.timestamp, '到', history[history.length-1]?.timestamp);
 
-  // 按設備編號 + 借用人分組（每個借用人只显示一筆最終狀態）
+  // 按設備編號 + 借用人 + 借用週期分組（每個借用人每次借用顯示一筆最終狀態）
   const deviceGroups = {};
+  let groupCounter = 0; // 用於生成唯一的組別鍵
+  
   history.forEach(record => {
     const fixNo = record.fix_no || '無編號';
     const borrower = record.borrower || '未知';
-    const groupKey = fixNo + '###' + borrower; // 用設備編號 + 借用人作為唯一鍵
     
-    if (!deviceGroups[groupKey]) {
-      deviceGroups[groupKey] = {
+    // 如果是 borrow 動作，檢查是否應該建立新的週期
+    if (record.action === 'borrow') {
+      // 檢查是否已經有這個借用人的記錄且已確認歸還
+      const existingKeys = Object.keys(deviceGroups).filter(key => {
+        const g = deviceGroups[key];
+        return g.fix_no === fixNo && g.borrower === borrower && g.return_confirmed === true;
+      });
+      
+      if (existingKeys.length > 0) {
+        // 已確認歸還，建立新的借用週期
+        groupCounter++;
+        const newGroupKey = fixNo + '###' + borrower + '###' + groupCounter;
+        deviceGroups[newGroupKey] = {
+          fix_no: fixNo,
+          device_name: record.device_name,
+          borrower: borrower,
+          keeper: record.keeper,
+          dt_borrow: record.dt_borrow || '',
+          dt_due: record.dt_due || '',
+          dt_return: '',
+          return_confirmed: false,
+          records: [record],
+          lastTimestamp: record.timestamp || ''
+        };
+        return; // 跳過後續處理
+      }
+    }
+    
+    // 尋找現有的組別（按 fix_no + borrower 匹配）
+    const groupKey = Object.keys(deviceGroups).find(key => {
+      const g = deviceGroups[key];
+      return g.fix_no === fixNo && g.borrower === borrower && !g.return_confirmed;
+    });
+    
+    if (!groupKey) {
+      // 沒有現有的組別，建立新的
+      groupCounter++;
+      const newGroupKey = fixNo + '###' + borrower + '###' + groupCounter;
+      deviceGroups[newGroupKey] = {
         fix_no: fixNo,
         device_name: record.device_name,
         borrower: borrower,
@@ -704,29 +742,30 @@ function renderHistory(history, sortOrder = 'newest') {
       };
     }
     
-    // 更新紀錄
-    deviceGroups[groupKey].records.push(record);
+    const targetKey = groupKey || Object.keys(deviceGroups).find(key => deviceGroups[key].fix_no === fixNo && deviceGroups[key].borrower === borrower);
     
-    // 更新最新時間戳
-    const recordTime = new Date(record.timestamp || 0).getTime();
-    const currentLastTime = new Date(deviceGroups[groupKey].lastTimestamp || 0).getTime();
-    if (recordTime > currentLastTime) {
-      deviceGroups[groupKey].lastTimestamp = record.timestamp;
-    }
-    
-    // 根據動作更新最終狀態（只更新，不覆蓋已有的 confirm 狀態）
-    if (record.action === 'borrow') {
-      deviceGroups[groupKey].dt_borrow = record.dt_borrow || '';
-      deviceGroups[groupKey].dt_due = record.dt_due || '';
-    } else if (record.action === 'return') {
-      // 只有在還沒有 confirm 的情況下才設定 return
-      if (!deviceGroups[groupKey].return_confirmed) {
-        deviceGroups[groupKey].dt_return = record.dt_return || '';
-        deviceGroups[groupKey].return_confirmed = false;
+    if (targetKey) {
+      // 更新紀錄
+      deviceGroups[targetKey].records.push(record);
+      
+      // 更新最新時間戳
+      const recordTime = new Date(record.timestamp || 0).getTime();
+      const currentLastTime = new Date(deviceGroups[targetKey].lastTimestamp || 0).getTime();
+      if (recordTime > currentLastTime) {
+        deviceGroups[targetKey].lastTimestamp = record.timestamp;
       }
-    } else if (record.action === 'confirm' || record.action === 'confirmed') {
-      deviceGroups[groupKey].dt_return = record.dt_return || '';
-      deviceGroups[groupKey].return_confirmed = true;
+      
+      // 根據動作更新最終狀態
+      if (record.action === 'borrow') {
+        deviceGroups[targetKey].dt_borrow = record.dt_borrow || '';
+        deviceGroups[targetKey].dt_due = record.dt_due || '';
+      } else if (record.action === 'return') {
+        deviceGroups[targetKey].dt_return = record.dt_return || '';
+        deviceGroups[targetKey].return_confirmed = false;
+      } else if (record.action === 'confirm' || record.action === 'confirmed') {
+        deviceGroups[targetKey].dt_return = record.dt_return || '';
+        deviceGroups[targetKey].return_confirmed = true;
+      }
     }
   });
 
