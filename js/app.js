@@ -1357,6 +1357,8 @@ async function deleteEquipment(fixNo) {
 // 修改設備表單提交
 document.getElementById('edit-equipment-form').addEventListener('submit', async function(e) {
   e.preventDefault();
+  alert('表單提交測試！');
+  console.log('表單提交了');
   // originalFixNo 是隱藏欄位，用來找資料列
   // newFixNo 是顯示欄位，是使用者輸入的新編號
   const originalFixNo = document.getElementById('edit-fix-no').value;
