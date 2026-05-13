@@ -512,13 +512,15 @@ function requestBorrow(data) {
   // 記錄歷史
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   
-  // 建立借用請求記錄
-  
-  
+  // 建立借用請求記錄到借用申請工作表
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    borrowRequestSheet = ss.insertSheet(BORROW_REQUEST_SHEET_NAME);
+    borrowRequestSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
+  }
   const requestId = Utilities.getUuid();
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
-  
-  pendingSheet.appendRow([
+  borrowRequestSheet.appendRow([
     requestId,
     fixNo,
     deviceName,
@@ -554,9 +556,11 @@ function approveBorrow(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  
-  
-  const pendingData = pendingSheet.getDataRange().getValues();
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    return errorResponse('找不到借用申請工作表');
+  }
+  const pendingData = borrowRequestSheet.getDataRange().getValues();
   let foundRow = -1;
   let requestData = null;
   
@@ -581,7 +585,7 @@ function approveBorrow(data) {
   }
   
   // 更新借用請求狀態為 approved
-  pendingSheet.getRange(foundRow, 9).setValue('approved');
+  borrowRequestSheet.getRange(foundRow, 9).setValue('approved');
   
   // 在設備工作表中更新為借用狀態
   const fixNoCol = COLS.fix_no;
@@ -663,9 +667,11 @@ function rejectBorrow(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  
-  
-  const pendingData = pendingSheet.getDataRange().getValues();
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    return errorResponse('找不到借用申請工作表');
+  }
+  const pendingData = borrowRequestSheet.getDataRange().getValues();
   let foundRow = -1;
   let requestData = null;
   
@@ -688,7 +694,7 @@ function rejectBorrow(data) {
   }
   
   // 更新借用請求狀態為 rejected
-  pendingSheet.getRange(foundRow, 9).setValue('rejected');
+  borrowRequestSheet.getRange(foundRow, 9).setValue('rejected');
   
   // 拒絕時需要將設備狀態改回 available
   const fixNoCol = COLS.fix_no;
@@ -758,9 +764,11 @@ function getBorrowRequest(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  
-  
-  const pendingData = pendingSheet.getDataRange().getValues();
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    return errorResponse('找不到借用申請工作表');
+  }
+  const pendingData = borrowRequestSheet.getDataRange().getValues();
   
   for (let i = 1; i < pendingData.length; i++) {
     if (pendingData[i][0] === requestId) {
