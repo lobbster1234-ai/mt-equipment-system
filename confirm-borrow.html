@@ -111,9 +111,22 @@
         
         if (data.success) {
           document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准借用' : '❌ 已拒絕借用';
-          document.querySelector('.info').innerHTML = '<p class="success" style="font-size:1.2em;padding:20px;">' + (action === 'approve' ? '✅ 借用已核准' : '❌ 借用已拒絕') + '</p><p style="color:#666;margin-top:15px;">系統已自動通知借用人審核結果。</p>';
+          document.querySelector('.info').innerHTML = '<p class="success" style="font-size:1.2em;padding:20px;">' + (action === 'approve' ? '✅ 借用已核准' : '❌ 借用已拒絕') + '</p><p style="color:#666;margin-top:15px;">系統已自動通知借用人審核結果。</p><p id="countdown" style="color:#667eea;margin-top:20px;">3 秒後自動跳轉到主頁...</p>';
           document.getElementById('buttons').classList.add('hidden');
           prompt.classList.add('hidden');
+          
+          // 3 秒後跳轉到主頁
+          let seconds = 3;
+          const countdownEl = document.getElementById('countdown');
+          const interval = setInterval(() => {
+            seconds--;
+            if (seconds <= 0) {
+              clearInterval(interval);
+              window.location.href = 'index.html';
+            } else {
+              countdownEl.textContent = seconds + ' 秒後自動跳轉到主頁...';
+            }
+          }, 1000);
         } else {
           throw new Error(data.error || data.message || '處理失敗');
         }
