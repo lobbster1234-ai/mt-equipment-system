@@ -506,7 +506,7 @@ function requestBorrow(data) {
   const requestId = Utilities.getUuid();
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
   
-  pendingSheet.appendRow([
+  borrowRequestSheet.appendRow([
     requestId,
     fixNo,
     deviceName,
@@ -672,7 +672,7 @@ function rejectBorrow(data) {
   // 查找借用請求
   
   
-  const pendingData = pendingSheet.getDataRange().getValues();
+  const pendingData = borrowRequestSheet.getDataRange().getValues();
   let foundRow = -1;
   let requestData = null;
   
@@ -775,7 +775,7 @@ function getBorrowRequest(data) {
   // 查找借用請求
   
   
-  const pendingData = pendingSheet.getDataRange().getValues();
+  const pendingData = borrowRequestSheet.getDataRange().getValues();
   
   for (let i = 1; i < pendingData.length; i++) {
     if (pendingData[i][0] === requestId) {
