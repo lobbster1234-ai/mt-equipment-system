@@ -116,13 +116,15 @@ function doGet(e) {
         fix_no: e.parameter.fix_no
       });
     } else if (action === 'requestBorrow') {
-      return requestBorrow({
-        fix_no: e.parameter.fix_no,
-        borrower: e.parameter.borrower,
-        borrower_email: e.parameter.borrower_email,
-        dt_borrow: e.parameter.dt_borrow,
-        dt_due: e.parameter.dt_due
-      });
+      const requestData = {
+        fix_no: e.parameter.fix_no || '',
+        borrower: e.parameter.borrower || '',
+        borrower_email: e.parameter.borrower_email || '',
+        dt_borrow: e.parameter.dt_borrow || '',
+        dt_due: e.parameter.dt_due || ''
+      };
+      Logger.log('requestBorrow 接收到的参数: ' + JSON.stringify(requestData));
+      return requestBorrow(requestData);
     } else if (action === 'approveBorrow') {
       return approveBorrow({
         request_id: e.parameter.request_id
@@ -449,6 +451,8 @@ function borrowEquipment(data) {
  * 訪客借用請求（需要 Keeper 審核）
  */
 function requestBorrow(data) {
+  Logger.log('requestBorrow 函数被调用，data: ' + JSON.stringify(data));
+  
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   
   const fixNo = data.fix_no;
@@ -456,6 +460,12 @@ function requestBorrow(data) {
   const borrowerEmail = data.borrower_email;
   const dtBorrow = data.dt_borrow || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const dtDue = data.dt_due || '';
+  
+  Logger.log(`解析参数 - fixNo: ${fixNo}, borrower: ${borrower}, email: ${borrowerEmail}`);
+  
+  if (!fixNo) {
+    return errorResponse('缺少設備編號參數');
+  }
   
   const fixNoCol = COLS.fix_no;
   const keeperCol = COLS.keeper;
