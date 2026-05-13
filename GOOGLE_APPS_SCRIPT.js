@@ -5,7 +5,6 @@
 // =============================================
 
 // 新增待審核借用工作表名稱
-const PENDING_BORROW_SHEET_NAME = '待審核借用';
 
 // ⚠️⚠️⚠️ 請替換成你的實際 Sheet ID ⚠️⚠️⚠️
 const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
@@ -407,36 +406,9 @@ function borrowEquipment(data) {
   // 發送借用審核郵件給 Keeper
   if (EMAIL_CONFIG.enabled && keeper) {
     const requestId = Utilities.getUuid();
-    const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
-    
-    // 建立借用請求記錄
-    let pendingSheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PENDING_BORROW_SHEET_NAME);
-    if (!pendingSheet) {
-      pendingSheet = SpreadsheetApp.openById(SPREADSHEET_ID).insertSheet(PENDING_BORROW_SHEET_NAME);
-      pendingSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
-    }
-    
-    // 查找借用人的 email
-    const borrowerEmail = getKeeperEmail(borrower) || '';
-    
-    pendingSheet.appendRow([
-      requestId,
-      fixNo,
-      deviceName,
-      borrower,
-      borrowerEmail,
-      dtBorrow,
-      dtDue,
-      keeper,
-      'pending',
-      timestamp
-    ]);
-    
-    // 發送審核郵件
-    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail, dtBorrow, dtDue, requestId);
+    // 發送審核郵件（不移入待審核借用工作表）
+    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, getKeeperEmail(borrower) || '', dtBorrow, dtDue, requestId);
   }
-  
-  Logger.log(`借用審核請求已建立：${fixNo}，借用人：${borrower}，等待 Keeper ${keeper} 審核`);
   
   Logger.log(`借用審核請求已建立：${fixNo}，借用人：${borrower}，等待 Keeper ${keeper} 審核`);
   return successResponse({
@@ -529,11 +501,7 @@ function requestBorrow(data) {
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   
   // 建立借用請求記錄
-  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
-  if (!pendingSheet) {
-    pendingSheet = ss.insertSheet(PENDING_BORROW_SHEET_NAME);
-    pendingSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
-  }
+  
   
   const requestId = Utilities.getUuid();
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
@@ -574,10 +542,7 @@ function approveBorrow(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
-  if (!pendingSheet) {
-    return errorResponse('找不到待審核借用記錄');
-  }
+  
   
   const pendingData = pendingSheet.getDataRange().getValues();
   let foundRow = -1;
@@ -686,10 +651,7 @@ function rejectBorrow(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
-  if (!pendingSheet) {
-    return errorResponse('找不到待審核借用記錄');
-  }
+  
   
   const pendingData = pendingSheet.getDataRange().getValues();
   let foundRow = -1;
@@ -784,10 +746,7 @@ function getBorrowRequest(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
-  if (!pendingSheet) {
-    return errorResponse('找不到待審核借用記錄');
-  }
+  
   
   const pendingData = pendingSheet.getDataRange().getValues();
   
