@@ -134,6 +134,7 @@
 
     if (!requestId) {
       showError('❌ 無效的審核連結');
+      return;
     } else {
       // 載入借用請求資訊
       loadRequestInfo();
