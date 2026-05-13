@@ -363,6 +363,7 @@ async function submitBorrow(formData) {
     url.searchParams.append('action', 'borrow');
     url.searchParams.append('fix_no', formData.fix_no);
     url.searchParams.append('borrower', formData.borrower);
+    url.searchParams.append('borrower_email', formData.borrower_email || '');
     url.searchParams.append('dt_borrow', formData.dt_borrow);
     url.searchParams.append('dt_due', formData.dt_due);
 

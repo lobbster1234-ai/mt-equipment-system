@@ -4,7 +4,8 @@
 // 功能：查詢、登記、借用、歸還、借用審核、電子郵件通知（含確認連結）
 // =============================================
 
-// 新增待審核借用工作表名稱
+// 新增借用申請工作表名稱
+const BORROW_REQUEST_SHEET_NAME = '借用申請';
 
 // ⚠️⚠️⚠️ 請替換成你的實際 Sheet ID ⚠️⚠️⚠️
 const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
@@ -88,6 +89,7 @@ function doGet(e) {
       return borrowEquipment({
         fix_no: e.parameter.fix_no,
         borrower: e.parameter.borrower,
+        borrower_email: e.parameter.borrower_email || '',
         dt_borrow: e.parameter.dt_borrow,
         dt_due: e.parameter.dt_due
       });
@@ -319,6 +321,7 @@ function borrowEquipment(data) {
   
   const fixNo = data.fix_no;
   const borrower = data.borrower;
+  const borrowerEmail = data.borrower_email || getKeeperEmail(borrower) || '';
   const dtBorrow = data.dt_borrow || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const dtDue = data.dt_due || '';
   
@@ -403,11 +406,20 @@ function borrowEquipment(data) {
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   Logger.log(`已寫入歷史紀錄: ${fixNo}`);
   
+  // 寫入借用申請工作表
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    borrowRequestSheet = ss.insertSheet(BORROW_REQUEST_SHEET_NAME);
+    borrowRequestSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
+  }
+  const requestId = Utilities.getUuid();
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+  borrowRequestSheet.appendRow([requestId, fixNo, deviceName, borrower, borrowerEmail || '', dtBorrow, dtDue, keeper, 'pending', timestamp]);
+  Logger.log(`已寫入借用申請工作表：${requestId}`);
+  
   // 發送借用審核郵件給 Keeper
   if (EMAIL_CONFIG.enabled && keeper) {
-    const requestId = Utilities.getUuid();
-    // 發送審核郵件（不移入待審核借用工作表）
-    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, getKeeperEmail(borrower) || '', dtBorrow, dtDue, requestId);
+    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail || '', dtBorrow, dtDue, requestId);
   }
   
   Logger.log(`借用審核請求已建立：${fixNo}，借用人：${borrower}，等待 Keeper ${keeper} 審核`);
