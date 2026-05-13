@@ -177,12 +177,15 @@ function renderEquipment(equipment) {
             <tbody>
               ${items.map(eq => {
                 const isAvailable = eq.status === 'available' || eq.status === '可借用' || !eq.status;
+                const isBorrowPending = eq.status === 'borrow_pending' || eq.status === '借用審核中';
                 const isReturnPending = eq.status === 'return_pending' || eq.status === '歸還認證中';
                 const isConfirmed = eq.return_confirmed === true || eq.return_confirmed === 'true' || eq.return_confirmed === 1;
                 
                 let statusHtml;
                 if (isAvailable) {
                   statusHtml = '<span style="color:#0a0;">✅ 可借用</span>';
+                } else if (isBorrowPending) {
+                  statusHtml = '<span style="color:#ffc107;">⏳ 借用審核中</span>';
                 } else if (isReturnPending) {
                   statusHtml = '<span style="color:#17a2b8;">⏳ 歸還認證中</span>';
                 } else if (isConfirmed) {
@@ -197,6 +200,9 @@ function renderEquipment(equipment) {
                 const encodedDeviceName = encodeURIComponent(eq.device_name || '');
                 if (isAvailable) {
                   actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.keeper}')">借用</button>`;
+                } else if (isBorrowPending) {
+                  // 借用審核中，顯示提示文字
+                  actionButton = '<span style="color:#ffc107;font-size:0.85em;">⏳ 等待 Keeper 審核</span>';
                 } else if (isReturnPending) {
                   // 歸還認證中，不顯示按鈕
                   actionButton = '<span style="color:#17a2b8;font-size:0.85em;">等待 Keeper 確認</span>';

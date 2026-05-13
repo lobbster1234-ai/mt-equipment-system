@@ -374,8 +374,12 @@ function borrowEquipment(data) {
   if (currentStatus === 'borrowed') {
     return errorResponse('設備已經借出');
   }
+  if (currentStatus === 'borrow_pending') {
+    return errorResponse('設備正在借用審核中');
+  }
   
-  targetSheet.getRange(foundRow, statusCol + 1).setValue('borrowed');
+  // 不立即借出，而是設定為「借用審核中」狀態
+  targetSheet.getRange(foundRow, statusCol + 1).setValue('borrow_pending');
   targetSheet.getRange(foundRow, borrowerCol + 1).setValue(borrower);
   targetSheet.getRange(foundRow, dtBorrowCol + 1).setValue(dtBorrow);
   targetSheet.getRange(foundRow, dtDueCol + 1).setValue(dtDue);
@@ -384,9 +388,6 @@ function borrowEquipment(data) {
   
   const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
   const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
-  
-  // 借用審核流程：不直接借出，而是建立待審核記錄
-  // 設備狀態保持為 'available'，等待 Keeper 審核
   
   // 記錄歷史（標記為 pending，等待審核）
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
