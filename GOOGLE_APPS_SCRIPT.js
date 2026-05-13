@@ -741,21 +741,7 @@ function requestBorrow(data) {
   });
 }
 
-/**
- * 核准借用請求
- */
-function approveBorrow(data) {
-  console.log('=== approveBorrow START ===');
-  console.log('data:', data);
-  console.log('data type:', typeof data);
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const requestId = data.request_id;
-  
-  Logger.log('approveBorrow 收到的資料: ' + JSON.stringify(data));
-  
-  if (!requestId) {
-    return errorResponse('缺少 request_id 參數');
-  }
+
   
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
@@ -861,18 +847,7 @@ function approveBorrow(data) {
   });
 }
 
-/**
- * 拒絕借用請求
- */
-function rejectBorrow(data) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const requestId = data.request_id;
-  
-  Logger.log('rejectBorrow 收到的資料: ' + JSON.stringify(data));
-  
-  if (!requestId) {
-    return errorResponse('缺少 request_id 參數');
-  }
+
   
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
@@ -964,18 +939,7 @@ function rejectBorrow(data) {
   });
 }
 
-/**
- * 取得借用請求資訊
- */
-function getBorrowRequest(data) {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const requestId = data.request_id;
-  
-  Logger.log('getBorrowRequest 收到的資料: ' + JSON.stringify(data));
-  
-  if (!requestId) {
-    return errorResponse('缺少 request_id 參數');
-  }
+
   
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
