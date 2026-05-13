@@ -543,6 +543,15 @@ function requestBorrow(data) {
  * 核准借用請求
  */
 function approveBorrow(data) {
+  // 除錯
+  Logger.log('=== approveBorrow 開始 ===');
+  Logger.log('data:', JSON.stringify(data));
+  Logger.log('data type:', typeof data);
+  Logger.log('e:', typeof e !== 'undefined' ? 'defined' : 'undefined');
+  if (typeof e !== 'undefined' && e.parameter) {
+    Logger.log('e.parameter:', JSON.stringify(e.parameter));
+  }
+  
   // 防護：直接從 URL 參數取得 request_id
   let requestId = null;
   if (data && data.request_id) {
@@ -550,6 +559,8 @@ function approveBorrow(data) {
   } else if (typeof e !== 'undefined' && e.parameter && e.parameter.request_id) {
     requestId = e.parameter.request_id;
   }
+  
+  Logger.log('requestId:', requestId);
   
   if (!requestId) {
     return errorResponse('缺少 request_id');
