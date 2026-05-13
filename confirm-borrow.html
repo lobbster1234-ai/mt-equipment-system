@@ -36,11 +36,13 @@
     .error { color: #dc3545; }
     .success { color: #28a745; }
     .hidden { display: none; }
+    .debug { background: #fff3cd; padding: 10px; margin: 10px 0; border-radius: 4px; font-family: monospace; font-size: 12px; text-align: left; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 id="title">🔒 審核借用申請</h1>
+    <div id="debug-area" class="debug hidden"></div>
     <div id="content">
       <div class="info">
         <p><strong>📦 設備編號：</strong><span id="device-no">載入中...</span></p>
@@ -61,8 +63,17 @@
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
     
+    function debug(msg) {
+      console.log(msg);
+      const debugArea = document.getElementById('debug-area');
+      debugArea.classList.remove('hidden');
+      debugArea.innerHTML += msg + '<br>';
+    }
+    
     const urlParams = new URLSearchParams(window.location.search);
     const requestId = urlParams.get('request_id');
+    
+    debug('requestId from URL: ' + requestId);
     
     if (!requestId) {
       document.getElementById('title').textContent = '❌ 錯誤';
@@ -74,8 +85,11 @@
     async function loadRequestInfo() {
       try {
         const url = GAS_URL + '?action=getBorrowRequest&request_id=' + encodeURIComponent(requestId);
+        debug('載入 URL: ' + url);
         const res = await fetch(url);
+        debug('載入回應狀態: ' + res.status);
         const data = await res.json();
+        debug('載入資料: ' + JSON.stringify(data));
         
         if (data.error) {
           throw new Error(data.error);
@@ -88,12 +102,15 @@
         document.getElementById('borrow-date').textContent = data.dt_borrow || 'N/A';
         document.getElementById('due-date').textContent = data.dt_due || '未設定';
       } catch (err) {
+        debug('載入錯誤: ' + err.message);
         document.getElementById('title').textContent = '❌ 錯誤';
         document.getElementById('content').innerHTML = '<p class="error">載入失敗：' + err.message + '</p>';
       }
     }
     
     async function processBorrow(action) {
+      debug('processBorrow called, action: ' + action);
+      
       const btnApprove = document.querySelector('.btn-approve');
       const btnReject = document.querySelector('.btn-reject');
       const prompt = document.getElementById('prompt');
@@ -106,34 +123,38 @@
       
       try {
         const url = GAS_URL + '?action=' + (action === 'approve' ? 'approveBorrow' : 'rejectBorrow') + '&request_id=' + encodeURIComponent(requestId);
-        console.log('正在呼叫:', url);
+        debug('核准 URL: ' + url);
+        
         const res = await fetch(url);
-        console.log('收到回應:', res.status);
-        const data = await res.json();
-        console.log('回應資料:', data);
+        debug('核准回應狀態: ' + res.status);
+        
+        const text = await res.text();
+        debug('核准回應文字: ' + text.substring(0, 200));
+        
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (e) {
+          throw new Error('回應不是有效的 JSON: ' + text.substring(0, 100));
+        }
+        
+        debug('核准資料: ' + JSON.stringify(data));
         
         if (data.success) {
           document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准借用' : '❌ 已拒絕借用';
-          document.querySelector('.info').innerHTML = '<p class="success" style="font-size:1.2em;padding:20px;">' + (action === 'approve' ? '✅ 借用已核准' : '❌ 借用已拒絕') + '</p><p style="color:#666;margin-top:15px;">系統已自動通知借用人審核結果。</p><p id="countdown" style="color:#667eea;margin-top:20px;">3 秒後自動跳轉到主頁...</p>';
-          document.getElementById('buttons').classList.add('hidden');
-          prompt.classList.add('hidden');
           
-          // 3 秒後跳轉到主頁
-          let seconds = 3;
-          const countdownEl = document.getElementById('countdown');
-          const interval = setInterval(() => {
-            seconds--;
-            if (seconds <= 0) {
-              clearInterval(interval);
-              window.location.href = 'index.html';
-            } else {
-              countdownEl.textContent = seconds + ' 秒後自動跳轉到主頁...';
-            }
-          }, 1000);
+          const msg = action === 'approve' ? '✅ 借用已核准' : '❌ 借用已拒絕';
+          document.getElementById('content').innerHTML = '<p class="success" style="font-size:1.2em;padding:20px;">' + msg + '</p>';
+          
+          // 3秒後跳轉
+          setTimeout(() => {
+            window.location.href = 'index.html';
+          }, 3000);
         } else {
           throw new Error(data.error || data.message || '處理失敗');
         }
       } catch (err) {
+        debug('核准錯誤: ' + err.message);
         alert('處理失敗：' + err.message);
         btnApprove.disabled = false;
         btnReject.disabled = false;
