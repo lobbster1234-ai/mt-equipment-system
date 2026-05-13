@@ -142,30 +142,42 @@
 
     // 載入借用請求資訊
     async function loadRequestInfo() {
+      console.log('開始載入請求資訊, requestId:', requestId);
       try {
         const url = new URL(GAS_URL);
         url.searchParams.append('action', 'getBorrowRequest');
         url.searchParams.append('request_id', requestId);
+        
+        console.log('請求 URL:', url.toString());
 
         const res = await fetch(url.toString(), {
           method: 'GET',
           redirect: 'follow'
         });
+        
+        console.log('回應狀態:', res.status);
 
         const data = await res.json();
+        
+        console.log('回應資料:', data);
 
         if (data.error) {
           throw new Error(data.error);
         }
+        
+        if (!data.success && data.status !== 'success') {
+          throw new Error(data.message || '載入失敗');
+        }
 
         // 顯示借用資訊
-        document.getElementById('device-no').textContent = data.fix_no || 'N/A';
-        document.getElementById('device-name').textContent = data.device_name || 'N/A';
-        document.getElementById('borrower-name').textContent = data.borrower || 'N/A';
-        document.getElementById('borrower-email').textContent = data.borrower_email || 'N/A';
-        document.getElementById('borrow-date').textContent = data.dt_borrow || 'N/A';
-        document.getElementById('due-date').textContent = data.dt_due || '未設定';
+        document.getElementById('device-no').textContent = data.fix_no || data.data?.fix_no || 'N/A';
+        document.getElementById('device-name').textContent = data.device_name || data.data?.device_name || 'N/A';
+        document.getElementById('borrower-name').textContent = data.borrower || data.data?.borrower || 'N/A';
+        document.getElementById('borrower-email').textContent = data.borrower_email || data.data?.borrower_email || 'N/A';
+        document.getElementById('borrow-date').textContent = data.dt_borrow || data.data?.dt_borrow || 'N/A';
+        document.getElementById('due-date').textContent = data.dt_due || data.data?.dt_due || '未設定';
       } catch (err) {
+        console.error('載入錯誤:', err);
         showError('❌ 載入失敗：' + err.message);
       }
     }
