@@ -106,8 +106,11 @@
       
       try {
         const url = GAS_URL + '?action=' + (action === 'approve' ? 'approveBorrow' : 'rejectBorrow') + '&request_id=' + encodeURIComponent(requestId);
+        console.log('正在呼叫:', url);
         const res = await fetch(url);
+        console.log('收到回應:', res.status);
         const data = await res.json();
+        console.log('回應資料:', data);
         
         if (data.success) {
           document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准借用' : '❌ 已拒絕借用';
