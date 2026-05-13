@@ -11,6 +11,7 @@ const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
 
 // 設定：工作表名稱
 const SHEET_NAME = '工作表 1';           // 主要設備清單（部門助理年度更新）
+const BORROW_REQUEST_SHEET_NAME = '借用申請';
 const SHEET_NAME_WEB = '網站新增設備';    // 網站新增的設備（管理員手動新增）
 const KEEPER_SHEET_NAME = 'Keeper 聯絡資訊';
 const HISTORY_SHEET_NAME = '歷史紀錄';
