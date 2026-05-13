@@ -694,7 +694,6 @@ function rejectBorrow(data, e) {
   }
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const requestId = data.request_id;
   
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
