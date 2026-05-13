@@ -127,12 +127,205 @@ function doGet(e) {
       Logger.log('requestBorrow 接收到的参数: ' + JSON.stringify(requestData));
       return requestBorrow(requestData);
     } else if (action === 'approveBorrow') {
-      return approveBorrow({
-        request_id: e.parameter.request_id
+      // 直接處理核准邏輯，避免函數參數傳遞問題
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const requestId = e.parameter.request_id;
+      if (!requestId) {
+        return errorResponse('缺少 request_id 參數');
+      }
+      
+      // 查找借用請求
+      let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+      if (!borrowRequestSheet) {
+        return errorResponse('找不到借用申請工作表');
+      }
+      const pendingData = borrowRequestSheet.getDataRange().getValues();
+      let foundRow = -1;
+      let requestData = null;
+      
+      for (let i = 1; i < pendingData.length; i++) {
+        if (pendingData[i][0] === requestId) {
+          foundRow = i + 1;
+          requestData = {
+            fix_no: pendingData[i][1],
+            device_name: pendingData[i][2],
+            borrower: pendingData[i][3],
+            borrower_email: pendingData[i][4],
+            dt_borrow: pendingData[i][5],
+            dt_due: pendingData[i][6],
+            keeper: pendingData[i][7]
+          };
+          break;
+        }
+      }
+      
+      if (foundRow === -1 || !requestData) {
+        return errorResponse('找不到該借用請求或已處理');
+      }
+      
+      // 更新借用請求狀態為 approved
+      borrowRequestSheet.getRange(foundRow, 9).setValue('approved');
+      
+      // 在設備工作表中更新為借用狀態
+      const fixNoCol = COLS.fix_no;
+      const statusCol = COLS.status;
+      const borrowerCol = COLS.borrower;
+      const dtBorrowCol = COLS.dt_borrow;
+      const dtDueCol = COLS.dt_due;
+      const dtReturnCol = COLS.dt_return;
+      const keeperCol = COLS.keeper;
+      const deviceNameCol = COLS.device_name;
+      
+      let sheet = ss.getSheetByName(SHEET_NAME);
+      let equipmentFoundRow = -1;
+      let targetSheet = null;
+      
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        for (let i = 2; i <= lastRow; i++) {
+          const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+          if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+            equipmentFoundRow = i;
+            targetSheet = sheet;
+            break;
+          }
+        }
+      }
+      
+      if (equipmentFoundRow === -1) {
+        sheet = ss.getSheetByName(SHEET_NAME_WEB);
+        if (sheet) {
+          const lastRow = sheet.getLastRow();
+          for (let i = 2; i <= lastRow; i++) {
+            const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+            if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+              equipmentFoundRow = i;
+              targetSheet = sheet;
+              break;
+            }
+          }
+        }
+      }
+      
+      // 更新設備為借用狀態
+      if (equipmentFoundRow !== -1 && targetSheet) {
+        targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('borrowed');
+        targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue(requestData.borrower);
+        targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue(requestData.dt_borrow);
+        targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue(requestData.dt_due);
+        targetSheet.getRange(equipmentFoundRow, dtReturnCol + 1).setValue('');
+        targetSheet.getRange(equipmentFoundRow, COLS.return_confirmed + 1).setValue(false);
+        
+        const keeper = targetSheet.getRange(equipmentFoundRow, keeperCol + 1).getValue();
+        const deviceName = targetSheet.getRange(equipmentFoundRow, deviceNameCol + 1).getValue();
+        
+        // 記錄歷史
+        logHistory('borrow', requestData.fix_no, deviceName, requestData.borrower, keeper, requestData.dt_borrow, requestData.dt_due, '');
+        Logger.log(`設備 ${requestData.fix_no} 已更新為借用狀態`);
+      }
+      
+      // 發送核准通知給借用人
+      if (requestData.borrower_email) {
+        sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, true);
+      }
+      
+      return successResponse({
+        message: '借用已核准',
+        fix_no: requestData.fix_no,
+        borrower: requestData.borrower
       });
     } else if (action === 'rejectBorrow') {
-      return rejectBorrow({
-        request_id: e.parameter.request_id
+      // 直接處理拒絕邏輯
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const requestId = e.parameter.request_id;
+      if (!requestId) {
+        return errorResponse('缺少 request_id 參數');
+      }
+      
+      // 查找借用請求
+      let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+      if (!borrowRequestSheet) {
+        return errorResponse('找不到借用申請工作表');
+      }
+      const pendingData = borrowRequestSheet.getDataRange().getValues();
+      let foundRow = -1;
+      let requestData = null;
+      
+      for (let i = 1; i < pendingData.length; i++) {
+        if (pendingData[i][0] === requestId) {
+          foundRow = i + 1;
+          requestData = {
+            fix_no: pendingData[i][1],
+            device_name: pendingData[i][2],
+            borrower: pendingData[i][3],
+            borrower_email: pendingData[i][4],
+            keeper: pendingData[i][7]
+          };
+          break;
+        }
+      }
+      
+      if (foundRow === -1 || !requestData) {
+        return errorResponse('找不到該借用請求或已處理');
+      }
+      
+      // 更新借用請求狀態為 rejected
+      borrowRequestSheet.getRange(foundRow, 9).setValue('rejected');
+      
+      // 恢復設備狀態為 available
+      const fixNoCol = COLS.fix_no;
+      const statusCol = COLS.status;
+      const borrowerCol = COLS.borrower;
+      const dtBorrowCol = COLS.dt_borrow;
+      const dtDueCol = COLS.dt_due;
+      
+      let sheet = ss.getSheetByName(SHEET_NAME);
+      let equipmentFoundRow = -1;
+      let targetSheet = null;
+      
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        for (let i = 2; i <= lastRow; i++) {
+          const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+          if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+            equipmentFoundRow = i;
+            targetSheet = sheet;
+            break;
+          }
+        }
+      }
+      
+      if (equipmentFoundRow === -1) {
+        sheet = ss.getSheetByName(SHEET_NAME_WEB);
+        if (sheet) {
+          const lastRow = sheet.getLastRow();
+          for (let i = 2; i <= lastRow; i++) {
+            const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+            if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+              equipmentFoundRow = i;
+              targetSheet = sheet;
+              break;
+            }
+          }
+        }
+      }
+      
+      if (equipmentFoundRow !== -1 && targetSheet) {
+        targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('available');
+        targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue('');
+        targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue('');
+        targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue('');
+        Logger.log(`設備 ${requestData.fix_no} 狀態已恢復為可用`);
+      }
+      
+      // 發送拒絕通知給借用人
+      if (requestData.borrower_email) {
+        sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, false);
+      }
+      
+      return successResponse({
+        message: '借用已拒絕，設備恢復可借用',
+        fix_no: requestData.fix_no
       });
     } else if (action === 'getBorrowRequest') {
       return getBorrowRequest({
