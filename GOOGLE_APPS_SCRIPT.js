@@ -552,6 +552,9 @@ function requestBorrow(data) {
  * 核准借用請求
  */
 function approveBorrow(data) {
+  console.log('=== approveBorrow START ===');
+  console.log('data:', data);
+  console.log('data type:', typeof data);
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const requestId = data.request_id;
   
