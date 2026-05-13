@@ -128,15 +128,15 @@ function doGet(e) {
     } else if (action === 'approveBorrow') {
       return approveBorrow({
         request_id: e.parameter.request_id
-      });
+      }, e);
     } else if (action === 'rejectBorrow') {
       return rejectBorrow({
         request_id: e.parameter.request_id
-      });
+      }, e);
     } else if (action === 'getBorrowRequest') {
       return getBorrowRequest({
         request_id: e.parameter.request_id
-      });
+      }, e);
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -542,7 +542,7 @@ function requestBorrow(data) {
 /**
  * 核准借用請求
  */
-function approveBorrow(data) {
+function approveBorrow(data, e) {
   // 除錯
   Logger.log('=== approveBorrow 開始 ===');
   Logger.log('data:', JSON.stringify(data));
@@ -552,11 +552,11 @@ function approveBorrow(data) {
     Logger.log('e.parameter:', JSON.stringify(e.parameter));
   }
   
-  // 防護：直接從 URL 參數取得 request_id
+  // 從 data 或 e 取得 request_id
   let requestId = null;
   if (data && data.request_id) {
     requestId = data.request_id;
-  } else if (typeof e !== 'undefined' && e.parameter && e.parameter.request_id) {
+  } else if (e && e.parameter && e.parameter.request_id) {
     requestId = e.parameter.request_id;
   }
   
@@ -680,13 +680,17 @@ function approveBorrow(data) {
 /**
  * 拒絕借用請求
  */
-function rejectBorrow(data) {
-  // 防護
-  if (!data) {
-    data = {};
+function rejectBorrow(data, e) {
+  // 從 data 或 e 取得 request_id
+  let requestId = null;
+  if (data && data.request_id) {
+    requestId = data.request_id;
+  } else if (e && e.parameter && e.parameter.request_id) {
+    requestId = e.parameter.request_id;
   }
-  if (!data.request_id && typeof e !== 'undefined' && e.parameter) {
-    data.request_id = e.parameter.request_id;
+  
+  if (!requestId) {
+    return errorResponse('缺少 request_id');
   }
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -785,12 +789,12 @@ function rejectBorrow(data) {
 /**
  * 取得借用請求資訊
  */
-function getBorrowRequest(data) {
-  // 防護：直接從 URL 參數取得 request_id
+function getBorrowRequest(data, e) {
+  // 從 data 或 e 取得 request_id
   let requestId = null;
   if (data && data.request_id) {
     requestId = data.request_id;
-  } else if (typeof e !== 'undefined' && e.parameter && e.parameter.request_id) {
+  } else if (e && e.parameter && e.parameter.request_id) {
     requestId = e.parameter.request_id;
   }
   
