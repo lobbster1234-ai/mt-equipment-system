@@ -632,18 +632,12 @@ function approveBorrow(data) {
   }
   
   // 更新設備為借用狀態
-  Logger.log(`嘗試更新設備代碼: ${requestData.fix_no}, equipmentFoundRow: ${equipmentFoundRow}, targetSheet: ${targetSheet ? '有' : '無'}`);
-  
   if (equipmentFoundRow !== -1 && targetSheet) {
     targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('borrowed');
     targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue(requestData.borrower);
     targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue(requestData.dt_borrow);
     targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue(requestData.dt_due);
     targetSheet.getRange(equipmentFoundRow, dtReturnCol + 1).setValue('');
-    Logger.log(`設備 ${requestData.fix_no} 狀態已更新為 borrowed`);
-  } else {
-    Logger.log(`找不到設備 ${requestData.fix_no}，無法更新狀態`);
-  }
     targetSheet.getRange(equipmentFoundRow, COLS.return_confirmed + 1).setValue(false);
     
     const keeper = targetSheet.getRange(equipmentFoundRow, keeperCol + 1).getValue();
