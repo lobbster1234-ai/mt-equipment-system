@@ -96,13 +96,31 @@
     .loading {
       color: #667eea;
     }
+    
+    .buttons {
+      margin-top: 30px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 id="title">🔒 審核借用申請</h1>
-    <div id="content" class="loading">
-      正在載入借用資訊，請稍候...
+    <div id="content">
+      <div class="info">
+        <p><strong>📦 設備編號：</strong><span id="device-no">載入中...</span></p>
+        <p><strong>📝 設備名稱：</strong><span id="device-name">載入中...</span></p>
+        <p><strong>👤 申請人：</strong><span id="borrower-name">載入中...</span></p>
+        <p><strong>📧 申請人 Email：</strong><span id="borrower-email">載入中...</span></p>
+        <p><strong>📅 借用日期：</strong><span id="borrow-date">載入中...</span></p>
+        <p><strong>⏰ 預計歸還：</strong><span id="due-date">載入中...</span></p>
+      </div>
+      <p style="color: #666; margin: 20px 0;">
+        請確認上述資訊後，選擇是否同意借用：
+      </p>
+      <div class="buttons">
+        <button class="btn-approve" onclick="processBorrow('approve')">✅ 同意借用</button>
+        <button class="btn-reject" onclick="processBorrow('reject')">❌ 不同意借用</button>
+      </div>
     </div>
   </div>
 
@@ -110,25 +128,53 @@
     // GAS 網址
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
 
-    // 從 URL 參數獲取 action 和 request_id
+    // 從 URL 參數獲取 request_id
     const urlParams = new URLSearchParams(window.location.search);
-    const action = urlParams.get('action');
     const requestId = urlParams.get('request_id');
 
-    if (!action || !requestId) {
+    if (!requestId) {
       showError('❌ 無效的審核連結');
-    } else if (action === 'approve') {
-      processBorrow('approve');
-    } else if (action === 'reject') {
-      processBorrow('reject');
     } else {
-      showError('❌ 無效的審核動作');
+      // 載入借用請求資訊
+      loadRequestInfo();
+    }
+
+    // 載入借用請求資訊
+    async function loadRequestInfo() {
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'getBorrowRequest');
+        url.searchParams.append('request_id', requestId);
+
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // 顯示借用資訊
+        document.getElementById('device-no').textContent = data.fix_no || 'N/A';
+        document.getElementById('device-name').textContent = data.device_name || 'N/A';
+        document.getElementById('borrower-name').textContent = data.borrower || 'N/A';
+        document.getElementById('borrower-email').textContent = data.borrower_email || 'N/A';
+        document.getElementById('borrow-date').textContent = data.dt_borrow || 'N/A';
+        document.getElementById('due-date').textContent = data.dt_due || '未設定';
+      } catch (err) {
+        showError('❌ 載入失敗：' + err.message);
+      }
     }
 
     // 處理借用審核
     async function processBorrow(actionType) {
       const contentDiv = document.getElementById('content');
-      contentDiv.innerHTML = '<p class="loading">正在處理，請稍候...</p>';
+      
+      // 隱藏按鈕，顯示處理中
+      contentDiv.innerHTML = '<p class="loading" style="font-size: 1.2em;">🔄 正在處理，請稍候...</p>';
 
       try {
         const url = new URL(GAS_URL);
@@ -147,13 +193,13 @@
           const resultColor = actionType === 'approve' ? 'success' : 'error';
           
           contentDiv.innerHTML = `
-            <p class="${resultColor}" style="font-size: 1.2em; margin: 20px 0;">
+            <p class="${resultColor}" style="font-size: 1.5em; margin: 30px 0;">
               ${resultText}
             </p>
-            <p style="color: #666;">
+            <p style="color: #666; margin: 20px 0;">
               系統已自動通知借用人審核結果。
             </p>
-            <p style="color: #999; font-size: 0.9em; margin-top: 15px;">
+            <p style="color: #999; font-size: 0.9em; margin-top: 30px;">
               3 秒後自動返回首頁...
             </p>
           `;

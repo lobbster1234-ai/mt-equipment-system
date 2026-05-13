@@ -131,6 +131,10 @@ function doGet(e) {
       return rejectBorrow({
         request_id: e.parameter.request_id
       });
+    } else if (action === 'getBorrowRequest') {
+      return getBorrowRequest({
+        request_id: e.parameter.request_id
+      });
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -679,6 +683,39 @@ function rejectBorrow(data) {
 }
 
 /**
+ * 取得借用請求資訊
+ */
+function getBorrowRequest(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const requestId = data.request_id;
+  
+  // 查找借用請求
+  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
+  if (!pendingSheet) {
+    return errorResponse('找不到待審核借用記錄');
+  }
+  
+  const pendingData = pendingSheet.getDataRange().getValues();
+  
+  for (let i = 1; i < pendingData.length; i++) {
+    if (pendingData[i][0] === requestId) {
+      return successResponse({
+        fix_no: pendingData[i][1],
+        device_name: pendingData[i][2],
+        borrower: pendingData[i][3],
+        borrower_email: pendingData[i][4],
+        dt_borrow: formatDate(pendingData[i][5]),
+        dt_due: formatDate(pendingData[i][6]),
+        keeper: pendingData[i][7],
+        status: pendingData[i][8]
+      });
+    }
+  }
+  
+  return errorResponse('找不到該借用請求');
+}
+
+/**
  * 發送借用審核郵件給 Keeper
  */
 function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail, dtBorrow, dtDue, requestId) {
@@ -706,12 +743,7 @@ function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEm
 ⏰ 預計歸還：${dtDue || '未設定'}
 
 請點擊以下連結進行審核：
-
-✅ 同意借用：
-${approveUrl}
-
-❌ 不同意借用：
-${rejectUrl}
+${EMAIL_CONFIG.web_app_url}/confirm-borrow.html?request_id=${encodeURIComponent(requestId)}
 
 ---
 MT 部門設備管理系統 自動通知`.trim();
