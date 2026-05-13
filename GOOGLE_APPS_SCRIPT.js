@@ -611,20 +611,25 @@ function approveBorrow(data) {
   const deviceNameCol = COLS.device_name;
   
   // 在兩個工作表中查找設備
+  Logger.log(`正在查找設備: fix_no='${requestData.fix_no}', SHEET_NAME='${SHEET_NAME}'`);
   let sheet = ss.getSheetByName(SHEET_NAME);
   let equipmentFoundRow = -1;
   let targetSheet = null;
   
   if (sheet) {
     const lastRow = sheet.getLastRow();
+    Logger.log(`工作表1有 ${lastRow} 行`);
     for (let i = 2; i <= lastRow; i++) {
       const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
       if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
         equipmentFoundRow = i;
         targetSheet = sheet;
+        Logger.log(`在工作表1找到設備 ${requestData.fix_no} 在第 ${i} 行`);
         break;
       }
     }
+  } else {
+    Logger.log('工作表1不存在');
   }
   
   if (equipmentFoundRow === -1) {
