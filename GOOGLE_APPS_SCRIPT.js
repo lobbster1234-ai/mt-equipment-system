@@ -501,7 +501,11 @@ function requestBorrow(data) {
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   
   // 建立借用請求記錄
-  
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    borrowRequestSheet = ss.insertSheet(BORROW_REQUEST_SHEET_NAME);
+    borrowRequestSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
+  }
   
   const requestId = Utilities.getUuid();
   const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
