@@ -580,7 +580,7 @@ function approveBorrow(data) {
   }
   
   // 更新借用請求狀態為 approved
-  pendingSheet.getRange(foundRow, 9).setValue('approved');
+  borrowRequestSheet.getRange(foundRow, 9).setValue('approved');
   
   // 在設備工作表中更新為借用狀態
   const fixNoCol = COLS.fix_no;
@@ -695,7 +695,7 @@ function rejectBorrow(data) {
   }
   
   // 更新借用請求狀態為 rejected
-  pendingSheet.getRange(foundRow, 9).setValue('rejected');
+  borrowRequestSheet.getRange(foundRow, 9).setValue('rejected');
   
   // 拒絕時需要將設備狀態改回 available
   const fixNoCol = COLS.fix_no;
