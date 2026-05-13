@@ -278,16 +278,25 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   // 自動填入登入者姓名
   const user = JSON.parse(localStorage.getItem('mt_user'));
   const borrowNameInput = document.getElementById('borrow-name');
-  if (user && user.name && borrowNameInput) {
-    borrowNameInput.value = user.name;
-    // 如果已經有值，設為只讀，防止修改
+  const borrowEmailGroup = document.getElementById('borrow-email-group');
+  const borrowEmailInput = document.getElementById('borrow-email');
+  
+  if (user && user.role === 'admin' && borrowNameInput) {
+    // 管理員登入，自動填入姓名，隱藏 email 欄位
+    borrowNameInput.value = user.name || '';
     borrowNameInput.readOnly = true;
     borrowNameInput.style.background = '#e9ecef';
-  } else if (borrowNameInput) {
-    // 沒有登入或沒有姓名，清空並允許手動輸入
-    borrowNameInput.value = '';
-    borrowNameInput.readOnly = false;
-    borrowNameInput.style.background = '#fff';
+    if (borrowEmailGroup) borrowEmailGroup.style.display = 'none';
+    if (borrowEmailInput) borrowEmailInput.value = user.email || '';
+  } else {
+    // 訪客登入，不填入姓名，顯示 email 欄位，姓名需手動輸入
+    if (borrowNameInput) {
+      borrowNameInput.value = '';  // 訪客不預填姓名
+      borrowNameInput.readOnly = false;
+      borrowNameInput.style.background = '#fff';
+    }
+    if (borrowEmailGroup) borrowEmailGroup.style.display = 'block';
+    if (borrowEmailInput) borrowEmailInput.value = '';
   }
   
   // 設定最小日期為今天（台北時間）
@@ -302,6 +311,11 @@ function openBorrowModal(fixNo, deviceName, keeper) {
 // 關閉借用 Modal
 function closeBorrowModal() {
   const modal = document.getElementById('borrow-modal');
+  // 重置 email 欄位
+  const borrowEmailGroup = document.getElementById('borrow-email-group');
+  const borrowEmailInput = document.getElementById('borrow-email');
+  if (borrowEmailGroup) borrowEmailGroup.style.display = 'none';
+  if (borrowEmailInput) borrowEmailInput.value = '';
   if (modal) modal.style.display = 'none';
 }
 
@@ -362,6 +376,37 @@ async function submitBorrow(formData) {
     }
   } catch (err) {
     console.error('借用失敗:', err);
+    return { success: false, message: `❌ ${err.message}` };
+  }
+}
+
+// 訪客借用請求（需要 Keeper 審核）
+async function requestBorrow(formData) {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'requestBorrow');
+    url.searchParams.append('fix_no', formData.fix_no);
+    url.searchParams.append('borrower', formData.borrower);
+    url.searchParams.append('borrower_email', formData.borrower_email);
+    url.searchParams.append('dt_borrow', formData.dt_borrow);
+    url.searchParams.append('dt_due', formData.dt_due);
+
+    console.log('借用請求網址:', url.toString());
+
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+
+    const result = await res.json();
+
+    if (result.success || result.status === 'success' || (!result.error && result.message)) {
+      return { success: true, message: '📧 借用申請已送出！\n\n系統已寄信通知保管人（Keeper）審核\n請留意您的電子郵件以接收審核結果。' };
+    } else {
+      throw new Error(result.error || '借用請求失敗');
+    }
+  } catch (err) {
+    console.error('借用請求失敗:', err);
     return { success: false, message: `❌ ${err.message}` };
   }
 }
@@ -501,10 +546,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const fixNo = document.getElementById('borrow-fix-no').value;
       const borrower = document.getElementById('borrow-name').value;
       const dtDue = document.getElementById('borrow-due-date').value;
+      const borrowerEmail = document.getElementById('borrow-email')?.value || '';
       // 今天日期（台北時間）
       const now = new Date();
       const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
       const dtBorrow = taipeiTime.toISOString().split('T')[0];
+      
+      // 檢查是否為訪客（需要借用審核）
+      const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
+      const isGuest = user.role !== 'admin';
 
       const submitBtn = e.target.querySelector('button[type="submit"]');
       if (submitBtn) {
@@ -512,7 +562,25 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.textContent = '🔄 處理中...';
       }
 
-      const result = await submitBorrow({ fix_no: fixNo, borrower: borrower, dt_borrow: dtBorrow, dt_due: dtDue });
+      let result;
+      if (isGuest) {
+        // 訪客需要發送借用請求，等待 Keeper 審核
+        result = await requestBorrow({ 
+          fix_no: fixNo, 
+          borrower: borrower, 
+          borrower_email: borrowerEmail,
+          dt_borrow: dtBorrow, 
+          dt_due: dtDue 
+        });
+      } else {
+        // 管理員直接借用
+        result = await submitBorrow({ 
+          fix_no: fixNo, 
+          borrower: borrower, 
+          dt_borrow: dtBorrow, 
+          dt_due: dtDue 
+        });
+      }
 
       if (submitBtn) {
         submitBtn.disabled = false;

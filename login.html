@@ -6,7 +6,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <title>登入 - MT 設備系統</title>
+  <title>管理員登入 - MT 設備系統</title>
   <style>
     * {
       margin: 0;
@@ -44,29 +44,6 @@
       color: #666;
       margin-bottom: 30px;
       font-size: 0.95em;
-    }
-    
-    .login-tabs {
-      display: flex;
-      margin-bottom: 30px;
-      border-bottom: 2px solid #e9ecef;
-    }
-    
-    .login-tab {
-      flex: 1;
-      padding: 12px;
-      cursor: pointer;
-      border: none;
-      background: none;
-      font-size: 1em;
-      color: #666;
-      transition: all 0.3s;
-    }
-    
-    .login-tab.active {
-      color: #667eea;
-      border-bottom: 3px solid #667eea;
-      font-weight: bold;
     }
     
     .form-group {
@@ -119,10 +96,10 @@
       color: white;
       border: none;
       border-radius: 8px;
-      font-size: 1.1em;
+      font-size: 1em;
       cursor: pointer;
       transition: background 0.3s;
-      margin-top: 15px;
+      margin-top: 10px;
     }
     
     .btn-guest:hover {
@@ -150,69 +127,34 @@
       text-align: left;
       font-size: 0.9em;
       color: #666;
-    }
-    
-    .role-info.admin {
       border-left: 4px solid #667eea;
-    }
-    
-    .role-info.guest {
-      border-left: 4px solid #6c757d;
-    }
-    
-    .hidden {
-      display: none !important;
     }
   </style>
 </head>
 <body>
   <div class="login-container">
     <h1>🔐 MT 設備系統</h1>
-    <p class="subtitle">請選擇登入方式</p>
+    <p class="subtitle">請輸入管理員帳號密碼</p>
     
-    <div class="login-tabs">
-      <button class="login-tab active" onclick="switchTab('admin')">管理員登入</button>
-      <button class="login-tab" onclick="switchTab('guest')">訪客登入</button>
+    <div class="role-info">
+      <strong>✓ 管理員權限</strong><br>
+      • 借用/歸還設備<br>
+      • 登記新設備<br>
+      • 查看/管理所有設備
     </div>
     
-    <!-- 管理員登入表單 -->
-    <div id="admin-login-form">
-      <div class="role-info admin">
-        <strong>✓ 管理員權限</strong><br>
-        • 借用/歸還設備<br>
-        • 登記新設備<br>
-        • 查看所有記錄
-      </div>
-      
-      <div class="form-group">
-        <label>帳號 / 電子郵件</label>
-        <input type="text" id="admin-email" placeholder="請輸入帳號或電子郵件">
-      </div>
-      
-      <div class="form-group">
-        <label>密碼</label>
-        <input type="password" id="admin-password" placeholder="請輸入密碼">
-      </div>
-      
-      <button class="btn-login" onclick="loginAdmin()">登入</button>
+    <div class="form-group">
+      <label>帳號 / 電子郵件</label>
+      <input type="text" id="admin-email" placeholder="請輸入帳號或電子郵件">
     </div>
     
-    <!-- 訪客登入表單 -->
-    <div id="guest-login-form" class="hidden">
-      <div class="role-info guest">
-        <strong>✓ 訪客權限</strong><br>
-        • 借用/歸還設備<br>
-        • 查看設備列表<br>
-        • 不可登記新設備
-      </div>
-      
-      <div class="form-group">
-        <label>您的姓名</label>
-        <input type="text" id="guest-name" placeholder="請輸入您的姓名">
-      </div>
-      
-      <button class="btn-guest" onclick="loginGuest()">訪客登入</button>
+    <div class="form-group">
+      <label>密碼</label>
+      <input type="password" id="admin-password" placeholder="請輸入密碼">
     </div>
+    
+    <button class="btn-login" onclick="loginAdmin()">登入</button>
+    <button class="btn-guest" onclick="goBackAsGuest()">← 返回訪客模式</button>
     
     <div id="error-message" class="error-message"></div>
     <div id="loading" class="loading">🔄 登入中...</div>
@@ -220,23 +162,6 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
-    
-    // 切換登入頁籤
-    function switchTab(role) {
-      const tabs = document.querySelectorAll('.login-tab');
-      tabs.forEach(tab => tab.classList.remove('active'));
-      event.target.classList.add('active');
-      
-      if (role === 'admin') {
-        document.getElementById('admin-login-form').classList.remove('hidden');
-        document.getElementById('guest-login-form').classList.add('hidden');
-      } else {
-        document.getElementById('admin-login-form').classList.add('hidden');
-        document.getElementById('guest-login-form').classList.remove('hidden');
-      }
-      
-      hideError();
-    }
     
     // 管理員登入
     async function loginAdmin() {
@@ -256,38 +181,25 @@
         url.searchParams.append('email', email);
         url.searchParams.append('password', password);
         
-        console.log('發送登入請求 URL:', url.toString());
-        
         const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-        
-        console.log('回應狀態:', res.status);
-        
         const data = await res.json();
         
-        console.log('登入回應:', data);
-        
         if (data.success) {
-          // 檢查是否需要設定密碼（首次登入）
           if (data.needSetupPassword) {
-            console.log('首次登入，需要設定密碼');
-            // 儲存使用者資訊到 sessionStorage，用於設定密碼頁面
             sessionStorage.setItem('mt_setup_password', JSON.stringify({
               email: email,
               name: data.name
             }));
-            // 跳轉到設定密碼頁面
             window.location.href = './setup-password.html';
             return;
           }
           
-          // 正常登入成功
           localStorage.setItem('mt_user', JSON.stringify({
             role: 'admin',
             email: email,
             name: data.name,
             timestamp: Date.now()
           }));
-          // 跳轉到主頁面
           window.location.href = './index.html';
         } else {
           showError(data.error || '登入失敗');
@@ -299,29 +211,8 @@
       }
     }
     
-    // 訪客登入
-    function loginGuest() {
-      const name = document.getElementById('guest-name').value.trim();
-      
-      if (!name) {
-        showError('請輸入您的姓名');
-        return;
-      }
-      
-      console.log('訪客登入：', name);
-      
-      // 儲存訪客資訊
-      const userData = {
-        role: 'guest',
-        name: name,
-        timestamp: Date.now()
-      };
-      
-      console.log('準備儲存:', userData);
-      localStorage.setItem('mt_user', JSON.stringify(userData));
-      console.log('儲存後讀取:', JSON.parse(localStorage.getItem('mt_user')));
-      
-      // 跳轉到主頁面
+    // 返回訪客模式
+    function goBackAsGuest() {
       window.location.href = './index.html';
     }
     
@@ -332,19 +223,9 @@
       errorDiv.style.display = 'block';
     }
     
-    // 隱藏錯誤
-    function hideError() {
-      document.getElementById('error-message').style.display = 'none';
-    }
-    
     // 顯示/隱藏載入中
     function showLoading(show) {
       document.getElementById('loading').style.display = show ? 'block' : 'none';
-    }
-    
-    // 檢查是否已登入
-    if (localStorage.getItem('mt_user')) {
-      window.location.href = './index.html';
     }
   </script>
 </body>

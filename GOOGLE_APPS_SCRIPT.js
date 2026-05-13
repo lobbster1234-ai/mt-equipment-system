@@ -1,8 +1,11 @@
 // =============================================
 // MT 設備系統 - Google Apps Script 後端（完整版）
 // =============================================
-// 功能：查詢、登記、借用、歸還、電子郵件通知（含確認連結）
+// 功能：查詢、登記、借用、歸還、借用審核、電子郵件通知（含確認連結）
 // =============================================
+
+// 新增待審核借用工作表名稱
+const PENDING_BORROW_SHEET_NAME = '待審核借用';
 
 // ⚠️⚠️⚠️ 請替換成你的實際 Sheet ID ⚠️⚠️⚠️
 const SPREADSHEET_ID = '1zW8SfCm8YtKwSfEnxqACn78TJaY4XIY5YL-OPZHliGY';
@@ -111,6 +114,22 @@ function doGet(e) {
     } else if (action === 'deleteEquipment') {
       return deleteEquipment({
         fix_no: e.parameter.fix_no
+      });
+    } else if (action === 'requestBorrow') {
+      return requestBorrow({
+        fix_no: e.parameter.fix_no,
+        borrower: e.parameter.borrower,
+        borrower_email: e.parameter.borrower_email,
+        dt_borrow: e.parameter.dt_borrow,
+        dt_due: e.parameter.dt_due
+      });
+    } else if (action === 'approveBorrow') {
+      return approveBorrow({
+        request_id: e.parameter.request_id
+      });
+    } else if (action === 'rejectBorrow') {
+      return rejectBorrow({
+        request_id: e.parameter.request_id
       });
     } else if (action === 'test') {
       return successResponse({
@@ -365,18 +384,378 @@ function borrowEquipment(data) {
   // 記錄歷史
   logHistory('borrow', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   
+  // 發送借用審核郵件給 Keeper（管理員借用也需要 Keeper 審核）
   if (EMAIL_CONFIG.enabled && keeper) {
-    sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue);
+    // 使用 requestBorrow 的邏輯發送審核郵件
+    const requestId = Utilities.getUuid();
+    const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+    
+    // 建立借用請求記錄（用於審核追蹤）
+    let pendingSheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(PENDING_BORROW_SHEET_NAME);
+    if (!pendingSheet) {
+      pendingSheet = SpreadsheetApp.openById(SPREADSHEET_ID).insertSheet(PENDING_BORROW_SHEET_NAME);
+      pendingSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
+    }
+    
+    // 查找管理員的 email
+    const borrowerEmail = getKeeperEmail(borrower) || '';
+    
+    pendingSheet.appendRow([
+      requestId,
+      fixNo,
+      deviceName,
+      borrower,
+      borrowerEmail,
+      dtBorrow,
+      dtDue,
+      keeper,
+      'pending',
+      timestamp
+    ]);
+    
+    // 發送審核郵件
+    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail, dtBorrow, dtDue, requestId);
   }
   
-  Logger.log(`借用成功：${fixNo}，來自「${sheetSource}」`);
+  Logger.log(`借用審核請求已建立：${fixNo}，借用人：${borrower}，等待 Keeper ${keeper} 審核`);
   return successResponse({
-    message: '借用成功',
+    message: '借用申請已送出，等待 Keeper 審核',
     fix_no: fixNo,
     borrower: borrower,
-    dt_borrow: dtBorrow,
-    dt_due: dtDue
+    keeper: keeper
   });
+}
+
+/**
+ * 訪客借用請求（需要 Keeper 審核）
+ */
+function requestBorrow(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  
+  const fixNo = data.fix_no;
+  const borrower = data.borrower;
+  const borrowerEmail = data.borrower_email;
+  const dtBorrow = data.dt_borrow || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  const dtDue = data.dt_due || '';
+  
+  const fixNoCol = COLS.fix_no;
+  const keeperCol = COLS.keeper;
+  const deviceNameCol = COLS.device_name;
+  
+  // 查找設備
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  let foundRow = -1;
+  let targetSheet = null;
+  let sheetSource = '';
+  
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+        foundRow = i;
+        targetSheet = sheet;
+        sheetSource = SHEET_NAME;
+        break;
+      }
+    }
+  }
+  
+  if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          sheetSource = SHEET_NAME_WEB;
+          break;
+        }
+      }
+    }
+  }
+  
+  if (foundRow === -1 || !targetSheet) {
+    return errorResponse(`找不到設備編號：${fixNo}`);
+  }
+  
+  const currentStatus = targetSheet.getRange(foundRow, COLS.status + 1).getValue();
+  if (currentStatus === 'borrowed') {
+    return errorResponse('設備已經借出');
+  }
+  
+  const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+  const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  
+  // 建立借用請求記錄
+  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
+  if (!pendingSheet) {
+    pendingSheet = ss.insertSheet(PENDING_BORROW_SHEET_NAME);
+    pendingSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
+  }
+  
+  const requestId = Utilities.getUuid();
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+  
+  pendingSheet.appendRow([
+    requestId,
+    fixNo,
+    deviceName,
+    borrower,
+    borrowerEmail,
+    dtBorrow,
+    dtDue,
+    keeper,
+    'pending',
+    timestamp
+  ]);
+  
+  // 發送審核郵件給 Keeper
+  if (EMAIL_CONFIG.enabled && keeper) {
+    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail, dtBorrow, dtDue, requestId);
+  }
+  
+  Logger.log(`借用請求已建立：${requestId}，等待 Keeper ${keeper} 審核`);
+  return successResponse({
+    message: '借用申請已送出，等待 Keeper 審核',
+    request_id: requestId,
+    fix_no: fixNo,
+    borrower: borrower,
+    keeper: keeper
+  });
+}
+
+/**
+ * 核准借用請求
+ */
+function approveBorrow(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const requestId = data.request_id;
+  
+  // 查找借用請求
+  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
+  if (!pendingSheet) {
+    return errorResponse('找不到待審核借用記錄');
+  }
+  
+  const pendingData = pendingSheet.getDataRange().getValues();
+  let foundRow = -1;
+  let requestData = null;
+  
+  for (let i = 1; i < pendingData.length; i++) {
+    if (pendingData[i][0] === requestId) {
+      foundRow = i + 1;
+      requestData = {
+        fix_no: pendingData[i][1],
+        device_name: pendingData[i][2],
+        borrower: pendingData[i][3],
+        borrower_email: pendingData[i][4],
+        dt_borrow: pendingData[i][5],
+        dt_due: pendingData[i][6],
+        keeper: pendingData[i][7]
+      };
+      break;
+    }
+  }
+  
+  if (foundRow === -1 || !requestData) {
+    return errorResponse('找不到該借用請求或已處理');
+  }
+  
+  // 更新借用請求狀態為 approved
+  pendingSheet.getRange(foundRow, 9).setValue('approved');
+  
+  // 設備狀態已經在 borrowEquipment 中設為 borrowed，這裡不需要再次更新
+  // 只需發送核准通知給借用人
+  if (requestData.borrower_email) {
+    sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, true);
+  }
+  
+  return successResponse({
+    message: '借用已核准',
+    fix_no: requestData.fix_no,
+    borrower: requestData.borrower
+  });
+}
+
+/**
+ * 拒絕借用請求
+ */
+function rejectBorrow(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const requestId = data.request_id;
+  
+  // 查找借用請求
+  let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
+  if (!pendingSheet) {
+    return errorResponse('找不到待審核借用記錄');
+  }
+  
+  const pendingData = pendingSheet.getDataRange().getValues();
+  let foundRow = -1;
+  let requestData = null;
+  
+  for (let i = 1; i < pendingData.length; i++) {
+    if (pendingData[i][0] === requestId) {
+      foundRow = i + 1;
+      requestData = {
+        fix_no: pendingData[i][1],
+        device_name: pendingData[i][2],
+        borrower: pendingData[i][3],
+        borrower_email: pendingData[i][4],
+        keeper: pendingData[i][7]
+      };
+      break;
+    }
+  }
+  
+  if (foundRow === -1 || !requestData) {
+    return errorResponse('找不到該借用請求或已處理');
+  }
+  
+  // 更新借用請求狀態為 rejected
+  pendingSheet.getRange(foundRow, 9).setValue('rejected');
+  
+  // 拒絕時需要將設備狀態改回 available
+  const fixNoCol = COLS.fix_no;
+  const statusCol = COLS.status;
+  const borrowerCol = COLS.borrower;
+  const dtBorrowCol = COLS.dt_borrow;
+  const dtDueCol = COLS.dt_due;
+  
+  // 在兩個工作表中查找並恢復設備狀態
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  let equipmentFoundRow = -1;
+  let targetSheet = null;
+  
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+        equipmentFoundRow = i;
+        targetSheet = sheet;
+        break;
+      }
+    }
+  }
+  
+  if (equipmentFoundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+          equipmentFoundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+  }
+  
+  // 恢復設備狀態為可借用
+  if (equipmentFoundRow !== -1 && targetSheet) {
+    targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('available');
+    targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue('');
+    targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue('');
+    targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue('');
+    Logger.log(`設備 ${requestData.fix_no} 狀態已恢復為可借用`);
+  }
+  
+  // 發送拒絕通知給借用人
+  if (requestData.borrower_email) {
+    sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, false);
+  }
+  
+  return successResponse({
+    message: '借用已拒絕',
+    fix_no: requestData.fix_no,
+    borrower: requestData.borrower
+  });
+}
+
+/**
+ * 發送借用審核郵件給 Keeper
+ */
+function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail, dtBorrow, dtDue, requestId) {
+  try {
+    const keeperEmail = getKeeperEmail(keeper);
+    
+    if (!keeperEmail) {
+      Logger.log(`找不到 ${keeper} 的電子郵件`);
+      return;
+    }
+    
+    const approveUrl = `${EMAIL_CONFIG.web_app_url}/confirm-borrow.html?action=approve&request_id=${encodeURIComponent(requestId)}`;
+    const rejectUrl = `${EMAIL_CONFIG.web_app_url}/confirm-borrow.html?action=reject&request_id=${encodeURIComponent(requestId)}`;
+    
+    const subject = `${EMAIL_CONFIG.subject_prefix} 借用申請需要您的審核`;
+    const body = `親愛的 ${keeper} 您好：
+
+有人申請借用您保管的設備，請審核：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+👤 申請人：${borrower}
+📧 申請人 Email：${borrowerEmail}
+📅 借用日期：${dtBorrow}
+⏰ 預計歸還：${dtDue || '未設定'}
+
+請點擊以下連結進行審核：
+
+✅ 同意借用：
+${approveUrl}
+
+❌ 不同意借用：
+${rejectUrl}
+
+---
+MT 部門設備管理系統 自動通知`.trim();
+    
+    MailApp.sendEmail(keeperEmail, subject, body);
+    Logger.log(`已發送借用審核郵件給 ${keeperEmail}`);
+  } catch (err) {
+    Logger.error('發送借用審核郵件失敗:', err);
+  }
+}
+
+/**
+ * 發送借用審核結果給借用人
+ */
+function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, isApproved) {
+  try {
+    const subject = isApproved 
+      ? `${EMAIL_CONFIG.subject_prefix} 您的借用申請已核准`
+      : `${EMAIL_CONFIG.subject_prefix} 您的借用申請未通過`;
+    
+    const statusText = isApproved ? '✅ 已核准' : '❌ 未通過';
+    const messageText = isApproved 
+      ? '您可以前往設備系統查看設備借用狀態。' 
+      : '如需借用設備，請聯繫保管人或其他管理員。';
+    
+    const body = `您好：
+
+您的設備借用申請已有審核結果：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+👤 保管人：${keeper}
+📋 審核結果：${statusText}
+
+${messageText}
+
+---
+MT 部門設備管理系統 自動通知`.trim();
+    
+    MailApp.sendEmail(borrowerEmail, subject, body);
+    Logger.log(`已發送借用結果通知給 ${borrowerEmail}`);
+  } catch (err) {
+    Logger.error('發送借用結果郵件失敗:', err);
+  }
 }
 
 /**
