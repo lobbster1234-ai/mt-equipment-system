@@ -5,12 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>審核借用申請 - MT 設備系統</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-    
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -19,8 +13,8 @@
       align-items: center;
       justify-content: center;
       padding: 20px;
+      margin: 0;
     }
-    
     .container {
       background: white;
       padding: 40px;
@@ -30,83 +24,23 @@
       width: 100%;
       text-align: center;
     }
-    
-    h1 {
-      color: #667eea;
-      margin-bottom: 20px;
-    }
-    
-    .info {
-      background: #f8f9fa;
-      padding: 20px;
-      border-radius: 8px;
-      margin: 20px 0;
-      text-align: left;
-    }
-    
-    .info p {
-      margin: 10px 0;
-      color: #333;
-    }
-    
-    .info strong {
-      color: #667eea;
-    }
-    
-    .btn-approve {
-      background: #28a745;
-      color: white;
-      border: none;
-      padding: 15px 30px;
-      border-radius: 8px;
-      font-size: 1.1em;
-      cursor: pointer;
-      margin: 10px 5px;
-      transition: background 0.3s;
-    }
-    
-    .btn-approve:hover {
-      background: #218838;
-    }
-    
-    .btn-reject {
-      background: #dc3545;
-      color: white;
-      border: none;
-      padding: 15px 30px;
-      border-radius: 8px;
-      font-size: 1.1em;
-      cursor: pointer;
-      margin: 10px 5px;
-      transition: background 0.3s;
-    }
-    
-    .btn-reject:hover {
-      background: #c82333;
-    }
-    
-    .success {
-      color: #28a745;
-    }
-    
-    .error {
-      color: #dc3545;
-    }
-    
-    .loading {
-      color: #667eea;
-    }
-    
-    .buttons {
-      margin-top: 30px;
-    }
+    h1 { color: #667eea; margin-bottom: 20px; }
+    .info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; }
+    .info p { margin: 10px 0; color: #333; }
+    .info strong { color: #667eea; }
+    .btn-approve { background: #28a745; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 1.1em; cursor: pointer; margin: 10px 5px; }
+    .btn-reject { background: #dc3545; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 1.1em; cursor: pointer; margin: 10px 5px; }
+    .loading { color: #667eea; }
+    .error { color: #dc3545; }
+    .success { color: #28a745; }
+    #debug { margin-top: 20px; padding: 10px; background: #f0f0f0; font-size: 12px; text-align: left; white-space: pre-wrap; }
   </style>
 </head>
 <body>
   <div class="container">
     <h1 id="title">🔒 審核借用申請</h1>
     <div id="content">
-      <div class="info">
+      <div class="info" id="info-section">
         <p><strong>📦 設備編號：</strong><span id="device-no">載入中...</span></p>
         <p><strong>📝 設備名稱：</strong><span id="device-name">載入中...</span></p>
         <p><strong>👤 申請人：</strong><span id="borrower-name">載入中...</span></p>
@@ -114,141 +48,88 @@
         <p><strong>📅 借用日期：</strong><span id="borrow-date">載入中...</span></p>
         <p><strong>⏰ 預計歸還：</strong><span id="due-date">載入中...</span></p>
       </div>
-      <p style="color: #666; margin: 20px 0;">
-        請確認上述資訊後，選擇是否同意借用：
-      </p>
-      <div class="buttons">
-        <button class="btn-approve" onclick="processBorrow('approve')">✅ 同意借用</button>
-        <button class="btn-reject" onclick="processBorrow('reject')">❌ 不同意借用</button>
+      <div id="buttons" style="display:none;">
+        <p style="color: #666; margin: 20px 0;">請確認上述資訊後，選擇是否同意借用：</p>
+        <button class="btn-approve" id="btn-approve" onclick="processBorrow('approve')">✅ 同意借用</button>
+        <button class="btn-reject" id="btn-reject" onclick="processBorrow('reject')">❌ 不同意借用</button>
       </div>
+      <div id="debug"></div>
     </div>
   </div>
 
   <script>
-    // GAS 網址
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
-
-    // 從 URL 參數獲取 request_id
+    
+    const debug = document.getElementById('debug');
     const urlParams = new URLSearchParams(window.location.search);
     const requestId = urlParams.get('request_id');
-
+    
+    debug.textContent = 'request_id: ' + (requestId || 'null');
+    
     if (!requestId) {
-      showError('❌ 無效的審核連結');
-      return;
+      document.getElementById('title').textContent = '❌ 錯誤';
+      debug.textContent += '\n錯誤：沒有 request_id';
     } else {
-      // 載入借用請求資訊
       loadRequestInfo();
     }
-
-    // 載入借用請求資訊
+    
     async function loadRequestInfo() {
-      console.log('開始載入請求資訊, requestId:', requestId);
       try {
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', 'getBorrowRequest');
-        url.searchParams.append('request_id', requestId);
+        const url = GAS_URL + '?action=getBorrowRequest&request_id=' + encodeURIComponent(requestId);
+        debug.textContent += '\n請求 URL: ' + url;
         
-        console.log('請求 URL:', url.toString());
-
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
+        const res = await fetch(url);
+        debug.textContent += '\nStatus: ' + res.status;
         
-        console.log('回應狀態:', res.status);
-
         const data = await res.json();
+        debug.textContent += '\n回應: ' + JSON.stringify(data);
         
-        console.log('回應資料:', data);
-
         if (data.error) {
           throw new Error(data.error);
         }
         
-        if (!data.success && data.status !== 'success') {
-          throw new Error(data.message || '載入失敗');
-        }
-
-        // 顯示借用資訊（直接從 data 取）
         document.getElementById('device-no').textContent = data.fix_no || 'N/A';
         document.getElementById('device-name').textContent = data.device_name || 'N/A';
         document.getElementById('borrower-name').textContent = data.borrower || 'N/A';
         document.getElementById('borrower-email').textContent = data.borrower_email || 'N/A';
         document.getElementById('borrow-date').textContent = data.dt_borrow || 'N/A';
         document.getElementById('due-date').textContent = data.dt_due || '未設定';
+        
+        document.getElementById('buttons').style.display = 'block';
+        debug.textContent += '\n載入成功！';
       } catch (err) {
-        console.error('載入錯誤:', err);
-        showError('❌ 載入失敗：' + err.message);
+        debug.textContent += '\n錯誤: ' + err.message;
+        document.getElementById('title').textContent = '❌ 錯誤';
+        document.getElementById('info-section').innerHTML = '<p class="error">載入失敗：' + err.message + '</p>';
       }
     }
-
-    // 處理借用審核
-    async function processBorrow(actionType) {
-      const contentDiv = document.getElementById('content');
+    
+    async function processBorrow(action) {
+      const btn = document.getElementById(action === 'approve' ? 'btn-approve' : 'btn-reject');
+      btn.disabled = true;
+      btn.textContent = '處理中...';
       
-      // 隱藏按鈕，顯示處理中
-      contentDiv.innerHTML = '<p class="loading" style="font-size: 1.2em;">🔄 正在處理，請稍候...</p>';
-
       try {
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', actionType === 'approve' ? 'approveBorrow' : 'rejectBorrow');
-        url.searchParams.append('request_id', requestId);
-
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
-
+        const url = GAS_URL + '?action=' + (action === 'approve' ? 'approveBorrow' : 'rejectBorrow') + '&request_id=' + encodeURIComponent(requestId);
+        debug.textContent += '\n\n' + action + ' URL: ' + url;
+        
+        const res = await fetch(url);
         const data = await res.json();
-
-        if (data.success || data.status === 'success' || (!data.error && data.message)) {
-          const resultText = actionType === 'approve' ? '✅ 已核准借用' : '❌ 已拒絕借用';
-          const resultColor = actionType === 'approve' ? 'success' : 'error';
-          
-          contentDiv.innerHTML = `
-            <p class="${resultColor}" style="font-size: 1.5em; margin: 30px 0;">
-              ${resultText}
-            </p>
-            <p style="color: #666; margin: 20px 0;">
-              系統已自動通知借用人審核結果。
-            </p>
-            <p style="color: #999; font-size: 0.9em; margin-top: 30px;">
-              3 秒後自動返回首頁...
-            </p>
-          `;
-          
-          setTimeout(() => {
-            window.location.href = './index.html';
-          }, 3000);
+        debug.textContent += '\n' + action + ' 回應: ' + JSON.stringify(data);
+        
+        if (data.success) {
+          document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准借用' : '❌ 已拒絕借用';
+          document.getElementById('buttons').style.display = 'none';
+          document.getElementById('info-section').innerHTML = '<p class="success" style="font-size:1.2em;">' + (action === 'approve' ? '已核准借用' : '已拒絕借用') + '</p><p style="color:#666;">系統已自動通知借用人審核結果。</p>';
         } else {
-          throw new Error(data.error || '處理失敗');
+          throw new Error(data.error || data.message || '處理失敗');
         }
       } catch (err) {
-        contentDiv.innerHTML = `
-          <p class="error" style="font-size: 1.2em; margin: 20px 0;">
-            ❌ 處理失敗
-          </p>
-          <p style="color: #666;">
-            ${err.message}
-          </p>
-          <button onclick="window.location.href='./index.html'" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">
-            返回首頁
-          </button>
-        `;
+        debug.textContent += '\n錯誤: ' + err.message;
+        alert('處理失敗：' + err.message);
+        btn.disabled = false;
+        btn.textContent = action === 'approve' ? '✅ 同意借用' : '❌ 不同意借用';
       }
-    }
-
-    // 顯示錯誤
-    function showError(message) {
-      document.getElementById('title').textContent = '❌ 錯誤';
-      document.getElementById('content').innerHTML = `
-        <p class="error" style="font-size: 1.2em; margin: 20px 0;">
-          ${message}
-        </p>
-        <button onclick="window.location.href='./index.html'" style="margin-top: 20px; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer;">
-          返回首頁
-        </button>
-      `;
     }
   </script>
 </body>
