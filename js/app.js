@@ -580,10 +580,11 @@ document.addEventListener('DOMContentLoaded', () => {
           dt_due: dtDue 
         });
       } else {
-        // 管理員直接借用
+        // 管理員直接借用（也需要借用人 email）
         result = await submitBorrow({ 
           fix_no: fixNo, 
           borrower: borrower, 
+          borrower_email: borrowerEmail,
           dt_borrow: dtBorrow, 
           dt_due: dtDue 
         });

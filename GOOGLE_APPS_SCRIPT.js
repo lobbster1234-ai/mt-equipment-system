@@ -441,7 +441,7 @@ function requestBorrow(data) {
   
   const fixNo = data.fix_no;
   const borrower = data.borrower;
-  const borrowerEmail = data.borrower_email;
+  const borrowerEmail = data.borrower_email || getKeeperEmail(borrower) || '';
   const dtBorrow = data.dt_borrow || Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
   const dtDue = data.dt_due || '';
   
