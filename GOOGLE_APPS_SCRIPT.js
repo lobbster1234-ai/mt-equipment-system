@@ -508,6 +508,16 @@ function requestBorrow(data) {
   const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
   const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
   
+  // 更新設備狀態為借用審核中
+  targetSheet.getRange(foundRow, COLS.status + 1).setValue('borrow_pending');
+  targetSheet.getRange(foundRow, COLS.borrower + 1).setValue(borrower);
+  targetSheet.getRange(foundRow, COLS.dt_borrow + 1).setValue(dtBorrow);
+  targetSheet.getRange(foundRow, COLS.dt_due + 1).setValue(dtDue);
+  Logger.log(`設備 ${fixNo} 狀態已更新為 borrow_pending`);
+  
+  // 記錄歷史
+  logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
+  
   // 建立借用請求記錄
   let pendingSheet = ss.getSheetByName(PENDING_BORROW_SHEET_NAME);
   if (!pendingSheet) {
