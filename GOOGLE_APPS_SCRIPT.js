@@ -543,17 +543,19 @@ function requestBorrow(data) {
  * 核准借用請求
  */
 function approveBorrow(data) {
-  // 防護
-  if (!data || !data.request_id) {
-    if (typeof e !== 'undefined' && e.parameter && e.parameter.request_id) {
-      data = { request_id: e.parameter.request_id };
-    } else {
-      return errorResponse('缺少 request_id');
-    }
+  // 防護：直接從 URL 參數取得 request_id
+  let requestId = null;
+  if (data && data.request_id) {
+    requestId = data.request_id;
+  } else if (typeof e !== 'undefined' && e.parameter && e.parameter.request_id) {
+    requestId = e.parameter.request_id;
+  }
+  
+  if (!requestId) {
+    return errorResponse('缺少 request_id');
   }
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const requestId = data.request_id;
   
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
@@ -675,8 +677,10 @@ function rejectBorrow(data) {
   const requestId = data.request_id;
   
   // 查找借用請求
-  
-  
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    return errorResponse('找不到借用申請工作表');
+  }
   const pendingData = borrowRequestSheet.getDataRange().getValues();
   let foundRow = -1;
   let requestData = null;
