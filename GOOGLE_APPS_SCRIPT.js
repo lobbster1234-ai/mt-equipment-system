@@ -538,13 +538,24 @@ function requestBorrow(data) {
  * 核准借用請求
  */
 function approveBorrow(data) {
+  // 防護
+  if (!data || !data.request_id) {
+    if (typeof e !== 'undefined' && e.parameter && e.parameter.request_id) {
+      data = { request_id: e.parameter.request_id };
+    } else {
+      return errorResponse('缺少 request_id');
+    }
+  }
+  
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const requestId = data.request_id;
   
   // 查找借用請求
-  
-  
-  const pendingData = pendingSheet.getDataRange().getValues();
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    return errorResponse('找不到借用申請工作表');
+  }
+  const pendingData = borrowRequestSheet.getDataRange().getValues();
   let foundRow = -1;
   let requestData = null;
   
@@ -647,6 +658,14 @@ function approveBorrow(data) {
  * 拒絕借用請求
  */
 function rejectBorrow(data) {
+  // 防護
+  if (!data) {
+    data = {};
+  }
+  if (!data.request_id && typeof e !== 'undefined' && e.parameter) {
+    data.request_id = e.parameter.request_id;
+  }
+  
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const requestId = data.request_id;
   
@@ -742,6 +761,14 @@ function rejectBorrow(data) {
  * 取得借用請求資訊
  */
 function getBorrowRequest(data) {
+  // 防護
+  if (!data) {
+    data = {};
+  }
+  if (!data.request_id && typeof e !== 'undefined' && e.parameter) {
+    data.request_id = e.parameter.request_id;
+  }
+  
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const requestId = data.request_id;
   
