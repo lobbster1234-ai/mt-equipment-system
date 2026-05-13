@@ -227,7 +227,7 @@ function renderEquipment(equipment) {
                     <td>
                       ${statusHtml}
                       <div style="margin-top:5px;">${actionButton}</div>
-                      ${(isBorrowPending || (!isAvailable && !isBorrowPending)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${eq.borrower} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
+                      ${(isBorrowPending || isReturnPending || (!isAvailable && !isBorrowPending && !isReturnPending)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${eq.borrower} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
                     </td>
                   </tr>
                 `;
