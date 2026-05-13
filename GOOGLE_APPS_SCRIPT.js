@@ -370,7 +370,11 @@ function borrowEquipment(data) {
     return errorResponse(`找不到設備編號：${fixNo}`);
   }
   
+  Logger.log(`找到設備於工作表: ${targetSheet.getName()}, 行號: ${foundRow}`);
+  
   const currentStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
+  Logger.log(`當前狀態: ${currentStatus}`);
+  
   if (currentStatus === 'borrowed') {
     return errorResponse('設備已經借出');
   }
@@ -386,11 +390,17 @@ function borrowEquipment(data) {
   targetSheet.getRange(foundRow, dtReturnCol + 1).setValue('');
   targetSheet.getRange(foundRow, COLS.return_confirmed + 1).setValue(false);
   
+  // 確認寫入成功
+  const verifyStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
+  const verifyBorrower = targetSheet.getRange(foundRow, borrowerCol + 1).getValue();
+  Logger.log(`寫入驗證 - 狀態: ${verifyStatus}, 借用人: ${verifyBorrower}`);
+  
   const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
   const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
   
   // 記錄歷史（標記為 pending，等待審核）
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
+  Logger.log(`已寫入歷史紀錄: ${fixNo}`);
   
   // 發送借用審核郵件給 Keeper
   if (EMAIL_CONFIG.enabled && keeper) {
@@ -1147,11 +1157,8 @@ function sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn) {
 👤 原借用人：${borrower}
 📅 歸還日期：${dtReturn}
 
-✅ 請點擊下方按鈕確認歸還：
-${confirmUrl}
-
-或者複製以下網址到瀏覽器開啟：
-${confirmUrl}
+✅ 請點擊以下連結確認歸還：
+${EMAIL_CONFIG.web_app_url}/confirm.html?token=${encodeURIComponent(token)}
 
 ---
 MT 部門設備管理系統 自動通知`.trim();
