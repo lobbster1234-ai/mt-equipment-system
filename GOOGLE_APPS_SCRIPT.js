@@ -2577,9 +2577,9 @@ function getDeptBorrowList() {
         device_name: allData[i][1],
         borrower: allData[i][2],
         borrower_email: allData[i][3],
-        dt_borrow: allData[i][4],
-        dt_due: allData[i][5],
-        dt_return: allData[i][6],
+        dt_borrow: formatDate(allData[i][4]),
+        dt_due: formatDate(allData[i][5]),
+        dt_return: formatDate(allData[i][6]),
         status: allData[i][7]
       });
     }
