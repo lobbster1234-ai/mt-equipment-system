@@ -2143,12 +2143,15 @@ function dailyReminderCheck() {
       const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
       const keeper = sheet.getRange(i, COLS.keeper + 1).getValue();
       
-      Logger.log(`檢查設備: ${fixNo}, 預計歸還: ${dtDueStr}, 借用人: ${borrower}`);
+      // 從借用申請工作表查找借用人 Email
+      const borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
+      
+      Logger.log(`檢查設備: ${fixNo}, 預計歸還: ${dtDueStr}, 借用人: ${borrower}, email: ${borrowerEmail || '未找到'}`);
       
       // 情況1：預計歸還日前一天，提醒借用人
       if (dtDueStr === tomorrowStr) {
         Logger.log(`設備 ${fixNo} 將於明天到期，發送提醒給借用人 ${borrower}`);
-        sendReminderToBorrower(borrower, fixNo, deviceName, dtDueStr, 'due_tomorrow');
+        sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'due_tomorrow');
       }
       
       // 情況2：已超過預計歸還日
@@ -2159,7 +2162,7 @@ function dailyReminderCheck() {
         
         // 每天提醒借用人
         Logger.log(`發送逾期提醒給借用人 ${borrower}`);
-        sendReminderToBorrower(borrower, fixNo, deviceName, dtDueStr, 'overdue', todayStr);
+        sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'overdue', todayStr);
       }
     }
   });
@@ -2168,18 +2171,57 @@ function dailyReminderCheck() {
 }
 
 /**
+ * 從借用申請工作表查找借用人 Email
+ * @param {string} fixNo - 設備編號
+ * @param {string} borrower - 借用人姓名
+ * @returns {string|null} 借用人 Email
+ */
+function getBorrowerEmailFromRequestSheet(fixNo, borrower) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const requestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+    
+    if (!requestSheet) {
+      Logger.log('找不到借用申請工作表');
+      return null;
+    }
+    
+    const data = requestSheet.getDataRange().getValues();
+    Logger.log(`從借用申請工作表查找 ${borrower} 的 email，共 ${data.length} 列`);
+    
+    // 從最後一筆開始找（最新的申請）
+    for (let i = data.length - 1; i >= 1; i--) {
+      const rowFixNo = data[i][1];  // B 欄: 設備編號
+      const rowBorrower = data[i][3];  // D 欄: 借用人
+      const rowEmail = data[i][4];  // E 欄: 借用人Email
+      
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo.toString().trim() &&
+          rowBorrower && rowBorrower.toString().trim() === borrower.toString().trim()) {
+        Logger.log(`找到 ${borrower} 的 email: ${rowEmail}`);
+        return rowEmail ? rowEmail.toString().trim() : null;
+      }
+    }
+    
+    Logger.log(`在借用申請工作表找不到 ${borrower} 的 email`);
+    return null;
+  } catch (err) {
+    Logger.log(`查找借用人 email 失敗: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * 發送提醒郵件給借用人
  * @param {string} borrower - 借用人姓名
+ * @param {string} borrowerEmail - 借用人 Email
  * @param {string} fixNo - 設備編號
  * @param {string} deviceName - 設備名稱
  * @param {string} dtDue - 預計歸還日期
  * @param {string} type - 'due_tomorrow' 或 'overdue'
  * @param {string} todayStr - 今天日期（逾期時使用）
  */
-function sendReminderToBorrower(borrower, fixNo, deviceName, dtDue, type, todayStr) {
+function sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDue, type, todayStr) {
   try {
-    const borrowerEmail = getKeeperEmail(borrower);
-    
     if (!borrowerEmail) {
       Logger.log(`找不到 ${borrower} 的電子郵件，無法發送提醒`);
       return;
