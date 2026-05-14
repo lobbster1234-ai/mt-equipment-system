@@ -559,12 +559,27 @@ document.addEventListener('DOMContentLoaded', () => {
   if (borrowForm) {
     borrowForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      
+      console.log('=== 借用表單提交 ===');
+      console.log('借用人姓名:', document.getElementById('borrow-name')?.value);
+      console.log('借用人email:', document.getElementById('borrow-email')?.value);
+      console.log('預計歸還:', document.getElementById('borrow-due-date')?.value);
 
       const fixNo = document.getElementById('borrow-fix-no').value;
       const borrower = document.getElementById('borrow-name').value;
       const dtDue = document.getElementById('borrow-due-date').value;
       const borrowerEmailInput = document.getElementById('borrow-email');
       const borrowerEmail = borrowerEmailInput?.value?.trim() || '';
+      
+      // 檢查必填欄位
+      if (!borrower) {
+        alert('請填寫借用人姓名');
+        return;
+      }
+      if (!dtDue) {
+        alert('請選擇預計歸還日期');
+        return;
+      }
       
       // 管理員借用時，如果沒有填 email，使用登入時的 email
       let finalEmail = borrowerEmail;
