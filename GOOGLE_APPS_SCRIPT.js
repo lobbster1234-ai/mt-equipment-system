@@ -892,8 +892,8 @@ function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEm
       return;
     }
     
-    const approveUrl = `${EMAIL_CONFIG.web_app_url}/confirm-borrow.html?action=approve&request_id=${encodeURIComponent(requestId)}`;
-    const rejectUrl = `${EMAIL_CONFIG.web_app_url}/confirm-borrow.html?action=reject&request_id=${encodeURIComponent(requestId)}`;
+    const approveUrl = `${EMAIL_CONFIG.web_app_url}confirm-borrow.html?action=approve&request_id=${encodeURIComponent(requestId)}`;
+    const rejectUrl = `${EMAIL_CONFIG.web_app_url}confirm-borrow.html?action=reject&request_id=${encodeURIComponent(requestId)}`;
     
     const subject = `${EMAIL_CONFIG.subject_prefix} 借用申請需要您的審核`;
     const body = `親愛的 ${keeper} 您好：
@@ -908,7 +908,7 @@ function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEm
 ⏰ 預計歸還：${dtDue || '未設定'}
 
 請點擊以下連結進行審核：
-${EMAIL_CONFIG.web_app_url}/confirm-borrow.html?request_id=${encodeURIComponent(requestId)}
+${EMAIL_CONFIG.web_app_url}confirm-borrow.html?request_id=${encodeURIComponent(requestId)}
 
 ---
 MT 部門設備管理系統 自動通知`.trim();
