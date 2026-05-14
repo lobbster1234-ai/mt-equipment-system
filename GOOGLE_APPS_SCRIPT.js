@@ -2051,3 +2051,184 @@ function deleteEquipment(data) {
     fix_no: fixNo
   });
 }
+
+// =============================================
+// 每日提醒功能
+// =============================================
+
+/**
+ * 每日檢查借用設備並發送提醒郵件
+ * 需要在 GAS 中設定每日觸發器
+ */
+function dailyReminderCheck() {
+  Logger.log('=== 每日提醒檢查開始 ===');
+  
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = Utilities.formatDate(tomorrow, 'Asia/Taipei', 'yyyy-MM-dd');
+  
+  Logger.log(`今天日期: ${todayStr}, 明天日期: ${tomorrowStr}`);
+  
+  // 讀取兩個工作表
+  const sheets = [SHEET_NAME, SHEET_NAME_WEB];
+  
+  sheets.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      Logger.log(`工作表 ${sheetName} 不存在，跳過`);
+      return;
+    }
+    
+    const lastRow = sheet.getLastRow();
+    Logger.log(`檢查 ${sheetName}，共 ${lastRow} 行`);
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const status = sheet.getRange(i, COLS.status + 1).getValue();
+      const dtDue = sheet.getRange(i, COLS.dt_due + 1).getValue();
+      
+      // 只處理借用中的設備
+      if (status !== 'borrowed') {
+        continue;
+      }
+      
+      // 跳過沒有預計歸還日期的設備
+      if (!dtDue) {
+        continue;
+      }
+      
+      const dtDueStr = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd');
+      const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
+      const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
+      const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
+      const keeper = sheet.getRange(i, COLS.keeper + 1).getValue();
+      
+      Logger.log(`檢查設備: ${fixNo}, 預計歸還: ${dtDueStr}, 借用人: ${borrower}`);
+      
+      // 情況1：預計歸還日前一天，提醒借用人
+      if (dtDueStr === tomorrowStr) {
+        Logger.log(`設備 ${fixNo} 將於明天到期，發送提醒給借用人 ${borrower}`);
+        sendReminderToBorrower(borrower, fixNo, deviceName, dtDueStr, 'due_tomorrow');
+      }
+      
+      // 情況2：已超過預計歸還日
+      if (new Date(dtDueStr) < new Date(todayStr)) {
+        Logger.log(`設備 ${fixNo} 已逾期，發送通知給 Keeper ${keeper}`);
+        // 通知 Keeper 借用人未歸還
+        sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
+        
+        // 每天提醒借用人
+        Logger.log(`發送逾期提醒給借用人 ${borrower}`);
+        sendReminderToBorrower(borrower, fixNo, deviceName, dtDueStr, 'overdue', todayStr);
+      }
+    }
+  });
+  
+  Logger.log('=== 每日提醒檢查完成 ===');
+}
+
+/**
+ * 發送提醒郵件給借用人
+ * @param {string} borrower - 借用人姓名
+ * @param {string} fixNo - 設備編號
+ * @param {string} deviceName - 設備名稱
+ * @param {string} dtDue - 預計歸還日期
+ * @param {string} type - 'due_tomorrow' 或 'overdue'
+ * @param {string} todayStr - 今天日期（逾期時使用）
+ */
+function sendReminderToBorrower(borrower, fixNo, deviceName, dtDue, type, todayStr) {
+  try {
+    const borrowerEmail = getKeeperEmail(borrower);
+    
+    if (!borrowerEmail) {
+      Logger.log(`找不到 ${borrower} 的電子郵件，無法發送提醒`);
+      return;
+    }
+    
+    let subject, body;
+    
+    if (type === 'due_tomorrow') {
+      // 預計歸還日前一天提醒
+      subject = `${EMAIL_CONFIG.subject_prefix} 【提醒】設備將於明天到期`;
+      body = `親愛的 ${borrower} 您好：
+
+提醒您借用的設備將於明天到期，請準備歸還：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+📅 預計歸還：${dtDue}
+
+請在預計歸還日前歸還設備，謝謝！
+
+---
+MT 部門設備管理系統 自動提醒`.trim();
+    } else {
+      // 逾期提醒
+      const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDue)) / (1000 * 60 * 60 * 24));
+      subject = `${EMAIL_CONFIG.subject_prefix} 【逾期提醒】設備已逾期 ${overdueDays} 天`;
+      body = `親愛的 ${borrower} 您好：
+
+您借用的設備已超過預計歸還日期，請盡快歸還：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+📅 預計歸還：${dtDue}
+⏰ 逾期天數：${overdueDays} 天
+
+請盡快歸還設備，謝謝！
+
+---
+MT 部門設備管理系統 自動提醒`.trim();
+    }
+    
+    MailApp.sendEmail(borrowerEmail, subject, body);
+    Logger.log(`已發送提醒郵件給 ${borrower} (${borrowerEmail})`);
+  } catch (err) {
+    Logger.log(`發送提醒郵件失敗: ${err.message}`);
+  }
+}
+
+/**
+ * 發送逾期通知給 Keeper
+ * @param {string} keeper - 保管人姓名
+ * @param {string} borrower - 借用人姓名
+ * @param {string} fixNo - 設備編號
+ * @param {string} deviceName - 設備名稱
+ * @param {string} dtDue - 預計歸還日期
+ * @param {string} todayStr - 今天日期
+ */
+function sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDue, todayStr) {
+  try {
+    const keeperEmail = getKeeperEmail(keeper);
+    
+    if (!keeperEmail) {
+      Logger.log(`找不到 ${keeper} 的電子郵件，無法發送通知`);
+      return;
+    }
+    
+    const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDue)) / (1000 * 60 * 60 * 24));
+    
+    const subject = `${EMAIL_CONFIG.subject_prefix} 【通知】借用人逾期未歸還設備`;
+    const body = `親愛的 ${keeper} 您好：
+
+借用人 ${borrower} 借用的設備已超過預計歸還日期，尚未歸還：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+👤 借用人：${borrower}
+📅 預計歸還：${dtDue}
+⏰ 逾期天數：${overdueDays} 天
+
+請聯絡借用人盡快歸還設備。
+
+---
+MT 部門設備管理系統 自動通知`.trim();
+    
+    MailApp.sendEmail(keeperEmail, subject, body);
+    Logger.log(`已發送逾期通知給 Keeper ${keeper} (${keeperEmail})`);
+  } catch (err) {
+    Logger.log(`發送逾期通知失敗: ${err.message}`);
+  }
+}
