@@ -336,6 +336,10 @@ async function handleBorrowSubmit() {
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
   const dtBorrow = taipeiTime.toISOString().split('T')[0];
   
+  // 判斷是否為訪客
+  const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
+  const isGuest = user.role !== 'admin';
+  
   const submitBtn = document.querySelector('#borrow-form button');
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -347,7 +351,7 @@ async function handleBorrowSubmit() {
     result = await requestBorrow({ 
       fix_no: fixNo, 
       borrower: borrower, 
-      borrower_email: finalEmail,
+      borrower_email: borrowerEmail,
       dt_borrow: dtBorrow, 
       dt_due: dtDue 
     });
@@ -355,7 +359,7 @@ async function handleBorrowSubmit() {
     result = await submitBorrow({ 
       fix_no: fixNo, 
       borrower: borrower, 
-      borrower_email: finalEmail,
+      borrower_email: borrowerEmail,
       dt_borrow: dtBorrow, 
       dt_due: dtDue 
     });
