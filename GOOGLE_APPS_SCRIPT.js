@@ -696,12 +696,16 @@ function approveBorrow(data, e) {
   // 更新設備為借用狀態
   Logger.log(`equipmentFoundRow=${equipmentFoundRow}, targetSheet=${targetSheet ? targetSheet.getName() : 'null'}`);
   if (equipmentFoundRow !== -1 && targetSheet) {
-    Logger.log(`開始更新設備狀態: 第 ${equipmentFoundRow} 行, 工作表: ${targetSheet.getName()}`);
+    // 借用日期以 Keeper 按下同意的日期為準（今天）
+    const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+    Logger.log(`借用日期設定為今天: ${today}`);
+    
     targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('borrowed');
     Logger.log(`已設定 status='borrowed'`);
     targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue(requestData.borrower);
     Logger.log(`已設定 borrower='${requestData.borrower}'`);
-    targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue(requestData.dt_borrow);
+    targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue(today);  // 使用今天的日期
+    Logger.log(`已設定 dt_borrow='${today}'`);
     targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue(requestData.dt_due);
     targetSheet.getRange(equipmentFoundRow, dtReturnCol + 1).setValue('');
     targetSheet.getRange(equipmentFoundRow, COLS.return_confirmed + 1).setValue(false);
@@ -709,10 +713,10 @@ function approveBorrow(data, e) {
     const keeper = targetSheet.getRange(equipmentFoundRow, keeperCol + 1).getValue();
     const deviceName = targetSheet.getRange(equipmentFoundRow, deviceNameCol + 1).getValue();
     
-    // 記錄歷史
-    logHistory('borrow', requestData.fix_no, deviceName, requestData.borrower, keeper, requestData.dt_borrow, requestData.dt_due, '');
+    // 記錄歷史（借用日期以今天為準）
+    logHistory('borrow', requestData.fix_no, deviceName, requestData.borrower, keeper, today, requestData.dt_due, '');
     
-    Logger.log(`設備 ${requestData.fix_no} 已更新為借用狀態，借用人：${requestData.borrower}`);
+    Logger.log(`設備 ${requestData.fix_no} 已更新為借用狀態，借用人：${requestData.borrower}，借用日期：${today}`);
   } else {
     Logger.log(`找不到設備 ${requestData.fix_no} 來更新狀態！`);
   }

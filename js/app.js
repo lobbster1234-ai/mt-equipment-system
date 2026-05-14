@@ -777,6 +777,11 @@ function renderHistory(history, sortOrder = 'newest') {
   });
   
   sortedHistory.forEach(record => {
+    // 跳過 borrow_pending 記錄
+    if (record.action === 'borrow_pending') {
+      return;
+    }
+    
     const fixNo = record.fix_no || '無編號';
     const borrower = record.borrower || '未知';
     
