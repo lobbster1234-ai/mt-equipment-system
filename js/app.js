@@ -400,8 +400,17 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   }
   
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名
-    console.log('管理員模式：自動填入姓名');
+    // 管理員登入，自動填入姓名和 email
+    console.log('管理員模式：自動填入姓名和 email');
+    borrowNameInput.value = user.name || '';
+    borrowNameInput.readOnly = false;
+    borrowNameInput.style.background = '#fff';
+    if (borrowEmailInput) {
+      borrowEmailInput.value = user.email || '';
+      borrowEmailInput.readOnly = false;
+      console.log('已填入 email:', user.email);
+    }
+  } else {
     borrowNameInput.value = user.name || '';
     // Email 需要從 Keeper 聯絡資訊工作表讀取，這裡先留空或由使用者填寫
     // 如需自動填入，需要在 GAS 新增 API
