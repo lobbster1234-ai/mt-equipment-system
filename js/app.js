@@ -449,11 +449,12 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   }
   
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名，然後從 GAS 查詢 email
+    // 管理員登入，自動填入姓名和 email（寫死不可修改）
     console.log('管理員模式：自動填入姓名並查詢 email');
     borrowNameInput.value = user.name || '';
-    borrowNameInput.readOnly = false;
-    borrowNameInput.style.background = '#fff';
+    borrowNameInput.readOnly = true;
+    borrowNameInput.style.background = '#e9ecef';
+    borrowNameInput.style.cursor = 'not-allowed';
     
     // 從 GAS 查詢 email
     if (borrowEmailInput && user.name) {
@@ -461,6 +462,9 @@ function openBorrowModal(fixNo, deviceName, keeper) {
       fetchEmailByName(user.name).then(email => {
         if (email) {
           borrowEmailInput.value = email;
+          borrowEmailInput.readOnly = true;
+          borrowEmailInput.style.background = '#e9ecef';
+          borrowEmailInput.style.cursor = 'not-allowed';
           console.log('已從 GAS 填入 email:', email);
         } else {
           console.log('GAS 找不到 email，留空讓使用者填寫');
