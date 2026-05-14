@@ -209,6 +209,8 @@
             console.log('快取 email 失敗，使用預設值');
           }
           
+          // 先清除舊的資料，確保快取最新的 email
+          localStorage.removeItem('mt_user');
           localStorage.setItem('mt_user', JSON.stringify({
             role: 'admin',
             email: cachedEmail,
