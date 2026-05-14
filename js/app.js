@@ -449,30 +449,33 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   }
   
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名和 email（從 localStorage 即時取得）
-    console.log('管理員模式：自動填入姓名並查詢 email');
+    // 管理員登入，自動填入姓名和 email（姓名寫死，email 可編輯）
+    console.log('管理員模式：自動填入姓名和 email');
     borrowNameInput.value = user.name || '';
     borrowNameInput.readOnly = true;
     borrowNameInput.style.background = '#e9ecef';
     borrowNameInput.style.cursor = 'not-allowed';
     
-    // 先從 localStorage 即時取得 email
+    // 先從 localStorage 即時取得 email（可編輯）
     if (borrowEmailInput) {
       borrowEmailInput.value = user.email || '';
-      borrowEmailInput.readOnly = true;
-      borrowEmailInput.style.background = '#e9ecef';
-      borrowEmailInput.style.cursor = 'not-allowed';
+      borrowEmailInput.readOnly = false;
+      borrowEmailInput.style.background = '#fff';
+      borrowEmailInput.style.cursor = 'text';
       console.log('已從 localStorage 填入 email:', user.email);
     }
     
     // 背景更新：在背景從 GAS 更新 email（非同步，不阻擋 UI）
-    if (user.name && user.email) {
+    if (user.name) {
       fetchEmailByName(user.name).then(email => {
-        if (email && email !== user.email) {
-          // 如果 GAS 回傳的 email 不同，更新 localStorage
+        if (email) {
+          // 如果 GAS 回傳的 email，更新 localStorage 和輸入框
           user.email = email;
           localStorage.setItem('mt_user', JSON.stringify(user));
-          borrowEmailInput.value = email;
+          // 如果輸入框還是空的或是預設值，才更新
+          if (!borrowEmailInput.value || borrowEmailInput.value === user.email) {
+            borrowEmailInput.value = email;
+          }
           console.log('已更新 email:', email);
         }
       });
