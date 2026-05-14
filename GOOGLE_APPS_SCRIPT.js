@@ -2156,9 +2156,17 @@ function dailyReminderCheck() {
       
       // 情況2：已超過預計歸還日
       if (new Date(dtDueStr) < new Date(todayStr)) {
-        Logger.log(`設備 ${fixNo} 已逾期，發送通知給 Keeper ${keeper}`);
-        // 通知 Keeper 借用人未歸還
-        sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
+        // 計算逾期天數
+        const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDueStr)) / (1000 * 60 * 60 * 24));
+        Logger.log(`設備 ${fixNo} 已逾期 ${overdueDays} 天`);
+        
+        // Keeper 只在逾期第一天收到通知
+        if (overdueDays === 1) {
+          Logger.log(`逾期第一天，發送通知給 Keeper ${keeper}`);
+          sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
+        } else {
+          Logger.log(`逾期第 ${overdueDays} 天，Keeper 已收到過通知，不再發送`);
+        }
         
         // 每天提醒借用人
         Logger.log(`發送逾期提醒給借用人 ${borrower}`);
