@@ -381,43 +381,33 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   }
   fixNoInput.value = fixNo;
   
-  // 自動填入登入者姓名
+  // 自動填入登入者資訊
   const user = JSON.parse(localStorage.getItem('mt_user'));
   console.log('目前使用者:', user);
   
   const borrowNameInput = document.getElementById('borrow-name');
-  const borrowEmailGroup = document.getElementById('borrow-email-group');
   const borrowEmailInput = document.getElementById('borrow-email');
   
-  // 無論管理員或訪客，都顯示 email 欄位
-  if (borrowEmailGroup) {
-    borrowEmailGroup.style.display = 'block';
-    console.log('顯示 email 欄位');
+  // 清除之前的值
+  if (borrowNameInput) {
+    borrowNameInput.value = '';
+    borrowNameInput.readOnly = false;
+    borrowNameInput.style.background = '#fff';
+  }
+  if (borrowEmailInput) {
+    borrowEmailInput.value = '';
+    borrowEmailInput.readOnly = false;
   }
   
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名和 email
-    console.log('管理員模式：自動填入姓名和 email');
-    console.log('user.name:', user.name, 'user.email:', user.email);
+    // 管理員登入，自動填入姓名
+    console.log('管理員模式：自動填入姓名');
     borrowNameInput.value = user.name || '';
-    borrowNameInput.readOnly = false;
-    borrowNameInput.style.background = '#fff';
-    if (borrowEmailInput) {
-      borrowEmailInput.value = user.email || '';
-      borrowEmailInput.readOnly = false;
-      console.log('已填入 email:', user.email);
-    }
+    // Email 需要從 Keeper 聯絡資訊工作表讀取，這裡先留空或由使用者填寫
+    // 如需自動填入，需要在 GAS 新增 API
   } else {
-    // 訪客登入，不預填，需手動輸入
+    // 訪客登入，不預填
     console.log('訪客模式');
-    if (borrowNameInput) {
-      borrowNameInput.value = '';
-      borrowNameInput.readOnly = false;
-      borrowNameInput.style.background = '#fff';
-    }
-    if (borrowEmailInput) {
-      borrowEmailInput.value = '';
-    }
   }
   
   // 設定最小日期為今天（台北時間）
