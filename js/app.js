@@ -411,7 +411,13 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   console.log('目前使用者:', user);
   
   const borrowNameInput = document.getElementById('borrow-name');
+  const borrowEmailGroup = document.getElementById('borrow-email-group');
   const borrowEmailInput = document.getElementById('borrow-email');
+  
+  // 確保 email 欄位顯示
+  if (borrowEmailGroup) {
+    borrowEmailGroup.style.display = 'block';
+  }
   
   // 清除之前的值
   if (borrowNameInput) {
