@@ -2095,20 +2095,19 @@ function deleteEquipment(data) {
 // =============================================
 
 /**
- * 每日檢查借用設備並發送提醒郵件
- * 需要在 GAS 中設定每日觸發器
+ * 提醒即將到期的設備（預計歸還日前一天）
+ * 建議設定在下午 17:00-18:00 執行
  */
-function dailyReminderCheck() {
-  Logger.log('=== 每日提醒檢查開始 ===');
+function reminderDueTomorrow() {
+  Logger.log('=== 明天到期提醒檢查開始 ===');
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const today = new Date();
-  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = Utilities.formatDate(tomorrow, 'Asia/Taipei', 'yyyy-MM-dd');
   
-  Logger.log(`今天日期: ${todayStr}, 明天日期: ${tomorrowStr}`);
+  Logger.log(`明天日期: ${tomorrowStr}`);
   
   // 讀取兩個工作表
   const sheets = [SHEET_NAME, SHEET_NAME_WEB];
@@ -2138,6 +2137,74 @@ function dailyReminderCheck() {
       }
       
       const dtDueStr = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd');
+      
+      // 只處理明天到期的設備
+      if (dtDueStr !== tomorrowStr) {
+        continue;
+      }
+      
+      const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
+      const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
+      const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
+      
+      // 從借用申請工作表查找借用人 Email
+      const borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
+      
+      Logger.log(`設備 ${fixNo} 將於明天到期，發送提醒給借用人 ${borrower}`);
+      sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'due_tomorrow');
+    }
+  });
+  
+  Logger.log('=== 明天到期提醒檢查完成 ===');
+}
+
+/**
+ * 提醒逾期的設備（逾期通知）
+ * 建議設定在早上 9:00-10:00 執行
+ */
+function reminderOverdue() {
+  Logger.log('=== 逾期提醒檢查開始 ===');
+  
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
+  
+  Logger.log(`今天日期: ${todayStr}`);
+  
+  // 讀取兩個工作表
+  const sheets = [SHEET_NAME, SHEET_NAME_WEB];
+  
+  sheets.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      Logger.log(`工作表 ${sheetName} 不存在，跳過`);
+      return;
+    }
+    
+    const lastRow = sheet.getLastRow();
+    Logger.log(`檢查 ${sheetName}，共 ${lastRow} 行`);
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const status = sheet.getRange(i, COLS.status + 1).getValue();
+      const dtDue = sheet.getRange(i, COLS.dt_due + 1).getValue();
+      
+      // 只處理借用中的設備
+      if (status !== 'borrowed') {
+        continue;
+      }
+      
+      // 跳過沒有預計歸還日期的設備
+      if (!dtDue) {
+        continue;
+      }
+      
+      const dtDueStr = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd');
+      
+      // 只處理已逾期的設備
+      if (new Date(dtDueStr) >= new Date(todayStr)) {
+        continue;
+      }
+      
       const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
       const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
       const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
@@ -2146,32 +2213,30 @@ function dailyReminderCheck() {
       // 從借用申請工作表查找借用人 Email
       const borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
       
-      Logger.log(`檢查設備: ${fixNo}, 預計歸還: ${dtDueStr}, 借用人: ${borrower}, email: ${borrowerEmail || '未找到'}`);
+      // 計算逾期天數
+      const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDueStr)) / (1000 * 60 * 60 * 24));
+      Logger.log(`設備 ${fixNo} 已逾期 ${overdueDays} 天，發送通知給 Keeper ${keeper} 和借用人 ${borrower}`);
       
-      // 情況1：預計歸還日前一天，提醒借用人
-      if (dtDueStr === tomorrowStr) {
-        Logger.log(`設備 ${fixNo} 將於明天到期，發送提醒給借用人 ${borrower}`);
-        sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'due_tomorrow');
-      }
+      // Keeper 每天收到通知
+      sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
       
-      // 情況2：已超過預計歸還日
-      if (new Date(dtDueStr) < new Date(todayStr)) {
-        // 計算逾期天數
-        const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDueStr)) / (1000 * 60 * 60 * 24));
-        Logger.log(`設備 ${fixNo} 已逾期 ${overdueDays} 天`);
-        
-        // Keeper 每天收到通知
-        Logger.log(`發送逾期通知給 Keeper ${keeper}`);
-        sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
-        
-        // 每天提醒借用人
-        Logger.log(`發送逾期提醒給借用人 ${borrower}`);
-        sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'overdue', todayStr);
-      }
+      // 每天提醒借用人
+      sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'overdue', todayStr);
     }
   });
   
-  Logger.log('=== 每日提醒檢查完成 ===');
+  Logger.log('=== 逾期提醒檢查完成 ===');
+}
+
+/**
+ * 舊版每日提醒檢查（向後相容）
+ * 建議改用 reminderDueTomorrow 和 reminderOverdue
+ */
+function dailyReminderCheck() {
+  Logger.log('dailyReminderCheck 已棄用，請使用 reminderDueTomorrow 和 reminderOverdue');
+  // 同時執行兩個提醒
+  reminderDueTomorrow();
+  reminderOverdue();
 }
 
 /**
