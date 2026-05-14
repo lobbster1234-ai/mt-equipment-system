@@ -1946,9 +1946,6 @@ document.addEventListener('DOMContentLoaded', function() {
     deptDateInput.min = taipeiDate;
   }
   
-  // 載入列表
+  // 載入列表（只在頁面切換時載入）
   loadDeptBorrowList();
-  
-  // 每 30 秒自動刷新
-  setInterval(loadDeptBorrowList, 30000);
 });
