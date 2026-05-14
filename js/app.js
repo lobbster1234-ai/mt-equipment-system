@@ -276,7 +276,86 @@ function toggleKeeperGroup(headerEl) {
 // 借用/歸還功能
 // =============================================
 
-  // 開啟借用 Modal
+/**
+ * 處理借用表單提交（繞過 form submit 事件）
+ */
+async function handleBorrowSubmit() {
+  console.log('=== handleBorrowSubmit 被呼叫 ===');
+  
+  const fixNo = document.getElementById('borrow-fix-no').value;
+  const borrower = document.getElementById('borrow-name').value;
+  const dtDue = document.getElementById('borrow-due-date').value;
+  const borrowerEmailInput = document.getElementById('borrow-email');
+  const borrowerEmail = borrowerEmailInput?.value?.trim() || '';
+  
+  console.log('fixNo:', fixNo);
+  console.log('借用人姓名:', borrower);
+  console.log('借用人 email:', borrowerEmail);
+  console.log('預計歸還:', dtDue);
+  
+  // 檢查必填欄位
+  if (!borrower) {
+    alert('請填寫借用人姓名');
+    return;
+  }
+  if (!dtDue) {
+    alert('請選擇預計歸還日期');
+    return;
+  }
+  
+  // 管理員借用時，如果沒有填 email，使用登入時的 email
+  const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
+  const isGuest = user.role !== 'admin';
+  let finalEmail = borrowerEmail;
+  if (!isGuest && !borrowerEmail && user.email) {
+    finalEmail = user.email;
+    console.log('管理員借用，使用登入 email:', finalEmail);
+  }
+  
+  // 今天日期（台北時間）
+  const now = new Date();
+  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  const dtBorrow = taipeiTime.toISOString().split('T')[0];
+  
+  const submitBtn = document.querySelector('#borrow-form button');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '🔄 處理中...';
+  }
+  
+  let result;
+  if (isGuest) {
+    result = await requestBorrow({ 
+      fix_no: fixNo, 
+      borrower: borrower, 
+      borrower_email: finalEmail,
+      dt_borrow: dtBorrow, 
+      dt_due: dtDue 
+    });
+  } else {
+    result = await submitBorrow({ 
+      fix_no: fixNo, 
+      borrower: borrower, 
+      borrower_email: finalEmail,
+      dt_borrow: dtBorrow, 
+      dt_due: dtDue 
+    });
+  }
+  
+  if (submitBtn) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = '確認借用';
+  }
+  
+  alert(result.message);
+  
+  if (result.success) {
+    closeBorrowModal();
+    searchEquipment();
+  }
+}
+
+// 開啟借用 Modal
 function openBorrowModal(fixNo, deviceName, keeper) {
   console.log('=== openBorrowModal 被呼叫 ===');
   console.log('fixNo:', fixNo, 'deviceName:', deviceName, 'keeper:', keeper);
