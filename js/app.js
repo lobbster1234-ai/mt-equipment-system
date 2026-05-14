@@ -389,16 +389,23 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   const borrowEmailGroup = document.getElementById('borrow-email-group');
   const borrowEmailInput = document.getElementById('borrow-email');
   
+  // 無論管理員或訪客，都顯示 email 欄位
+  if (borrowEmailGroup) {
+    borrowEmailGroup.style.display = 'block';
+    console.log('顯示 email 欄位');
+  }
+  
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名和 email，但欄位都顯示
+    // 管理員登入，自動填入姓名和 email
     console.log('管理員模式：自動填入姓名和 email');
+    console.log('user.name:', user.name, 'user.email:', user.email);
     borrowNameInput.value = user.name || '';
-    borrowNameInput.readOnly = false;  // 允許修改
+    borrowNameInput.readOnly = false;
     borrowNameInput.style.background = '#fff';
-    if (borrowEmailGroup) borrowEmailGroup.style.display = 'block';  // 顯示 email 欄位
     if (borrowEmailInput) {
       borrowEmailInput.value = user.email || '';
-      borrowEmailInput.readOnly = false;  // 允許修改
+      borrowEmailInput.readOnly = false;
+      console.log('已填入 email:', user.email);
     }
   } else {
     // 訪客登入，不預填，需手動輸入
@@ -408,7 +415,6 @@ function openBorrowModal(fixNo, deviceName, keeper) {
       borrowNameInput.readOnly = false;
       borrowNameInput.style.background = '#fff';
     }
-    if (borrowEmailGroup) borrowEmailGroup.style.display = 'block';
     if (borrowEmailInput) {
       borrowEmailInput.value = '';
     }
