@@ -65,9 +65,10 @@
     
     function debug(msg) {
       console.log(msg);
-      const debugArea = document.getElementById('debug-area');
-      debugArea.classList.remove('hidden');
-      debugArea.innerHTML += msg + '<br>';
+      // 除錯訊息只顯示在 console，不在頁面上顯示
+      // const debugArea = document.getElementById('debug-area');
+      // debugArea.classList.remove('hidden');
+      // debugArea.innerHTML += msg + '<br>';
     }
     
     const urlParams = new URLSearchParams(window.location.search);
