@@ -2659,7 +2659,7 @@ MT 部門設備管理系統 自動通知`.trim();
  */
 function sendDeptReturnNotice(adminEmails, deviceName, borrower, dtBorrow, dtReturn) {
   try {
-    if (adminEmails.length === 0) {
+    if (!adminEmails || adminEmails.length === 0) {
       Logger.log('沒有管理員郵件，跳過發送通知');
       return;
     }
