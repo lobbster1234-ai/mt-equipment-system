@@ -1859,6 +1859,16 @@ async function loadDeptBorrowList() {
       const statusClass = isOverdue ? 'style="color:#c00;"' : 'style="color:#0a0;"';
       const statusText = item.dt_return ? '✅ 已歸還' : (isOverdue ? '⏰ 已逾期' : '📤 借用中');
       
+      // 根據是否已歸還，決定日期顯示內容
+      let dateHtml = `
+        <div style="color:#666;font-size:0.85em;margin-top:3px;">📅 借用日期：${item.dt_borrow}</div>
+        <div style="color:#666;font-size:0.85em;margin-top:3px;">📅 預計歸還：${item.dt_due}</div>
+      `;
+      
+      if (item.dt_return) {
+        dateHtml += `<div style="color:#666;font-size:0.85em;margin-top:3px;">📅 歸還日期：${item.dt_return}</div>`;
+      }
+      
       return `
         <div class="dept-borrow-item" style="background:${item.dt_return ? '#e8f5e9' : (isOverdue ? '#ffebee' : '#f8f9fa')};border-left:4px solid ${item.dt_return ? '#4caf50' : (isOverdue ? '#f44336' : '#667eea')};border-radius:8px;padding:15px;margin-bottom:10px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
@@ -1867,9 +1877,7 @@ async function loadDeptBorrowList() {
               <div style="color:#666;font-size:0.9em;margin-top:5px;">
                 👤 借用人：${escapeHtml(item.borrower)}
               </div>
-              <div style="color:#666;font-size:0.85em;margin-top:3px;">
-                📅 借用：${item.dt_borrow} → 歸還：${item.dt_due}
-              </div>
+              ${dateHtml}
             </div>
             <div style="text-align:right;">
               <span ${statusClass} style="font-weight:bold;">${statusText}</span>
