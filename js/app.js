@@ -400,23 +400,28 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   }
   
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名和 email
-    console.log('管理員模式：自動填入姓名和 email');
+    // 管理員登入，自動填入姓名，然後從 GAS 查詢 email
+    console.log('管理員模式：自動填入姓名並查詢 email');
     borrowNameInput.value = user.name || '';
     borrowNameInput.readOnly = false;
     borrowNameInput.style.background = '#fff';
-    if (borrowEmailInput) {
-      borrowEmailInput.value = user.email || '';
-      borrowEmailInput.readOnly = false;
-      console.log('已填入 email:', user.email);
+    
+    // 從 GAS 查詢 email
+    if (borrowEmailInput && user.name) {
+      console.log('開始從 GAS 查詢 email for:', user.name);
+      fetchEmailByName(user.name).then(email => {
+        if (email) {
+          borrowEmailInput.value = email;
+          console.log('已從 GAS 填入 email:', email);
+        } else {
+          console.log('GAS 找不到 email，留空讓使用者填寫');
+        }
+      });
     }
-  } else {
-    borrowNameInput.value = user.name || '';
-    // Email 需要從 Keeper 聯絡資訊工作表讀取，這裡先留空或由使用者填寫
-    // 如需自動填入，需要在 GAS 新增 API
-  } else {
+  } else if (borrowNameInput) {
     // 訪客登入，不預填
     console.log('訪客模式');
+    borrowNameInput.value = '';
   }
   
   // 設定最小日期為今天（台北時間）
