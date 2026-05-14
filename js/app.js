@@ -390,18 +390,18 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   const borrowEmailInput = document.getElementById('borrow-email');
   
   if (user && user.role === 'admin' && borrowNameInput) {
-    // 管理員登入，自動填入姓名，隱藏 email 欄位
-    console.log('管理員模式：自動填入姓名');
+    // 管理員登入，自動填入姓名和 email，但欄位都顯示
+    console.log('管理員模式：自動填入姓名和 email');
     borrowNameInput.value = user.name || '';
-    borrowNameInput.readOnly = true;
-    borrowNameInput.style.background = '#e9ecef';
-    if (borrowEmailGroup) borrowEmailGroup.style.display = 'none';
+    borrowNameInput.readOnly = false;  // 允許修改
+    borrowNameInput.style.background = '#fff';
+    if (borrowEmailGroup) borrowEmailGroup.style.display = 'block';  // 顯示 email 欄位
     if (borrowEmailInput) {
       borrowEmailInput.value = user.email || '';
-      borrowEmailInput.removeAttribute('required');  // 移除 required
+      borrowEmailInput.readOnly = false;  // 允許修改
     }
   } else {
-    // 訪客登入，不填入姓名，顯示 email 欄位，姓名需手動輸入
+    // 訪客登入，不預填，需手動輸入
     console.log('訪客模式');
     if (borrowNameInput) {
       borrowNameInput.value = '';
@@ -411,7 +411,8 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     if (borrowEmailGroup) borrowEmailGroup.style.display = 'block';
     if (borrowEmailInput) {
       borrowEmailInput.value = '';
-      borrowEmailInput.setAttribute('required', 'required');
+    }
+  }
     }
   }
   
