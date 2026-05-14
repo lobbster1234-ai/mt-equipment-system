@@ -737,6 +737,8 @@ function approveBorrow(data, e) {
  * 拒絕借用請求
  */
 function rejectBorrow(data, e) {
+  Logger.log('=== rejectBorrow 開始 ===');
+  
   // 從 data 或 e 取得 request_id
   let requestId = null;
   if (data && data.request_id) {
@@ -744,6 +746,9 @@ function rejectBorrow(data, e) {
   } else if (e && e.parameter && e.parameter.request_id) {
     requestId = e.parameter.request_id;
   }
+  
+  Logger.log('requestId:', requestId);
+  Logger.log('requestId type:', typeof requestId);
   
   if (!requestId) {
     return errorResponse('缺少 request_id');
@@ -754,14 +759,23 @@ function rejectBorrow(data, e) {
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
   if (!borrowRequestSheet) {
+    Logger.log('找不到借用申請工作表:', BORROW_REQUEST_SHEET_NAME);
     return errorResponse('找不到借用申請工作表');
   }
+  
   const pendingData = borrowRequestSheet.getDataRange().getValues();
+  Logger.log('借用申請工作表共有 ' + pendingData.length + ' 列');
+  Logger.log('標題列:', JSON.stringify(pendingData[0]));
+  
   let foundRow = -1;
   let requestData = null;
   
   for (let i = 1; i < pendingData.length; i++) {
-    if (pendingData[i][0] === requestId) {
+    const rowRequestId = pendingData[i][0];
+    Logger.log(`比對第 ${i+1} 列: "${rowRequestId}" (type: ${typeof rowRequestId}) vs "${requestId}" (type: ${typeof requestId})`);
+    
+    // 使用寬鬆比對（轉為字串）
+    if (rowRequestId && rowRequestId.toString() === requestId.toString()) {
       foundRow = i + 1;
       requestData = {
         fix_no: pendingData[i][1],
@@ -770,16 +784,19 @@ function rejectBorrow(data, e) {
         borrower_email: pendingData[i][4],
         keeper: pendingData[i][7]
       };
+      Logger.log('找到匹配的請求，資料:', JSON.stringify(requestData));
       break;
     }
   }
   
   if (foundRow === -1 || !requestData) {
+    Logger.log('找不到該借用請求或已處理，requestId:', requestId);
     return errorResponse('找不到該借用請求或已處理');
   }
   
   // 更新借用請求狀態為 rejected
   borrowRequestSheet.getRange(foundRow, 9).setValue('rejected');
+  Logger.log('已更新借用請求狀態為 rejected');
   
   // 拒絕時需要將設備狀態改回 available
   const fixNoCol = COLS.fix_no;
@@ -789,51 +806,72 @@ function rejectBorrow(data, e) {
   const dtDueCol = COLS.dt_due;
   
   // 在兩個工作表中查找並恢復設備狀態
+  Logger.log(`正在查找設備: fix_no='${requestData.fix_no}'`);
   let sheet = ss.getSheetByName(SHEET_NAME);
   let equipmentFoundRow = -1;
   let targetSheet = null;
   
   if (sheet) {
     const lastRow = sheet.getLastRow();
+    Logger.log(`工作表1有 ${lastRow} 行`);
     for (let i = 2; i <= lastRow; i++) {
       const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-      if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+      Logger.log(`檢查第 ${i} 行: fix_no="${rowFixNo}" vs "${requestData.fix_no}"`);
+      if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no.toString().trim()) {
         equipmentFoundRow = i;
         targetSheet = sheet;
+        Logger.log(`在工作表1找到設備 ${requestData.fix_no} 在第 ${i} 行`);
         break;
       }
     }
+  } else {
+    Logger.log('工作表1不存在');
   }
   
   if (equipmentFoundRow === -1) {
+    Logger.log('工作表1找不到設備，嘗試搜尋網站新增設備工作表');
     sheet = ss.getSheetByName(SHEET_NAME_WEB);
     if (sheet) {
       const lastRow = sheet.getLastRow();
+      Logger.log(`網站新增設備工作表有 ${lastRow} 行`);
       for (let i = 2; i <= lastRow; i++) {
         const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-        if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+        Logger.log(`檢查第 ${i} 行: fix_no="${rowFixNo}"`);
+        if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no.toString().trim()) {
           equipmentFoundRow = i;
           targetSheet = sheet;
+          Logger.log(`在網站新增設備工作表找到設備 ${requestData.fix_no} 在第 ${i} 行`);
           break;
         }
       }
+    } else {
+      Logger.log('網站新增設備工作表不存在');
     }
   }
   
   // 恢復設備狀態為可借用
+  Logger.log(`equipmentFoundRow=${equipmentFoundRow}, targetSheet=${targetSheet ? targetSheet.getName() : 'null'}`);
   if (equipmentFoundRow !== -1 && targetSheet) {
+    Logger.log(`開始恢復設備狀態: 第 ${equipmentFoundRow} 行`);
     targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('available');
+    Logger.log(`已設定 status='available'`);
     targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue('');
+    Logger.log(`已清空 borrower`);
     targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue('');
     targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue('');
+    Logger.log(`已清空 dt_borrow 和 dt_due`);
     Logger.log(`設備 ${requestData.fix_no} 狀態已恢復為可借用`);
+  } else {
+    Logger.log(`找不到設備 ${requestData.fix_no} 來恢復狀態！`);
   }
   
   // 發送拒絕通知給借用人
   if (requestData.borrower_email) {
     sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, false);
+    Logger.log(`已發送拒絕通知給 ${requestData.borrower_email}`);
   }
   
+  Logger.log('=== rejectBorrow 完成 ===');
   return successResponse({
     message: '借用已拒絕',
     fix_no: requestData.fix_no,
