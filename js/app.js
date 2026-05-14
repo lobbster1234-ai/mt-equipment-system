@@ -284,9 +284,8 @@ async function handleBorrowSubmit() {
   
   const fixNo = document.getElementById('borrow-fix-no').value;
   const borrower = document.getElementById('borrow-name').value;
+  const borrowerEmail = document.getElementById('borrow-email')?.value?.trim() || '';
   const dtDue = document.getElementById('borrow-due-date').value;
-  const borrowerEmailInput = document.getElementById('borrow-email');
-  const borrowerEmail = borrowerEmailInput?.value?.trim() || '';
   
   console.log('fixNo:', fixNo);
   console.log('借用人姓名:', borrower);
@@ -298,18 +297,13 @@ async function handleBorrowSubmit() {
     alert('請填寫借用人姓名');
     return;
   }
+  if (!borrowerEmail) {
+    alert('請填寫電子郵件（用於接收審核結果通知）');
+    return;
+  }
   if (!dtDue) {
     alert('請選擇預計歸還日期');
     return;
-  }
-  
-  // 管理員借用時，如果沒有填 email，使用登入時的 email
-  const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
-  const isGuest = user.role !== 'admin';
-  let finalEmail = borrowerEmail;
-  if (!isGuest && !borrowerEmail && user.email) {
-    finalEmail = user.email;
-    console.log('管理員借用，使用登入 email:', finalEmail);
   }
   
   // 今天日期（台北時間）
