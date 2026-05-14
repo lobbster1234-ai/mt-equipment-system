@@ -2160,13 +2160,9 @@ function dailyReminderCheck() {
         const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDueStr)) / (1000 * 60 * 60 * 24));
         Logger.log(`設備 ${fixNo} 已逾期 ${overdueDays} 天`);
         
-        // Keeper 只在逾期第一天收到通知
-        if (overdueDays === 1) {
-          Logger.log(`逾期第一天，發送通知給 Keeper ${keeper}`);
-          sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
-        } else {
-          Logger.log(`逾期第 ${overdueDays} 天，Keeper 已收到過通知，不再發送`);
-        }
+        // Keeper 每天收到通知
+        Logger.log(`發送逾期通知給 Keeper ${keeper}`);
+        sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
         
         // 每天提醒借用人
         Logger.log(`發送逾期提醒給借用人 ${borrower}`);
