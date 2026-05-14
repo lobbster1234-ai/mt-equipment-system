@@ -347,22 +347,36 @@ async function handleBorrowSubmit() {
   }
   
   let result;
-  if (isGuest) {
-    result = await requestBorrow({ 
-      fix_no: fixNo, 
-      borrower: borrower, 
-      borrower_email: borrowerEmail,
-      dt_borrow: dtBorrow, 
-      dt_due: dtDue 
-    });
-  } else {
-    result = await submitBorrow({ 
-      fix_no: fixNo, 
-      borrower: borrower, 
-      borrower_email: borrowerEmail,
-      dt_borrow: dtBorrow, 
-      dt_due: dtDue 
-    });
+  try {
+    console.log('開始呼叫借用 API...');
+    if (isGuest) {
+      console.log('訪客模式，呼叫 requestBorrow');
+      result = await requestBorrow({ 
+        fix_no: fixNo, 
+        borrower: borrower, 
+        borrower_email: borrowerEmail,
+        dt_borrow: dtBorrow, 
+        dt_due: dtDue 
+      });
+    } else {
+      console.log('管理員模式，呼叫 submitBorrow');
+      result = await submitBorrow({ 
+        fix_no: fixNo, 
+        borrower: borrower, 
+        borrower_email: borrowerEmail,
+        dt_borrow: dtBorrow, 
+        dt_due: dtDue 
+      });
+    }
+    console.log('API 回應:', result);
+  } catch (err) {
+    console.error('借用 API 錯誤:', err);
+    alert('借用失敗：' + err.message);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '確認借用';
+    }
+    return;
   }
   
   if (submitBtn) {
