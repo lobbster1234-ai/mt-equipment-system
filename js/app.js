@@ -583,9 +583,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 綁定借用表單
   const borrowForm = document.getElementById('borrow-form');
+  console.log('borrow-form 元素:', borrowForm);
+  
   if (borrowForm) {
     borrowForm.addEventListener('submit', async (e) => {
       e.preventDefault();
+      alert('表單提交了！');
       
       console.log('=== 借用表單提交 ===');
       console.log('借用人姓名:', document.getElementById('borrow-name')?.value);
@@ -599,11 +602,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const borrowerEmail = borrowerEmailInput?.value?.trim() || '';
       
       // 檢查必填欄位
+      console.log('檢查必填欄位 - borrower:', borrower, 'dtDue:', dtDue);
       if (!borrower) {
+        console.log('借用人姓名為空，顯示警告');
         alert('請填寫借用人姓名');
         return;
       }
       if (!dtDue) {
+        console.log('預計歸還日期為空，顯示警告');
         alert('請選擇預計歸還日期');
         return;
       }
