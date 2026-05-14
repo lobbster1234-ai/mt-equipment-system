@@ -2522,8 +2522,8 @@ function deptReturn(data) {
         deviceName = allData[i][1];
         borrower = allData[i][2];
         borrowerEmail = allData[i][3];
-        dtBorrow = allData[i][4];
-        dtDue = allData[i][5];
+        dtBorrow = formatDate(allData[i][4]);
+        dtDue = formatDate(allData[i][5]);
         break;
       }
     }
