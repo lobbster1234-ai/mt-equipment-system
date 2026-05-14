@@ -194,9 +194,24 @@
             return;
           }
           
+          // 登入成功後，查詢並快取 email
+          let cachedEmail = email; // 預設使用登入的 email
+          try {
+            const emailUrl = new URL(GAS_URL);
+            emailUrl.searchParams.append('action', 'getEmailByName');
+            emailUrl.searchParams.append('name', data.name);
+            const emailRes = await fetch(emailUrl.toString(), { method: 'GET', redirect: 'follow' });
+            const emailData = await emailRes.json();
+            if (emailData.success && emailData.email) {
+              cachedEmail = emailData.email;
+            }
+          } catch (e) {
+            console.log('快取 email 失敗，使用預設值');
+          }
+          
           localStorage.setItem('mt_user', JSON.stringify({
             role: 'admin',
-            email: email,
+            email: cachedEmail,
             name: data.name,
             timestamp: Date.now()
           }));
