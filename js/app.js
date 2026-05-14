@@ -276,10 +276,22 @@ function toggleKeeperGroup(headerEl) {
 // 借用/歸還功能
 // =============================================
 
-// 開啟借用 Modal
+  // 開啟借用 Modal
 function openBorrowModal(fixNo, deviceName, keeper) {
+  console.log('=== openBorrowModal 被呼叫 ===');
+  console.log('fixNo:', fixNo, 'deviceName:', deviceName, 'keeper:', keeper);
+  
   const modal = document.getElementById('borrow-modal');
   const infoDiv = document.getElementById('borrow-equipment-info');
+  
+  if (!modal) {
+    console.error('找不到 borrow-modal 元素');
+    return;
+  }
+  if (!infoDiv) {
+    console.error('找不到 borrow-equipment-info 元素');
+    return;
+  }
   
   if (infoDiv) {
     infoDiv.innerHTML = `
@@ -289,30 +301,45 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     `;
   }
   
-  document.getElementById('borrow-fix-no').value = fixNo;
+  const fixNoInput = document.getElementById('borrow-fix-no');
+  if (!fixNoInput) {
+    console.error('找不到 borrow-fix-no 輸入框');
+    return;
+  }
+  fixNoInput.value = fixNo;
   
   // 自動填入登入者姓名
   const user = JSON.parse(localStorage.getItem('mt_user'));
+  console.log('目前使用者:', user);
+  
   const borrowNameInput = document.getElementById('borrow-name');
   const borrowEmailGroup = document.getElementById('borrow-email-group');
   const borrowEmailInput = document.getElementById('borrow-email');
   
   if (user && user.role === 'admin' && borrowNameInput) {
     // 管理員登入，自動填入姓名，隱藏 email 欄位
+    console.log('管理員模式：自動填入姓名');
     borrowNameInput.value = user.name || '';
     borrowNameInput.readOnly = true;
     borrowNameInput.style.background = '#e9ecef';
     if (borrowEmailGroup) borrowEmailGroup.style.display = 'none';
-    if (borrowEmailInput) borrowEmailInput.value = user.email || '';
+    if (borrowEmailInput) {
+      borrowEmailInput.value = user.email || '';
+      borrowEmailInput.removeAttribute('required');  // 移除 required
+    }
   } else {
     // 訪客登入，不填入姓名，顯示 email 欄位，姓名需手動輸入
+    console.log('訪客模式');
     if (borrowNameInput) {
-      borrowNameInput.value = '';  // 訪客不預填姓名
+      borrowNameInput.value = '';
       borrowNameInput.readOnly = false;
       borrowNameInput.style.background = '#fff';
     }
     if (borrowEmailGroup) borrowEmailGroup.style.display = 'block';
-    if (borrowEmailInput) borrowEmailInput.value = '';
+    if (borrowEmailInput) {
+      borrowEmailInput.value = '';
+      borrowEmailInput.setAttribute('required', 'required');
+    }
   }
   
   // 設定最小日期為今天（台北時間）
