@@ -404,16 +404,41 @@ function borrowEquipment(data) {
   logHistory('borrow_pending', fixNo, deviceName, borrower, keeper, dtBorrow, dtDue, '');
   Logger.log(`已寫入歷史紀錄: ${fixNo}`);
   
+  // 建立借用請求記錄（統一流程，讓 approveBorrow 能找到）
+  let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+  if (!borrowRequestSheet) {
+    borrowRequestSheet = ss.insertSheet(BORROW_REQUEST_SHEET_NAME);
+    borrowRequestSheet.appendRow(['請求ID', '設備編號', '設備名稱', '借用人', '借用人Email', '借用日期', '預計歸還', '保管人', '狀態', '建立時間']);
+  }
+  
+  const requestId = Utilities.getUuid();
+  const timestamp = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+  const borrowerEmail = getKeeperEmail(borrower) || ''; // 從 Keeper 聯絡資訊取得借用人 email
+  
+  borrowRequestSheet.appendRow([
+    requestId,
+    fixNo,
+    deviceName,
+    borrower,
+    borrowerEmail,
+    dtBorrow,
+    dtDue,
+    keeper,
+    'pending',
+    timestamp
+  ]);
+  
+  Logger.log(`借用請求已記錄到 ${BORROW_REQUEST_SHEET_NAME}，requestId: ${requestId}`);
+  
   // 發送借用審核郵件給 Keeper
   if (EMAIL_CONFIG.enabled && keeper) {
-    const requestId = Utilities.getUuid();
-    // 發送審核郵件（不移入待審核借用工作表）
-    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, getKeeperEmail(borrower) || '', dtBorrow, dtDue, requestId);
+    sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEmail, dtBorrow, dtDue, requestId);
   }
   
   Logger.log(`借用審核請求已建立：${fixNo}，借用人：${borrower}，等待 Keeper ${keeper} 審核`);
   return successResponse({
     message: '借用申請已送出，等待 Keeper 審核',
+    request_id: requestId,
     fix_no: fixNo,
     borrower: borrower,
     keeper: keeper
