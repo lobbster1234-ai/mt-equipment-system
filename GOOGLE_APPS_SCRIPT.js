@@ -2687,3 +2687,139 @@ MT 部門設備管理系統 自動通知`.trim();
     Logger.log(`發送歸還通知失敗: ${err.message}`);
   }
 }
+
+/**
+ * 發送部門儀器逾期提醒（手動測試用）
+ * 找出所有逾期的部門儀器借用，寄信提醒借用人
+ */
+function sendDeptOverdueReminder() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('MT部門儀器');
+    
+    if (!sheet) {
+      Logger.log('找不到 MT部門儀器 工作表');
+      return;
+    }
+    
+    const today = new Date();
+    const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
+    const todayStr = taipeiTime.toISOString().split('T')[0];
+    
+    const allData = sheet.getDataRange().getValues();
+    let sentCount = 0;
+    
+    for (let i = 1; i < allData.length; i++) {
+      const id = allData[i][0];
+      const deviceName = allData[i][1];
+      const borrower = allData[i][2];
+      const borrowerEmail = allData[i][3];
+      const dtBorrow = allData[i][4];
+      const dtDue = allData[i][5];
+      const dtReturn = allData[i][6];
+      const status = allData[i][7];
+      
+      // 只處理狀態是「借用中」且已逾期（歸還日期 < 今天）
+      if (status === '借用中' && dtDue && dtDue < today && !dtReturn) {
+        const overdueDays = Math.floor((today - new Date(dtDue)) / (1000 * 60 * 60 * 24));
+        
+        Logger.log(`逾期項目：${deviceName} - ${borrower} (${borrowerEmail}) 已逾期 ${overdueDays} 天`);
+        
+        if (borrowerEmail && borrowerEmail.includes('@')) {
+          const subject = `${EMAIL_CONFIG.subject_prefix} 【逾期提醒】部門儀器已逾期 ${overdueDays} 天`;
+          const body = `親愛的 ${borrower} 您好：
+
+您借用的部門儀器已超過預計歸還日期，請盡快歸還：
+
+📦 設備名稱：${deviceName}
+📅 預計歸還：${formatDate(dtDue)}
+⏰ 逾期天數：${overdueDays} 天
+
+請盡快歸還設備，謝謝！
+
+---
+MT 部門設備管理系統 自動提醒`.trim();
+          
+          MailApp.sendEmail(borrowerEmail, subject, body);
+          Logger.log(`已發送逾期提醒給 ${borrower} (${borrowerEmail})`);
+          sentCount++;
+        }
+      }
+    }
+    
+    Logger.log(`逾期提醒發送完畢，共發送 ${sentCount} 封`);
+    return sentCount;
+    
+  } catch (err) {
+    Logger.log(`發送部門儀器逾期提醒失敗: ${err.message}`);
+    return 0;
+  }
+}
+
+/**
+ * 發送部門儀器歸還前一天的提醒（手動測試用）
+ */
+function sendDeptDueTomorrowReminder() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('MT部門儀器');
+    
+    if (!sheet) {
+      Logger.log('找不到 MT部門儀器 工作表');
+      return;
+    }
+    
+    const today = new Date();
+    const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
+    const todayStr = taipeiTime.toISOString().split('T')[0];
+    
+    // 明天
+    const tomorrow = new Date(today.getTime() + (24 * 60 * 60 * 1000));
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    const allData = sheet.getDataRange().getValues();
+    let sentCount = 0;
+    
+    for (let i = 1; i < allData.length; i++) {
+      const id = allData[i][0];
+      const deviceName = allData[i][1];
+      const borrower = allData[i][2];
+      const borrowerEmail = allData[i][3];
+      const dtBorrow = allData[i][4];
+      const dtDue = allData[i][5];
+      const dtReturn = allData[i][6];
+      const status = allData[i][7];
+      
+      // 只處理狀態是「借用中」且明天是預計歸還日
+      if (status === '借用中' && dtDue && dtDue.toString().split('T')[0] === tomorrowStr && !dtReturn) {
+        Logger.log(`明天到期：${deviceName} - ${borrower}`);
+        
+        if (borrowerEmail && borrowerEmail.includes('@')) {
+          const subject = `${EMAIL_CONFIG.subject_prefix} 【提醒】部門儀器將於明天到期`;
+          const body = `親愛的 ${borrower} 您好：
+
+提醒您借用的部門儀器將於明天到期，請準備歸還：
+
+📦 設備名稱：${deviceName}
+📅 預計歸還：${formatDate(dtDue)}
+
+請在明天歸還設備，謝謝！
+
+---
+MT 部門設備管理系統 自動提醒`.trim();
+          
+          MailApp.sendEmail(borrowerEmail, subject, body);
+          Logger.log(`已發送明天到期提醒給 ${borrower} (${borrowerEmail})`);
+          sentCount++;
+        }
+      }
+    }
+    
+    Logger.log(`明天到期提醒發送完畢，共發送 ${sentCount} 封`);
+    return sentCount;
+    
+  } catch (err) {
+    Logger.log(`發送部門儀器到期提醒失敗: ${err.message}`);
+    return 0;
+  }
+}
