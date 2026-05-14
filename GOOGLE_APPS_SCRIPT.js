@@ -650,6 +650,7 @@ function approveBorrow(data, e) {
   
   // 在兩個工作表中查找設備
   Logger.log(`正在查找設備: fix_no='${requestData.fix_no}', SHEET_NAME='${SHEET_NAME}'`);
+  Logger.log(`requestData: ${JSON.stringify(requestData)}`);
   let sheet = ss.getSheetByName(SHEET_NAME);
   let equipmentFoundRow = -1;
   let targetSheet = null;
@@ -659,7 +660,8 @@ function approveBorrow(data, e) {
     Logger.log(`工作表1有 ${lastRow} 行`);
     for (let i = 2; i <= lastRow; i++) {
       const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-      if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+      Logger.log(`檢查第 ${i} 行: fix_no="${rowFixNo}" vs "${requestData.fix_no}"`);
+      if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no.toString().trim()) {
         equipmentFoundRow = i;
         targetSheet = sheet;
         Logger.log(`在工作表1找到設備 ${requestData.fix_no} 在第 ${i} 行`);
@@ -671,24 +673,34 @@ function approveBorrow(data, e) {
   }
   
   if (equipmentFoundRow === -1) {
+    Logger.log('工作表1找不到設備，嘗試搜尋網站新增設備工作表');
     sheet = ss.getSheetByName(SHEET_NAME_WEB);
     if (sheet) {
       const lastRow = sheet.getLastRow();
+      Logger.log(`網站新增設備工作表有 ${lastRow} 行`);
       for (let i = 2; i <= lastRow; i++) {
         const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-        if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no) {
+        Logger.log(`檢查第 ${i} 行: fix_no="${rowFixNo}"`);
+        if (rowFixNo && rowFixNo.toString().trim() === requestData.fix_no.toString().trim()) {
           equipmentFoundRow = i;
           targetSheet = sheet;
+          Logger.log(`在網站新增設備工作表找到設備 ${requestData.fix_no} 在第 ${i} 行`);
           break;
         }
       }
+    } else {
+      Logger.log('網站新增設備工作表不存在');
     }
   }
   
   // 更新設備為借用狀態
+  Logger.log(`equipmentFoundRow=${equipmentFoundRow}, targetSheet=${targetSheet ? targetSheet.getName() : 'null'}`);
   if (equipmentFoundRow !== -1 && targetSheet) {
+    Logger.log(`開始更新設備狀態: 第 ${equipmentFoundRow} 行, 工作表: ${targetSheet.getName()}`);
     targetSheet.getRange(equipmentFoundRow, statusCol + 1).setValue('borrowed');
+    Logger.log(`已設定 status='borrowed'`);
     targetSheet.getRange(equipmentFoundRow, borrowerCol + 1).setValue(requestData.borrower);
+    Logger.log(`已設定 borrower='${requestData.borrower}'`);
     targetSheet.getRange(equipmentFoundRow, dtBorrowCol + 1).setValue(requestData.dt_borrow);
     targetSheet.getRange(equipmentFoundRow, dtDueCol + 1).setValue(requestData.dt_due);
     targetSheet.getRange(equipmentFoundRow, dtReturnCol + 1).setValue('');
@@ -701,6 +713,8 @@ function approveBorrow(data, e) {
     logHistory('borrow', requestData.fix_no, deviceName, requestData.borrower, keeper, requestData.dt_borrow, requestData.dt_due, '');
     
     Logger.log(`設備 ${requestData.fix_no} 已更新為借用狀態，借用人：${requestData.borrower}`);
+  } else {
+    Logger.log(`找不到設備 ${requestData.fix_no} 來更新狀態！`);
   }
   
   // 發送核准通知給借用人
