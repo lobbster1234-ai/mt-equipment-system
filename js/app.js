@@ -277,6 +277,31 @@ function toggleKeeperGroup(headerEl) {
 // =============================================
 
 /**
+ * 從 GAS 根據姓名查詢 Email
+ */
+async function fetchEmailByName(name) {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'getEmailByName');
+    url.searchParams.append('name', name);
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const result = await res.json();
+    if (result.success && result.email) {
+      return result.email;
+    }
+    return '';
+  } catch (err) {
+    console.error('查詢 email 失敗:', err);
+    return '';
+  }
+}
+
+/**
  * 處理借用表單提交（繞過 form submit 事件）
  */
 async function handleBorrowSubmit() {
