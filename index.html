@@ -291,6 +291,22 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=202605141400"></script>
+  <script src="js/app.js?v=202605141410"></script>
+  
+  <!-- 測試用 -->
+  <script>
+    // 直接測試表單提交
+    setTimeout(function() {
+      var form = document.getElementById('borrow-form');
+      if (form) {
+        console.log('測試：borrow-form 找到');
+        form.addEventListener('submit', function(e) {
+          alert('表單提交測試成功！');
+        });
+      } else {
+        console.error('測試：找不到 borrow-form');
+      }
+    }, 2000);
+  </script>
 </body>
 </html>
