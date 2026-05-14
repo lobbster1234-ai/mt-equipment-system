@@ -1738,3 +1738,217 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     alert('❌ 更新失敗：' + err.message);
   }
 });
+
+// =============================================
+// 部門儀器借用功能（任何人可用）
+// =============================================
+
+/**
+ * 處理部門儀器借用提交
+ */
+async function handleDeptBorrowSubmit() {
+  console.log('=== handleDeptBorrowSubmit 被呼叫 ===');
+  
+  const deviceName = document.getElementById('dept-borrow-device').value.trim();
+  const borrower = document.getElementById('dept-borrow-name').value.trim();
+  const borrowerEmail = document.getElementById('dept-borrow-email').value.trim();
+  const dtDue = document.getElementById('dept-borrow-due-date').value;
+  
+  console.log('設備名稱:', deviceName);
+  console.log('借用人:', borrower);
+  console.log('Email:', borrowerEmail);
+  console.log('預計歸還:', dtDue);
+  
+  // 檢查必填欄位
+  if (!deviceName) {
+    alert('請填寫設備名稱');
+    return;
+  }
+  if (!borrower) {
+    alert('請填寫借用人姓名');
+    return;
+  }
+  if (!borrowerEmail) {
+    alert('請填寫電子郵件');
+    return;
+  }
+  if (!dtDue) {
+    alert('請選擇預計歸還日期');
+    return;
+  }
+  
+  // 今天日期（台北時間）
+  const now = new Date();
+  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  const dtBorrow = taipeiTime.toISOString().split('T')[0];
+  
+  const btn = document.querySelector('#dept-borrow-form button');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '🔄 處理中...';
+  }
+  
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'deptBorrow');
+    url.searchParams.append('device_name', deviceName);
+    url.searchParams.append('borrower', borrower);
+    url.searchParams.append('borrower_email', borrowerEmail);
+    url.searchParams.append('dt_borrow', dtBorrow);
+    url.searchParams.append('dt_due', dtDue);
+    
+    console.log('部門儀器借用 URL:', url.toString());
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const data = await res.json();
+    console.log('部門儀器借用回應:', data);
+    
+    if (data.success) {
+      alert('✅ 借用成功！確認郵件已寄出');
+      // 清空表單
+      document.getElementById('dept-borrow-form').reset();
+      // 重新載入列表
+      loadDeptBorrowList();
+    } else {
+      alert('❌ 借用失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (err) {
+    console.error('部門儀器借用錯誤:', err);
+    alert('❌ 借用失敗：' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✅ 確認借用';
+    }
+  }
+}
+
+/**
+ * 載入部門儀器借用列表
+ */
+async function loadDeptBorrowList() {
+  const listEl = document.getElementById('dept-borrow-list');
+  if (!listEl) return;
+  
+  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+  
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'getDeptBorrowList');
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const data = await res.json();
+    console.log('部門儀器列表:', data);
+    
+    if (!data.success || !data.items || data.items.length === 0) {
+      listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">目前沒有借用的部門儀器</p>';
+      return;
+    }
+    
+    // 生成 HTML
+    const html = data.items.map(item => {
+      const isOverdue = new Date(item.dt_due) < new Date() && !item.dt_return;
+      const statusClass = isOverdue ? 'style="color:#c00;"' : 'style="color:#0a0;"';
+      const statusText = item.dt_return ? '✅ 已歸還' : (isOverdue ? '⏰ 已逾期' : '📤 借用中');
+      
+      return `
+        <div class="dept-borrow-item" style="background:${item.dt_return ? '#e8f5e9' : (isOverdue ? '#ffebee' : '#f8f9fa')};border-left:4px solid ${item.dt_return ? '#4caf50' : (isOverdue ? '#f44336' : '#667eea')};border-radius:8px;padding:15px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+            <div style="flex:1;min-width:200px;">
+              <strong style="font-size:1.1em;">${escapeHtml(item.device_name)}</strong>
+              <div style="color:#666;font-size:0.9em;margin-top:5px;">
+                👤 借用人：${escapeHtml(item.borrower)}
+              </div>
+              <div style="color:#666;font-size:0.85em;margin-top:3px;">
+                📅 借用：${item.dt_borrow} → 歸還：${item.dt_due}
+              </div>
+            </div>
+            <div style="text-align:right;">
+              <span ${statusClass} style="font-weight:bold;">${statusText}</span>
+              ${!item.dt_return ? `
+                <button class="btn-return-sm" onclick="handleDeptReturn('${item.id}', '${escapeHtml(item.device_name)}', '${escapeHtml(item.borrower)}')" style="margin-left:10px;padding:5px 10px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85em;">
+                  歸還
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    listEl.innerHTML = html;
+    
+  } catch (err) {
+    console.error('載入部門儀器列表失敗:', err);
+    listEl.innerHTML = '<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗</p>';
+  }
+}
+
+/**
+ * 處理部門儀器歸還
+ */
+async function handleDeptReturn(id, deviceName, borrower) {
+  if (!confirm(`確認要歸還「${deviceName}」嗎？`)) {
+    return;
+  }
+  
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'deptReturn');
+    url.searchParams.append('id', id);
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const data = await res.json();
+    
+    if (data.success) {
+      alert('✅ 歸還成功！已通知管理員');
+      loadDeptBorrowList();
+    } else {
+      alert('❌ 歸還失敗：' + (data.error || '未知錯誤'));
+    }
+  } catch (err) {
+    console.error('歸還失敗:', err);
+    alert('❌ 歸還失敗：' + err.message);
+  }
+}
+
+/**
+ * HTML 跳脫
+ */
+function escapeHtml(text) {
+  if (!text) return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// 頁面載入時載入部門儀器列表
+document.addEventListener('DOMContentLoaded', function() {
+  // 設定最小日期為今天
+  const today = new Date();
+  const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
+  const taipeiDate = taipeiTime.toISOString().split('T')[0];
+  
+  const deptDateInput = document.getElementById('dept-borrow-due-date');
+  if (deptDateInput) {
+    deptDateInput.min = taipeiDate;
+  }
+  
+  // 載入列表
+  loadDeptBorrowList();
+  
+  // 每 30 秒自動刷新
+  setInterval(loadDeptBorrowList, 30000);
+});

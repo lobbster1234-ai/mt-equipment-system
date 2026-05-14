@@ -82,6 +82,7 @@
       <nav>
         <button class="nav-btn active" data-tab="equipment">📦 設備列表</button>
         <button class="nav-btn" data-tab="history">📜 歷史紀錄</button>
+        <button class="nav-btn" data-tab="department-borrow">🏢 部門儀器借用</button>
         <button class="nav-btn" data-tab="register">➕ 設備登記</button>
         <button class="nav-btn" data-tab="settings">⚙️ 個人設定</button>
         <button class="nav-btn" data-tab="my-equipment">📋 我的設備</button>
@@ -238,6 +239,57 @@
         
         <h3 style="margin-top:30px;font-size:1.1em;">📋 目前已上傳頭像的使用者</h3>
         <div id="avatar-list" style="margin-top:10px;"></div>
+      </div>
+    </section>
+
+    <!-- 部門儀器借用（任何人可用） -->
+    <section id="department-borrow-tab" class="tab-content">
+      <div class="form-card" style="max-width:600px;margin:0 auto;">
+        <h2>🏢 部門儀器借用</h2>
+        <p style="color:#666;font-size:0.9em;margin-bottom:20px;">
+          這裡可以借用部門通用儀器，不需要經過 Keeper 審核。
+          <br>借用成功後會收到確認郵件，並在歸還前收到提醒。
+        </p>
+        
+        <form id="dept-borrow-form">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
+            <div class="form-group">
+              <label>設備名稱 * <span style="font-size:0.85em;color:#888;">(可含數量，如：USB x3)</span></label>
+              <input type="text" id="dept-borrow-device" required placeholder="請輸入設備名稱">
+            </div>
+            
+            <div class="form-group">
+              <label>借用人姓名 *</label>
+              <input type="text" id="dept-borrow-name" required placeholder="請輸入您的姓名">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>借用人電子郵件 * <span style="font-size:0.85em;color:#667eea;">(用於接收借用確認信)</span></label>
+            <input type="email" id="dept-borrow-email" required placeholder="請輸入您的電子郵件">
+          </div>
+
+          <div class="form-group">
+            <label>預計歸還日期 *</label>
+            <input type="date" id="dept-borrow-due-date" required>
+          </div>
+
+          <button type="button" class="btn-primary" onclick="handleDeptBorrowSubmit()" style="width:100%;padding:15px;font-size:1.1em;">
+            ✅ 確認借用
+          </button>
+
+          <p style="color:#888;font-size:0.9em;margin-top:15px;text-align:center;">
+            ✓ 借用成功後會寄送確認郵件，預計歸還前會提醒
+          </p>
+        </form>
+      </div>
+
+      <!-- 已借用的部門儀器列表 -->
+      <div style="margin-top:40px;">
+        <h3>📋 已借用的部門儀器</h3>
+        <div id="dept-borrow-list" class="equipment-list">
+          <p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>
+        </div>
       </div>
     </section>
   </div>

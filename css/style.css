@@ -435,3 +435,59 @@ nav {
     width: 100%;
   }
 }
+/* 部門儀器借用頁面樣式 */
+#department-borrow-tab {
+  padding: 20px;
+}
+
+#dept-borrow-form {
+  background: #fff;
+  border-radius: 12px;
+  padding: 30px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+#dept-borrow-form .form-group {
+  margin-bottom: 20px;
+}
+
+#dept-borrow-form label {
+  display: block;
+  margin-bottom: 8px;
+  color: #333;
+  font-weight: 500;
+}
+
+#dept-borrow-form input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 1em;
+  transition: border-color 0.3s;
+}
+
+#dept-borrow-form input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+#dept-borrow-form input[type="date"] {
+  cursor: pointer;
+}
+
+#dept-borrow-list {
+  margin-top: 20px;
+}
+
+.dept-borrow-item {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-left: 4px solid #667eea;
+}
+
+.dept-borrow-item:hover {
+  background: #e9ecef;
+}

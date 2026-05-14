@@ -137,6 +137,24 @@ function doGet(e) {
       return getBorrowRequest({
         request_id: e.parameter.request_id
       }, e);
+    } else if (action === 'getEmailByName') {
+      return getEmailByName({
+        name: e.parameter.name
+      });
+    } else if (action === 'deptBorrow') {
+      return deptBorrow({
+        device_name: e.parameter.device_name,
+        borrower: e.parameter.borrower,
+        borrower_email: e.parameter.borrower_email,
+        dt_borrow: e.parameter.dt_borrow,
+        dt_due: e.parameter.dt_due
+      });
+    } else if (action === 'deptReturn') {
+      return deptReturn({
+        id: e.parameter.id
+      });
+    } else if (action === 'getDeptBorrowList') {
+      return getDeptBorrowList();
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -1350,6 +1368,48 @@ MT 部門設備管理系統 自動通知`.trim();
 }
 
 /**
+ * 根據姓名從 Keeper 聯絡資訊工作表查找 Email
+ */
+function getEmailByName(data) {
+  try {
+    const name = data.name;
+    if (!name) {
+      return errorResponse('缺少 name 參數');
+    }
+    
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const keeperSheet = ss.getSheetByName(KEEPER_SHEET_NAME);
+    
+    if (!keeperSheet) {
+      return errorResponse('找不到 Keeper 聯絡資訊工作表');
+    }
+    
+    const keeperData = keeperSheet.getDataRange().getValues();
+    
+    // 從第 2 行開始搜尋（跳過標題列）
+    for (let i = 1; i < keeperData.length; i++) {
+      const rowName = keeperData[i][0];
+      const rowEmail = keeperData[i][1];
+      
+      if (rowName && rowName.toString().trim() === name.toString().trim()) {
+        return successResponse({
+          name: rowName,
+          email: rowEmail || ''
+        });
+      }
+    }
+    
+    return successResponse({
+      name: name,
+      email: ''
+    });
+    
+  } catch (err) {
+    return errorResponse(err.message);
+  }
+}
+
+/**
  * 取得 Keeper 的電子郵件地址
  */
 function getKeeperEmail(keeperName) {
@@ -2379,5 +2439,251 @@ MT 部門設備管理系統 自動通知`.trim();
     Logger.log(`已發送逾期通知給 Keeper ${keeper} (${keeperEmail})`);
   } catch (err) {
     Logger.log(`發送逾期通知失敗: ${err.message}`);
+  }
+}
+
+/**
+ * 部門儀器借用（任何人可用，不需 Keeper 審核）
+ * @param {Object} data - 借用資料
+ * @param {string} data.device_name - 設備名稱
+ * @param {string} data.borrower - 借用人姓名
+ * @param {string} data.borrower_email - 借用人郵件
+ * @param {string} data.dt_borrow - 借用日期
+ * @param {string} data.dt_due - 預計歸還日期
+ */
+function deptBorrow(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('MT部門儀器');
+    
+    if (!sheet) {
+      // 工作表不存在，建立新的
+      const newSheet = ss.insertSheet('MT部門儀器');
+      // 新增標題列
+      newSheet.appendRow([
+        'ID', '設備名稱', '借用人', '借用人郵件', '借用日期', '預計歸還', '實際歸還', '狀態'
+      ]);
+      return deptBorrow(data); // 重新呼叫
+    }
+    
+    const id = Utilities.getUuid().substring(0, 8);
+    const timestamp = new Date();
+    
+    sheet.appendRow([
+      id,
+      data.device_name,
+      data.borrower,
+      data.borrower_email,
+      data.dt_borrow,
+      data.dt_due,
+      '', // 實際歸還日期
+      '借用中'
+    ]);
+    
+    // 發送確認郵件給借用人
+    sendDeptBorrowConfirmation(data.borrower, data.borrower_email, data.device_name, data.dt_borrow, data.dt_due);
+    
+    return successResponse({
+      success: true,
+      message: '借用成功',
+      id: id
+    });
+    
+  } catch (err) {
+    return errorResponse(err.message);
+  }
+}
+
+/**
+ * 部門儀器歸還
+ * @param {Object} data - 歸還資料
+ * @param {string} data.id - 借用記錄 ID
+ */
+function deptReturn(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('MT部門儀器');
+    
+    if (!sheet) {
+      return errorResponse('找不到 MT部門儀器 工作表');
+    }
+    
+    const allData = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    let deviceName = '';
+    let borrower = '';
+    let borrowerEmail = '';
+    let dtBorrow = '';
+    let dtDue = '';
+    
+    for (let i = 1; i < allData.length; i++) {
+      if (allData[i][0] === data.id) {
+        rowIndex = i + 1; // 工作表是 1-indexed
+        deviceName = allData[i][1];
+        borrower = allData[i][2];
+        borrowerEmail = allData[i][3];
+        dtBorrow = allData[i][4];
+        dtDue = allData[i][5];
+        break;
+      }
+    }
+    
+    if (rowIndex === -1) {
+      return errorResponse('找不到該筆借用記錄');
+    }
+    
+    const today = new Date();
+    const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
+    const dtReturn = taipeiTime.toISOString().split('T')[0];
+    
+    // 更新狀態
+    sheet.getRange(rowIndex, 7).setValue(dtReturn); // G 欄：實際歸還日期
+    sheet.getRange(rowIndex, 8).setValue('已歸還'); // H 欄：狀態
+    
+    // 取得所有管理員郵件
+    const adminEmails = getAllAdminEmails();
+    
+    // 發送歸還通知給所有管理員
+    sendDeptReturnNotice(adminEmails, deviceName, borrower, dtBorrow, dtReturn);
+    
+    return successResponse({
+      success: true,
+      message: '歸還成功'
+    });
+    
+  } catch (err) {
+    return errorResponse(err.message);
+  }
+}
+
+/**
+ * 取得部門儀器借用列表
+ */
+function getDeptBorrowList() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('MT部門儀器');
+    
+    if (!sheet) {
+      return successResponse({ success: true, items: [] });
+    }
+    
+    const allData = sheet.getDataRange().getValues();
+    const items = [];
+    
+    for (let i = 1; i < allData.length; i++) {
+      items.push({
+        id: allData[i][0],
+        device_name: allData[i][1],
+        borrower: allData[i][2],
+        borrower_email: allData[i][3],
+        dt_borrow: allData[i][4],
+        dt_due: allData[i][5],
+        dt_return: allData[i][6],
+        status: allData[i][7]
+      });
+    }
+    
+    return successResponse({
+      success: true,
+      items: items
+    });
+    
+  } catch (err) {
+    return errorResponse(err.message);
+  }
+}
+
+/**
+ * 取得所有管理員郵件
+ */
+function getAllAdminEmails() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName('Keeper 聯絡資訊');
+    
+    if (!sheet) {
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const emails = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const email = data[i][1];
+      if (email && email.includes('@')) {
+        emails.push(email);
+      }
+    }
+    
+    return emails;
+  } catch (err) {
+    Logger.log('取得管理員郵件失敗:', err);
+    return [];
+  }
+}
+
+/**
+ * 發送部門儀器借用確認郵件
+ */
+function sendDeptBorrowConfirmation(borrower, borrowerEmail, deviceName, dtBorrow, dtDue) {
+  try {
+    const subject = `${EMAIL_CONFIG.subject_prefix} 借用成功確認`;
+    const body = `親愛的 ${borrower} 您好：
+
+您已成功借用部門儀器：
+
+📦 設備名稱：${deviceName}
+📅 借用日期：${dtBorrow}
+📅 預計歸還：${dtDue}
+
+⚠️ 注意事項：
+1. 請於 ${dtDue} 前歸還設備
+2. 歸還前一天（${dtDue}）會收到提醒郵件
+3. 如逾期歸還，系統將每天發送提醒通知
+
+感謝您的配合！
+
+---
+MT 部門設備管理系統 自動通知`.trim();
+    
+    MailApp.sendEmail(borrowerEmail, subject, body);
+    Logger.log(`已發送借用確認郵件給 ${borrowerEmail}`);
+  } catch (err) {
+    Logger.log(`發送借用確認郵件失敗: ${err.message}`);
+  }
+}
+
+/**
+ * 發送部門儀器歸還通知給管理員
+ */
+function sendDeptReturnNotice(adminEmails, deviceName, borrower, dtBorrow, dtReturn) {
+  try {
+    if (adminEmails.length === 0) {
+      Logger.log('沒有管理員郵件，跳過發送通知');
+      return;
+    }
+    
+    const subject = `${EMAIL_CONFIG.subject_prefix} 部門儀器已歸還通知`;
+    const body = `各位管理員您好：
+
+部門儀器已歸還，詳情如下：
+
+📦 設備名稱：${deviceName}
+👤 借用人：${borrower}
+📅 借用日期：${dtBorrow}
+📅 歸還日期：${dtReturn}
+
+---
+MT 部門設備管理系統 自動通知`.trim();
+    
+    // 發送給所有管理員
+    adminEmails.forEach(email => {
+      MailApp.sendEmail(email, subject, body);
+    });
+    
+    Logger.log(`已發送歸還通知給 ${adminEmails.length} 位管理員`);
+  } catch (err) {
+    Logger.log(`發送歸還通知失敗: ${err.message}`);
   }
 }
