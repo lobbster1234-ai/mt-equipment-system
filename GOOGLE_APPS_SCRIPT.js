@@ -2289,31 +2289,14 @@ function reminderOverdue() {
 }
 
 /**
- * 每日提醒檢查（入口函式）
- * 這是主要排程入口，會根據時間自動判斷執行哪個提醒
+ * 每日提醒檢查（入口函式）- 只處理普通設備借用
+ * 部門儀器提醒請另外設定排程
  */
 function dailyReminderCheck() {
-  const now = new Date();
-  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  const hour = taipeiTime.getHours();
-  
-  Logger.log(`=== 每日提醒檢查開始（台北時間 ${hour}:00） ===`);
-  
-  // 17:00-18:00：明天到期提醒
-  if (hour >= 17 && hour < 18) {
-    Logger.log('執行明天到期提醒檢查...');
-    reminderDueTomorrow();
-    sendDeptDueTomorrowReminder();
-  }
-  
-  // 09:00-10:00：逾期提醒
-  if (hour >= 9 && hour < 10) {
-    Logger.log('執行逾期提醒檢查...');
-    reminderOverdue();
-    sendDeptOverdueReminder();
-  }
-  
-  Logger.log('=== 每日提醒檢查完成 ===');
+  Logger.log('dailyReminderCheck 已棄用，請使用 reminderDueTomorrow 和 reminderOverdue');
+  // 同時執行兩個提醒（只處理普通設備，不含部門儀器）
+  reminderDueTomorrow();
+  reminderOverdue();
 }
 
 /**
