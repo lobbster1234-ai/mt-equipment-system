@@ -586,6 +586,7 @@ function approveBorrow(data, e) {
   }
   
   Logger.log('requestId:', requestId);
+  Logger.log('requestId type:', typeof requestId);
   
   if (!requestId) {
     return errorResponse('缺少 request_id');
@@ -596,14 +597,23 @@ function approveBorrow(data, e) {
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
   if (!borrowRequestSheet) {
+    Logger.log('找不到借用申請工作表:', BORROW_REQUEST_SHEET_NAME);
     return errorResponse('找不到借用申請工作表');
   }
+  
   const pendingData = borrowRequestSheet.getDataRange().getValues();
+  Logger.log('借用申請工作表共有 ' + pendingData.length + ' 列');
+  Logger.log('標題列:', JSON.stringify(pendingData[0]));
+  
   let foundRow = -1;
   let requestData = null;
   
   for (let i = 1; i < pendingData.length; i++) {
-    if (pendingData[i][0] === requestId) {
+    const rowRequestId = pendingData[i][0];
+    Logger.log(`比對第 ${i+1} 列: "${rowRequestId}" (type: ${typeof rowRequestId}) vs "${requestId}" (type: ${typeof requestId})`);
+    
+    // 使用寬鬆比對（轉為字串）
+    if (rowRequestId && rowRequestId.toString() === requestId.toString()) {
       foundRow = i + 1;
       requestData = {
         fix_no: pendingData[i][1],
@@ -614,16 +624,19 @@ function approveBorrow(data, e) {
         dt_due: pendingData[i][6],
         keeper: pendingData[i][7]
       };
+      Logger.log('找到匹配的請求，資料:', JSON.stringify(requestData));
       break;
     }
   }
   
   if (foundRow === -1 || !requestData) {
+    Logger.log('找不到該借用請求或已處理，requestId:', requestId);
     return errorResponse('找不到該借用請求或已處理');
   }
   
   // 更新借用請求狀態為 approved
   borrowRequestSheet.getRange(foundRow, 9).setValue('approved');
+  Logger.log('已更新借用請求狀態為 approved');
   
   // 在設備工作表中更新為借用狀態
   const fixNoCol = COLS.fix_no;
@@ -822,6 +835,10 @@ function getBorrowRequest(data, e) {
     requestId = e.parameter.request_id;
   }
   
+  Logger.log('=== getBorrowRequest 開始 ===');
+  Logger.log('requestId:', requestId);
+  Logger.log('requestId type:', typeof requestId);
+  
   if (!requestId) {
     return errorResponse('缺少 request_id');
   }
@@ -831,12 +848,21 @@ function getBorrowRequest(data, e) {
   // 查找借用請求
   let borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
   if (!borrowRequestSheet) {
+    Logger.log('找不到借用申請工作表:', BORROW_REQUEST_SHEET_NAME);
     return errorResponse('找不到借用申請工作表');
   }
+  
   const pendingData = borrowRequestSheet.getDataRange().getValues();
+  Logger.log('借用申請工作表共有 ' + pendingData.length + ' 列');
+  Logger.log('標題列:', JSON.stringify(pendingData[0]));
   
   for (let i = 1; i < pendingData.length; i++) {
-    if (pendingData[i][0] === requestId) {
+    const rowRequestId = pendingData[i][0];
+    Logger.log(`比對第 ${i+1} 列: requestId="${rowRequestId}" (type: ${typeof rowRequestId}) vs 輸入="${requestId}" (type: ${typeof requestId})`);
+    
+    // 使用寬鬆比對（轉為字串）
+    if (rowRequestId && rowRequestId.toString() === requestId.toString()) {
+      Logger.log('找到匹配的請求！');
       return successResponse({
         fix_no: pendingData[i][1],
         device_name: pendingData[i][2],
@@ -850,6 +876,7 @@ function getBorrowRequest(data, e) {
     }
   }
   
+  Logger.log('找不到該借用請求，requestId:', requestId);
   return errorResponse('找不到該借用請求');
 }
 
