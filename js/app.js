@@ -419,8 +419,6 @@ function openBorrowModal(fixNo, deviceName, keeper) {
       borrowEmailInput.value = '';
     }
   }
-    }
-  }
   
   // 設定最小日期為今天（台北時間）
   const now = new Date();
