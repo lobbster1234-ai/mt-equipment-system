@@ -563,7 +563,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const fixNo = document.getElementById('borrow-fix-no').value;
       const borrower = document.getElementById('borrow-name').value;
       const dtDue = document.getElementById('borrow-due-date').value;
-      const borrowerEmail = document.getElementById('borrow-email')?.value || '';
+      const borrowerEmailInput = document.getElementById('borrow-email');
+      const borrowerEmail = borrowerEmailInput?.value?.trim() || '';
+      
+      // 管理員借用時，如果沒有填 email，使用登入時的 email
+      let finalEmail = borrowerEmail;
+      if (!isGuest && !borrowerEmail && user.email) {
+        finalEmail = user.email;
+        console.log('管理員借用，使用登入 email:', finalEmail);
+      }
       // 今天日期（台北時間）
       const now = new Date();
       const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
@@ -585,7 +593,7 @@ document.addEventListener('DOMContentLoaded', () => {
         result = await requestBorrow({ 
           fix_no: fixNo, 
           borrower: borrower, 
-          borrower_email: borrowerEmail,
+          borrower_email: finalEmail,
           dt_borrow: dtBorrow, 
           dt_due: dtDue 
         });
@@ -594,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
         result = await submitBorrow({ 
           fix_no: fixNo, 
           borrower: borrower, 
-          borrower_email: borrowerEmail,
+          borrower_email: finalEmail,
           dt_borrow: dtBorrow, 
           dt_due: dtDue 
         });
