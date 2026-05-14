@@ -194,32 +194,13 @@
             return;
           }
           
-          // 先快取 email（使用登入的 email）
-          const cachedUser = {
+          // 直接快取並跳轉，不等待 email 查詢
+          localStorage.setItem('mt_user', JSON.stringify({
             role: 'admin',
             email: email,
             name: data.name,
             timestamp: Date.now()
-          };
-          localStorage.setItem('mt_user', JSON.stringify(cachedUser));
-          
-          // 背景更新 email（不等待，不影響跳轉速度）
-          (async () => {
-            try {
-              const emailUrl = new URL(GAS_URL);
-              emailUrl.searchParams.append('action', 'getEmailByName');
-              emailUrl.searchParams.append('name', data.name);
-              const emailRes = await fetch(emailUrl.toString(), { method: 'GET', redirect: 'follow' });
-              const emailData = await emailRes.json();
-              if (emailData.success && emailData.email) {
-                cachedUser.email = emailData.email;
-                localStorage.setItem('mt_user', JSON.stringify(cachedUser));
-              }
-            } catch (e) {
-              console.log('背景更新 email 失敗');
-            }
-          })();
-          
+          }));
           window.location.href = './index.html';
         } else {
           showError(data.error || '登入失敗');
