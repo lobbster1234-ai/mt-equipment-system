@@ -176,14 +176,23 @@ function renderEquipment(equipment) {
             </thead>
             <tbody>
               ${items.map(eq => {
-                const isAvailable = eq.status === 'available' || eq.status === '可借用' || !eq.status;
-                const isBorrowPending = eq.status === 'borrow_pending' || eq.status === '借用審核中';
-                const isReturnPending = eq.status === 'return_pending' || eq.status === '歸還認證中';
+                // 標準化狀態值（處理大小寫和空格）
+                const rawStatus = (eq.status || '').toString().trim().toLowerCase();
+                const isAvailable = rawStatus === 'available' || rawStatus === '可借用' || rawStatus === '';
+                const isBorrowed = rawStatus === 'borrowed' || rawStatus === '已借出' || rawStatus === '借用中';
+                const isBorrowPending = rawStatus === 'borrow_pending' || rawStatus === '借用審核中';
+                const isReturnPending = rawStatus === 'return_pending' || rawStatus === '歸還認證中';
                 const isConfirmed = eq.return_confirmed === true || eq.return_confirmed === 'true' || eq.return_confirmed === 1;
+                
+                // 除錯：記錄每個設備的狀態
+                console.log(`設備 ${eq.fix_no} 狀態: "${eq.status}" (raw: "${rawStatus}") => available=${isAvailable}, borrowed=${isBorrowed}, borrowPending=${isBorrowPending}`);
                 
                 let statusHtml;
                 if (isAvailable) {
                   statusHtml = '<span style="color:#0a0;">✅ 可借用</span>';
+                } else if (isBorrowed) {
+                  // 明確是 borrowed 狀態
+                  statusHtml = '<span style="color:#c00;">📤 借用中</span>';
                 } else if (isBorrowPending) {
                   statusHtml = '<span style="color:#ffc107;">⏳ 借用審核中</span>';
                 } else if (isReturnPending) {
@@ -191,6 +200,7 @@ function renderEquipment(equipment) {
                 } else if (isConfirmed) {
                   statusHtml = '<span style="color:#999;">✅ 已確認</span>';
                 } else {
+                  // 其他情況（可能是借用中但未明確標記）
                   statusHtml = '<span style="color:#c00;">📤 借用中</span>';
                 }
                 
@@ -227,7 +237,7 @@ function renderEquipment(equipment) {
                     <td>
                       ${statusHtml}
                       <div style="margin-top:5px;">${actionButton}</div>
-                      ${(isBorrowPending || isReturnPending || (!isAvailable && !isBorrowPending && !isReturnPending)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${eq.borrower} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
+                      ${(isBorrowed || isBorrowPending || isReturnPending || (!isAvailable && !isBorrowed && !isBorrowPending && !isReturnPending && !isConfirmed)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${eq.borrower} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
                     </td>
                   </tr>
                 `;
