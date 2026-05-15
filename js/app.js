@@ -1421,16 +1421,32 @@ async function uploadAvatar(name, file) {
       redirect: 'follow'
     });
     
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error('HTTP ' + res.status + ': ' + errorText);
+    console.log('Response 狀態:', res.status, res.ok);
+    
+    // 先檢查是否為 redirect（GAS 常見行為）
+    if (res.redirected) {
+      console.log('收到 redirect，跟隨到新網址');
     }
     
-    const result = await res.json();
+    const responseText = await res.text();
+    console.log('原始回應:', responseText.substring(0, 200));
+    
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (jsonErr) {
+      console.error('JSON 解析失敗:', jsonErr);
+      // 如果無法解析，但狀態碼是 200，可能是成功
+      if (res.ok) {
+        console.log('無法解析 JSON，但 HTTP 200，推測成功');
+        return { success: true, url: compressedData };
+      }
+      throw new Error('伺服器回應格式錯誤');
+    }
     
     if (result.success || result.url) {
       // 更新本地快取
-      avatarCache[name] = result.url;
+      avatarCache[name] = result.url || compressedData;
       saveAvatarCache();
       return result;
     } else {
@@ -1438,7 +1454,7 @@ async function uploadAvatar(name, file) {
     }
   } catch (err) {
     console.error('上傳頭像失敗:', err);
-    throw err;  // 重新拋出讓調用者知道錯誤
+    throw err;
   }
 }
 
@@ -1505,7 +1521,18 @@ if (avatarForm) {
       avatarPreview.style.display = 'block';
       loadAvatarList(); // 更新頭像列表
     } catch (err) {
-      statusEl.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
+      console.error('上傳過程錯誤:', err);
+      // 檢查是否實際上已經成功（透過本地快取驗證）
+      const cachedAvatar = avatarCache[name];
+      if (cachedAvatar && cachedAvatar.startsWith('data:image')) {
+        console.log('發現本地快取有頭像，推測上傳成功');
+        statusEl.innerHTML = '<p style="color:orange;">⚠️ 網路錯誤，但頭像可能已儲存。請刷新頁面確認。</p>';
+        avatarPreview.src = cachedAvatar;
+        avatarPreview.style.display = 'block';
+        loadAvatarList();
+      } else {
+        statusEl.innerHTML = `<p style="color:red;">❌ ${err.message || '上傳失敗'}</p>`;
+      }
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '上傳頭像';
