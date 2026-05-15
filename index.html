@@ -46,10 +46,20 @@
         if (myEquipBtn) {
           myEquipBtn.style.display = 'none';
         }
+        // 隱藏「個人設定」按鈕（訪客不需要上傳頭像）
+        const settingsBtn = document.querySelector('[data-tab="settings"]');
+        if (settingsBtn) {
+          settingsBtn.style.display = 'none';
+        }
         // 隱藏「我的設備」區塊
         const myEquipSection = document.getElementById('my-equipment-tab');
         if (myEquipSection) {
           myEquipSection.style.display = 'none';
+        }
+        // 隱藏「個人設定」區塊
+        const settingsSection = document.getElementById('settings-tab');
+        if (settingsSection) {
+          settingsSection.style.display = 'none';
         }
       }
       
