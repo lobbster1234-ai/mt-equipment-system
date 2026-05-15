@@ -1304,44 +1304,28 @@ async function loadAvatarList() {
     }
   }
   
-  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">🔄 載入中...</p>';
+  // 從本地快取載入頭像列表（避免 CORB 問題）
+  loadAvatarCache();
   
-  try {
-    // 從 GAS 取得頭像列表
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'getAvatarList');
-    
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const data = await res.json();
-    const avatars = Array.isArray(data) ? data : (data.data || data.result || []);
-    
-    if (!avatars || avatars.length === 0) {
-      listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
-      return;
-    }
-    
-    // 更新本地快取
-    avatars.forEach(item => {
-      if (item.name && item.avatar_url) {
-        avatarCache[item.name] = item.avatar_url;
-      }
-    });
-    saveAvatarCache();
-    
-    // 顯示頭像列表
-    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
-    for (const [name, url] of Object.entries(avatarCache)) {
-      html += `
-        <div style="text-align:center;">
-          <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
-          <div style="font-size:0.85em;margin-top:5px;">${name}</div>
-        </div>
-      `;
-    }
+  const avatarCount = Object.keys(avatarCache).length;
+  
+  if (avatarCount === 0) {
+    listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
+    return;
+  }
+  
+  // 顯示頭像列表
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
+  for (const [name, url] of Object.entries(avatarCache)) {
+    html += `
+      <div style="text-align:center;">
+        <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
+        <div style="font-size:0.85em;margin-top:5px;">${name}</div>
+      </div>
+    `;
+  }
+  html += '</div>';
+  listEl.innerHTML = html;
     html += '</div>';
     listEl.innerHTML = html;
   } catch (err) {
