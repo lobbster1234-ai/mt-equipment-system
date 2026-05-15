@@ -1304,28 +1304,50 @@ async function loadAvatarList() {
     }
   }
   
-  // 從本地快取載入頭像列表（避免 CORB 問題）
-  loadAvatarCache();
+  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">🔄 載入中...</p>';
   
-  const avatarCount = Object.keys(avatarCache).length;
-  
-  if (avatarCount === 0) {
-    listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
-    return;
+  try {
+    // 從 GAS 取得頭像列表
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'getAvatarList');
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const data = await res.json();
+    const avatars = Array.isArray(data) ? data : (data.data || data.result || []);
+    
+    if (!avatars || avatars.length === 0) {
+      listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
+      return;
+    }
+    
+    // 更新本地快取
+    avatars.forEach(item => {
+      if (item.name && item.avatar_url) {
+        avatarCache[item.name] = item.avatar_url;
+      }
+    });
+    saveAvatarCache();
+    
+    // 顯示頭像列表
+    let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
+    for (const [name, url] of Object.entries(avatarCache)) {
+      html += `
+        <div style="text-align:center;">
+          <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
+          <div style="font-size:0.85em;margin-top:5px;">${name}</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+    listEl.innerHTML = html;
+  } catch (err) {
+    console.error('載入頭像列表失敗:', err);
+    listEl.innerHTML = `<p style="color:red;">❌ 載入失敗：${err.message}</p>`;
   }
-  
-  // 顯示頭像列表
-  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:15px;">';
-  for (const [name, url] of Object.entries(avatarCache)) {
-    html += `
-      <div style="text-align:center;">
-        <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
-        <div style="font-size:0.85em;margin-top:5px;">${name}</div>
-      </div>
-    `;
-  }
-  html += '</div>';
-  listEl.innerHTML = html;
 }
 
 /**
@@ -1381,45 +1403,45 @@ async function uploadAvatar(name, file) {
     
     console.log('頭像上傳開始，data URL 長度:', compressedData.length);
     
-    // 使用 POST 請求傳送（避免 URL 過長）
-    const postData = {
-      action: 'uploadAvatar',
-      user_name: name,
-      image_data: compressedData
-    };
+    // 使用 GET 請求傳送
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'uploadAvatar');
+    url.searchParams.append('user_name', name);
+    url.searchParams.append('image_data', compressedData);
     
-    console.log('POST data 大小:', JSON.stringify(postData).length);
+    console.log('GET URL 長度:', url.toString().length);
     
-    try {
-      // 嘗試發送到 GAS（可能因 CORB 失敗）
-      const res = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(postData),
-        redirect: 'follow'
-      });
-      
-      console.log('Response 狀態:', res.status);
-    } catch (networkErr) {
-      console.log('網路請求錯誤（可能是 CORB）:', networkErr.message);
+    // 檢查 URL 是否太長（超過 8000 字元可能會失敗）
+    if (url.toString().length > 8000) {
+      console.warn('URL 太長，可能失敗，嘗試再次壓縮...');
+      const recompressed = await compressImage(file, 80, 0.5);
+      url.searchParams.set('image_data', recompressed);
+      console.log('再次壓縮後 URL 長度:', url.toString().length);
     }
     
-    // 無論 GAS 是否成功，都儲存到本地快取
-    console.log('儲存到本地快取');
-    avatarCache[name] = compressedData;
-    saveAvatarCache();
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
     
-    return { 
-      success: true, 
-      url: compressedData,
-      message: '頭像已儲存'
-    };
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error('HTTP ' + res.status + ': ' + errorText);
+    }
     
+    const result = await res.json();
+    
+    if (result.success || result.url) {
+      // 更新本地快取
+      avatarCache[name] = result.url;
+      saveAvatarCache();
+      return result;
+    } else {
+      throw new Error(result.error || '上傳失敗');
+    }
   } catch (err) {
     console.error('上傳頭像失敗:', err);
-    throw err;
+    throw err;  // 重新拋出讓調用者知道錯誤
   }
 }
 
@@ -1486,18 +1508,7 @@ if (avatarForm) {
       avatarPreview.style.display = 'block';
       loadAvatarList(); // 更新頭像列表
     } catch (err) {
-      console.error('上傳過程錯誤:', err);
-      // 檢查是否實際上已經成功（透過本地快取驗證）
-      const cachedAvatar = avatarCache[name];
-      if (cachedAvatar && cachedAvatar.startsWith('data:image')) {
-        console.log('發現本地快取有頭像，推測上傳成功');
-        statusEl.innerHTML = '<p style="color:orange;">⚠️ 網路錯誤，但頭像可能已儲存。請刷新頁面確認。</p>';
-        avatarPreview.src = cachedAvatar;
-        avatarPreview.style.display = 'block';
-        loadAvatarList();
-      } else {
-        statusEl.innerHTML = `<p style="color:red;">❌ ${err.message || '上傳失敗'}</p>`;
-      }
+      statusEl.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '上傳頭像';
