@@ -678,7 +678,7 @@ async function registerEquipment(formData) {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'register');
     url.searchParams.append('fix_type', formData.fix_type);
-    url.searchParams.append('fix_no', formData.fix_no || '');
+    // 不傳 fix_no，讓 GAS 自動產生
     url.searchParams.append('device_name', formData.device_name);
     url.searchParams.append('qty_asset', formData.qty_asset || '1');
     url.searchParams.append('keeper', formData.keeper || '');
@@ -693,7 +693,8 @@ async function registerEquipment(formData) {
     const result = await res.json();
 
     if (result.success || result.status === 'success') {
-      return { success: true, message: '✅ 設備登記成功！' };
+      const fixNo = result.fix_no || '';
+      return { success: true, message: result.message || `✅ 設備登記成功！`, fix_no: fixNo };
     } else {
       throw new Error(result.error || '登記失敗');
     }
