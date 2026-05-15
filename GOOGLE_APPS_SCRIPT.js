@@ -318,7 +318,7 @@ function generateEquipmentNo() {
     
     const lastRow = sheet.getLastRow();
     for (let i = 2; i <= lastRow; i++) {
-      const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue() || '';
+      const fixNo = (sheet.getRange(i, COLS.fix_no + 1).getValue() || '').toString();
       if (fixNo.startsWith(prefix)) {
         const seqStr = fixNo.substring(prefix.length);
         const seqNum = parseInt(seqStr, 10);
