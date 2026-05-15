@@ -1382,25 +1382,49 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
  */
 async function uploadAvatar(name, file) {
   try {
-    // 壓縮圖片到 150x150，品質 0.8
+    // 壓縮圖片到 150x150，品質 0.8（更清楚）
     const compressedData = await compressImage(file, 150, 0.8);
     
-    console.log('頭像儲存到本地快取，大小:', compressedData.length);
+    console.log('頭像上傳開始，data URL 長度:', compressedData.length);
     
-    // 只儲存到本地快取，不上傳到 GAS
+    // 使用 POST 請求傳送（避免 URL 過長）
+    const postData = {
+      action: 'uploadAvatar',
+      user_name: name,
+      image_data: compressedData
+    };
+    
+    console.log('POST data 大小:', JSON.stringify(postData).length);
+    
+    try {
+      // 嘗試發送到 GAS（可能因 CORB 失敗）
+      const res = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(postData),
+        redirect: 'follow'
+      });
+      
+      console.log('Response 狀態:', res.status);
+    } catch (networkErr) {
+      console.log('網路請求錯誤（可能是 CORB）:', networkErr.message);
+    }
+    
+    // 無論 GAS 是否成功，都儲存到本地快取
+    console.log('儲存到本地快取');
     avatarCache[name] = compressedData;
     saveAvatarCache();
-    
-    console.log('頭像已成功儲存到本地');
     
     return { 
       success: true, 
       url: compressedData,
-      message: '頭像已儲存到本地'
+      message: '頭像已儲存'
     };
     
   } catch (err) {
-    console.error('儲存頭像失敗:', err);
+    console.error('上傳頭像失敗:', err);
     throw err;
   }
 }
