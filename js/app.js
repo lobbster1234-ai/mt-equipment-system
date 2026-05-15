@@ -1403,24 +1403,21 @@ async function uploadAvatar(name, file) {
     
     console.log('頭像上傳開始，data URL 長度:', compressedData.length);
     
-    // 使用 GET 請求傳送
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'uploadAvatar');
-    url.searchParams.append('user_name', name);
-    url.searchParams.append('image_data', compressedData);
+    // 使用 POST 請求傳送（避免 URL 過長）
+    const postData = {
+      action: 'uploadAvatar',
+      user_name: name,
+      image_data: compressedData
+    };
     
-    console.log('GET URL 長度:', url.toString().length);
+    console.log('POST data 大小:', JSON.stringify(postData).length);
     
-    // 檢查 URL 是否太長（超過 8000 字元可能會失敗）
-    if (url.toString().length > 8000) {
-      console.warn('URL 太長，可能失敗，嘗試再次壓縮...');
-      const recompressed = await compressImage(file, 80, 0.5);
-      url.searchParams.set('image_data', recompressed);
-      console.log('再次壓縮後 URL 長度:', url.toString().length);
-    }
-    
-    const res = await fetch(url.toString(), {
-      method: 'GET',
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(postData),
       redirect: 'follow'
     });
     
