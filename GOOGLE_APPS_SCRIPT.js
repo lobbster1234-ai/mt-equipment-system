@@ -298,56 +298,18 @@ function queryEquipment(params) {
 /**
  * 登記設備
  */
-/**
- * 自動產生設備編號
- * 格式：MT-YYYYMMDD-XXX（XXX 為流水號）
- */
-function generateEquipmentNo() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const today = new Date();
-  const dateStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyyMMdd');
-  const prefix = 'MT-' + dateStr + '-';
-  
-  // 取得所有工作表的最大流水號
-  const sheets = [SHEET_NAME, SHEET_NAME_WEB];
-  let maxSeq = 0;
-  
-  sheets.forEach(sheetName => {
-    const sheet = ss.getSheetByName(sheetName);
-    if (!sheet) return;
-    
-    const lastRow = sheet.getLastRow();
-    for (let i = 2; i <= lastRow; i++) {
-      const fixNo = (sheet.getRange(i, COLS.fix_no + 1).getValue() || '').toString();
-      if (fixNo.startsWith(prefix)) {
-        const seqStr = fixNo.substring(prefix.length);
-        const seqNum = parseInt(seqStr, 10);
-        if (!isNaN(seqNum) && seqNum > maxSeq) {
-          maxSeq = seqNum;
-        }
-      }
-    }
-  });
-  
-  const newSeq = maxSeq + 1;
-  const seqStr = newSeq.toString().padStart(3, '0');
-  return prefix + seqStr;
-}
-
 function registerEquipment(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  // 網站新增的設備寫入「網站新增設備」工作表
   const sheet = ss.getSheetByName(SHEET_NAME_WEB);
   
   if (!sheet) {
     return errorResponse(`找不到工作表：${SHEET_NAME_WEB}，請先建立此工作表`);
   }
   
-  // 自動產生設備編號（格式：MT-YYYYMMDD-XXX）
-  const autoFixNo = generateEquipmentNo();
-  
   const newRow = [
     data.fix_type || '',
-    autoFixNo,
+    data.fix_no || '',
     data.device_name || '',
     data.qty_asset || '1',
     data.keeper || '',
@@ -363,8 +325,8 @@ function registerEquipment(data) {
   
   return successResponse({
     success: true,
-    message: `設備登記成功！編號：${autoFixNo}`,
-    fix_no: autoFixNo
+    message: '設備登記成功（已存入網站新增設備工作表）',
+    fix_no: data.fix_no
   });
 }
 

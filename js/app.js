@@ -678,7 +678,7 @@ async function registerEquipment(formData) {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'register');
     url.searchParams.append('fix_type', formData.fix_type);
-    // 不傳 fix_no，讓 GAS 自動產生
+    url.searchParams.append('fix_no', formData.fix_no || '');
     url.searchParams.append('device_name', formData.device_name);
     url.searchParams.append('qty_asset', formData.qty_asset || '1');
     url.searchParams.append('keeper', formData.keeper || '');
@@ -693,8 +693,7 @@ async function registerEquipment(formData) {
     const result = await res.json();
 
     if (result.success || result.status === 'success') {
-      const fixNo = result.fix_no || '';
-      return { success: true, message: result.message || `✅ 設備登記成功！`, fix_no: fixNo };
+      return { success: true, message: '✅ 設備登記成功！' };
     } else {
       throw new Error(result.error || '登記失敗');
     }
@@ -1504,18 +1503,12 @@ if (avatarForm) {
     
     try {
       const result = await uploadAvatar(name, file);
-      // 無論上傳是否成功，都顯示成功（因為已經儲存到本地快取）
       statusEl.innerHTML = '<p style="color:green;">✅ 頭像上傳成功！</p>';
       avatarPreview.src = result.url;
       avatarPreview.style.display = 'block';
       loadAvatarList(); // 更新頭像列表
     } catch (err) {
-      // 即使失敗，也顯示成功（本地快取已儲存）
-      console.log('上傳顯示錯誤但本地已儲存:', err.message);
-      statusEl.innerHTML = '<p style="color:green;">✅ 頭像上傳成功！</p>';
-      avatarPreview.src = URL.createObjectURL(file);
-      avatarPreview.style.display = 'block';
-      loadAvatarList();
+      statusEl.innerHTML = `<p style="color:red;">❌ ${err.message}</p>`;
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '上傳頭像';
