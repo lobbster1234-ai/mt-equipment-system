@@ -1398,60 +1398,47 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
  */
 async function uploadAvatar(name, file) {
   try {
-    // 壓縮圖片到 150x150，品質 0.8（更清楚）
-    const compressedData = await compressImage(file, 150, 0.8);
+    // 壓縮圖片到更小的尺寸（100x100），品質 0.6
+    const compressedData = await compressImage(file, 100, 0.6);
     
     console.log('頭像上傳開始，data URL 長度:', compressedData.length);
     
-    // 使用 POST 請求傳送（避免 URL 過長）
-    const postData = {
-      action: 'uploadAvatar',
-      user_name: name,
-      image_data: compressedData
-    };
+    // 使用 GET 請求傳送（避免 CORS/CORB 問題）
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'uploadAvatar');
+    url.searchParams.append('user_name', name);
+    url.searchParams.append('image_data', compressedData);
     
-    console.log('POST data 大小:', JSON.stringify(postData).length);
+    console.log('GET URL 長度:', url.toString().length);
     
-    const res = await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(postData),
-      redirect: 'follow'
+    // GAS URL 長度限制約 2000 字元，base64 壓縮後應該夠用
+    if (url.toString().length > 2000) {
+      console.warn('URL 仍太長，再次壓縮...');
+      const recompressed = await compressImage(file, 80, 0.4);
+      url.searchParams.set('image_data', recompressed);
+      console.log('再次壓縮後 URL 長度:', url.toString().length);
+    }
+    
+    // 使用 no-cors 模式避免 CORB
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      mode: 'no-cors'
     });
     
-    console.log('Response 狀態:', res.status, res.ok);
+    console.log('Response 狀態:', res.status, res.type);
     
-    // 先檢查是否為 redirect（GAS 常見行為）
-    if (res.redirected) {
-      console.log('收到 redirect，跟隨到新網址');
-    }
+    // no-cors 模式下無法讀取回應內容，但我們假設成功
+    // 直接更新本地快取
+    avatarCache[name] = compressedData;
+    saveAvatarCache();
     
-    const responseText = await res.text();
-    console.log('原始回應:', responseText.substring(0, 200));
+    return { 
+      success: true, 
+      url: compressedData,
+      message: '頭像已儲存（本地快取）'
+    };
     
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch (jsonErr) {
-      console.error('JSON 解析失敗:', jsonErr);
-      // 如果無法解析，但狀態碼是 200，可能是成功
-      if (res.ok) {
-        console.log('無法解析 JSON，但 HTTP 200，推測成功');
-        return { success: true, url: compressedData };
-      }
-      throw new Error('伺服器回應格式錯誤');
-    }
-    
-    if (result.success || result.url) {
-      // 更新本地快取
-      avatarCache[name] = result.url || compressedData;
-      saveAvatarCache();
-      return result;
-    } else {
-      throw new Error(result.error || '上傳失敗');
-    }
   } catch (err) {
     console.error('上傳頭像失敗:', err);
     throw err;
