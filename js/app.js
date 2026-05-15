@@ -1326,12 +1326,6 @@ async function loadAvatarList() {
   }
   html += '</div>';
   listEl.innerHTML = html;
-    html += '</div>';
-    listEl.innerHTML = html;
-  } catch (err) {
-    console.error('載入頭像列表失敗:', err);
-    listEl.innerHTML = `<p style="color:red;">❌ 載入失敗：${err.message}</p>`;
-  }
 }
 
 /**
