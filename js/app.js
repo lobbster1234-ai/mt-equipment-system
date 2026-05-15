@@ -1398,62 +1398,25 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
  */
 async function uploadAvatar(name, file) {
   try {
-    // 大幅壓縮圖片（80x80，品質 0.5）確保 URL 不會太長
-    const compressedData = await compressImage(file, 80, 0.5);
+    // 壓縮圖片到 150x150，品質 0.8
+    const compressedData = await compressImage(file, 150, 0.8);
     
-    console.log('頭像上傳開始，data URL 長度:', compressedData.length);
+    console.log('頭像儲存到本地快取，大小:', compressedData.length);
     
-    // 使用 GET 請求傳送
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'uploadAvatar');
-    url.searchParams.append('user_name', name);
-    url.searchParams.append('image_data', compressedData);
+    // 只儲存到本地快取，不上傳到 GAS
+    avatarCache[name] = compressedData;
+    saveAvatarCache();
     
-    const urlString = url.toString();
-    console.log('GET URL 長度:', urlString.length);
+    console.log('頭像已成功儲存到本地');
     
-    // 如果 URL 超過 2000 字元，再次壓縮
-    if (urlString.length > 2000) {
-      console.warn('URL 太長，極端壓縮...');
-      const extremeCompressed = await compressImage(file, 50, 0.3);
-      url.searchParams.set('image_data', extremeCompressed);
-      console.log('極端壓縮後 URL 長度:', url.toString().length);
-    }
-    
-    // 使用圖片請求方式（避免 CORB）
-    return new Promise((resolve, reject) => {
-      // 創建一個隱藏的圖片元素來發送請求
-      const img = new Image();
-      const timeout = setTimeout(() => {
-        // 超時但仍認為成功（GAS 應該已處理）
-        console.log('圖片載入超時，推測成功');
-        avatarCache[name] = compressedData;
-        saveAvatarCache();
-        resolve({ success: true, url: compressedData });
-      }, 3000);
-      
-      img.onload = function() {
-        clearTimeout(timeout);
-        console.log('圖片載入成功，頭像已儲存');
-        avatarCache[name] = compressedData;
-        saveAvatarCache();
-        resolve({ success: true, url: compressedData });
-      };
-      
-      img.onerror = function() {
-        clearTimeout(timeout);
-        console.log('圖片載入失敗，但仍推測成功（CORS 限制）');
-        avatarCache[name] = compressedData;
-        saveAvatarCache();
-        resolve({ success: true, url: compressedData });
-      };
-      
-      // 設置圖片 src 觸發請求
-      img.src = url.toString();
-    });
+    return { 
+      success: true, 
+      url: compressedData,
+      message: '頭像已儲存到本地'
+    };
     
   } catch (err) {
-    console.error('上傳頭像失敗:', err);
+    console.error('儲存頭像失敗:', err);
     throw err;
   }
 }
