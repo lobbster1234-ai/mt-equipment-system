@@ -589,8 +589,12 @@ function openReturnModal(fixNo, deviceName, borrower) {
   // 設定預設日期時間為現在（台北時間），四捨五入到最接近的整點
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  const hours = taipeiTime.getUTCHours();
-  const minutes = taipeiTime.getUTCMinutes();
+  
+  // 從 ISO 字串解析台北時間（避免 UTC 轉換問題）
+  const isoStr = taipeiTime.toISOString(); // 2026-05-20T08:55:00.000Z
+  const hours = parseInt(isoStr.slice(11, 13), 10);
+  const minutes = parseInt(isoStr.slice(14, 16), 10);
+  const datePart = isoStr.slice(0, 10); // 2026-05-20
   
   // 四捨五入到最接近的整點
   let newHours = hours;
@@ -599,14 +603,15 @@ function openReturnModal(fixNo, deviceName, borrower) {
   }
   
   // 處理跨日
-  let newYear = taipeiTime.getUTCFullYear();
-  let newMonth = taipeiTime.getUTCMonth() + 1;
-  let newDay = taipeiTime.getUTCDate();
-  
+  let newDatePart = datePart;
   if (newHours >= 24) {
     newHours = 0;
-    newDay++;
-    const daysInMonth = new Date(newYear, newMonth, 0).getDate();
+    const [y, m, d] = datePart.split('-').map(Number);
+    let newDay = d + 1;
+    let newMonth = m;
+    let newYear = y;
+    
+    const daysInMonth = new Date(y, m, 0).getDate();
     if (newDay > daysInMonth) {
       newDay = 1;
       newMonth++;
@@ -615,13 +620,15 @@ function openReturnModal(fixNo, deviceName, borrower) {
         newYear++;
       }
     }
+    
+    const yStr = String(newYear);
+    const mStr = String(newMonth).padStart(2, '0');
+    const dStr = String(newDay).padStart(2, '0');
+    newDatePart = `${yStr}-${mStr}-${dStr}`;
   }
   
-  const yStr = String(newYear);
-  const mStr = String(newMonth).padStart(2, '0');
-  const dStr = String(newDay).padStart(2, '0');
   const hStr = String(newHours).padStart(2, '0');
-  const taipeiDateTime = `${yStr}-${mStr}-${dStr}T${hStr}:00`;
+  const taipeiDateTime = `${newDatePart}T${hStr}:00`;
   
   const returnDateInput = document.getElementById('return-date');
   if (returnDateInput) {
