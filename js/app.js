@@ -492,7 +492,19 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
   taipeiTime.setMinutes(0, 0, 0); // 強制整點
   const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
-  document.getElementById('borrow-due-date').min = taipeiDateTime;
+  const borrowDueDateInput = document.getElementById('borrow-due-date');
+  if (borrowDueDateInput) {
+    borrowDueDateInput.min = taipeiDateTime;
+    
+    // 監聽變更事件，強制改為整點
+    borrowDueDateInput.addEventListener('change', function() {
+      if (this.value) {
+        const date = new Date(this.value);
+        date.setMinutes(0, 0, 0);
+        this.value = date.toISOString().slice(0, 16);
+      }
+    });
+  }
   
   if (modal) modal.style.display = 'block';
 }
