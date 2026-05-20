@@ -496,7 +496,7 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   if (borrowDueDateInput) {
     borrowDueDateInput.min = taipeiDateTime;
     
-    // 監聽變更事件，強制改為最接近的整點（四捨五入）
+    // 監聽變更事件，強制改為最接近的整點（四捨五入）- borrowDueDateInput
     borrowDueDateInput.addEventListener('change', function() {
       console.log('借用預計歸還時間變更:', this.value);
       if (this.value) {
@@ -520,13 +520,18 @@ function openBorrowModal(fixNo, deviceName, keeper) {
           console.log('進位到下一小時:', newHours);
         }
         
-        // 處理跨日（例如 23:30 -> 00:00）
+        // 處理跨日（例如 23:30 -> 00:00）- 直接操作日期字串避免時區問題
         let newDatePart = datePart;
         if (newHours >= 24) {
           newHours = 0;
-          const date = new Date(datePart + 'T00:00');
-          date.setDate(date.getDate() + 1);
-          newDatePart = date.toISOString().split('T')[0];
+          // 解析日期字串
+          const [year, month, day] = datePart.split('-').map(Number);
+          // 計算隔天日期
+          const nextDate = new Date(year, month - 1, day + 1); // 月份是0-indexed
+          const y = nextDate.getFullYear();
+          const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+          const d = String(nextDate.getDate()).padStart(2, '0');
+          newDatePart = `${y}-${m}-${d}`;
         }
         
         // 格式化新值
@@ -2011,7 +2016,7 @@ document.addEventListener('DOMContentLoaded', function() {
   if (deptDateInput) {
     deptDateInput.min = taipeiDateTime;
     
-    // 監聽變更事件，強制改為最接近的整點（四捨五入）
+    // 監聽變更事件，強制改為最接近的整點（四捨五入）- deptDateInput
     deptDateInput.addEventListener('change', function() {
       if (this.value) {
         // datetime-local 格式: 2026-05-20T14:46
@@ -2030,13 +2035,18 @@ document.addEventListener('DOMContentLoaded', function() {
           newHours = hours + 1;
         }
         
-        // 處理跨日（例如 23:30 -> 00:00）
+        // 處理跨日（例如 23:30 -> 00:00）- 直接操作日期字串避免時區問題
         let newDatePart = datePart;
         if (newHours >= 24) {
           newHours = 0;
-          const date = new Date(datePart + 'T00:00');
-          date.setDate(date.getDate() + 1);
-          newDatePart = date.toISOString().split('T')[0];
+          // 解析日期字串
+          const [year, month, day] = datePart.split('-').map(Number);
+          // 計算隔天日期
+          const nextDate = new Date(year, month - 1, day + 1); // 月份是0-indexed
+          const y = nextDate.getFullYear();
+          const m = String(nextDate.getMonth() + 1).padStart(2, '0');
+          const d = String(nextDate.getDate()).padStart(2, '0');
+          newDatePart = `${y}-${m}-${d}`;
         }
         
         // 格式化新值
