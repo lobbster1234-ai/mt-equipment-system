@@ -496,10 +496,15 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   if (borrowDueDateInput) {
     borrowDueDateInput.min = taipeiDateTime;
     
-    // 監聽變更事件，強制改為整點
+    // 監聽變更事件，強制改為最接近的整點（四捨五入）
     borrowDueDateInput.addEventListener('change', function() {
       if (this.value) {
         const date = new Date(this.value);
+        const minutes = date.getMinutes();
+        // 30分鐘以上進位到下一小時，不到30分鐘捨去
+        if (minutes >= 30) {
+          date.setHours(date.getHours() + 1);
+        }
         date.setMinutes(0, 0, 0);
         this.value = date.toISOString().slice(0, 16);
       }
@@ -1979,10 +1984,15 @@ document.addEventListener('DOMContentLoaded', function() {
   if (deptDateInput) {
     deptDateInput.min = taipeiDateTime;
     
-    // 監聽變更事件，強制改為整點
+    // 監聽變更事件，強制改為最接近的整點（四捨五入）
     deptDateInput.addEventListener('change', function() {
       if (this.value) {
         const date = new Date(this.value);
+        const minutes = date.getMinutes();
+        // 30分鐘以上進位到下一小時，不到30分鐘捨去
+        if (minutes >= 30) {
+          date.setHours(date.getHours() + 1);
+        }
         date.setMinutes(0, 0, 0);
         this.value = date.toISOString().slice(0, 16);
       }
