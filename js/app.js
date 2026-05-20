@@ -498,15 +498,28 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     
     // 監聽變更事件，強制改為最接近的整點（四捨五入）
     borrowDueDateInput.addEventListener('change', function() {
+      console.log('借用預計歸還時間變更:', this.value);
       if (this.value) {
-        const date = new Date(this.value);
-        const minutes = date.getMinutes();
-        // 30分鐘以上進位到下一小時，不到30分鐘捨去
+        // datetime-local 格式: 2026-05-20T14:46
+        const [datePart, timePart] = this.value.split('T');
+        const [hours, minutes] = timePart.split(':').map(Number);
+        
+        console.log('原始時間:', this.value, '分鐘:', minutes);
+        
+        // 計算新的整點時間
+        let newHours = hours;
         if (minutes >= 30) {
-          date.setHours(date.getHours() + 1);
+          newHours = hours + 1;
+          console.log('進位到下一小時:', newHours);
+        } else {
+          console.log('捨去分鐘，保持:', newHours);
         }
-        date.setMinutes(0, 0, 0);
-        this.value = date.toISOString().slice(0, 16);
+        
+        // 格式化新值
+        const newHourStr = String(newHours).padStart(2, '0');
+        const newValue = datePart + 'T' + newHourStr + ':00';
+        console.log('修正後時間:', newValue);
+        this.value = newValue;
       }
     });
   }
@@ -1987,14 +2000,20 @@ document.addEventListener('DOMContentLoaded', function() {
     // 監聽變更事件，強制改為最接近的整點（四捨五入）
     deptDateInput.addEventListener('change', function() {
       if (this.value) {
-        const date = new Date(this.value);
-        const minutes = date.getMinutes();
-        // 30分鐘以上進位到下一小時，不到30分鐘捨去
+        // datetime-local 格式: 2026-05-20T14:46
+        const [datePart, timePart] = this.value.split('T');
+        const [hours, minutes] = timePart.split(':').map(Number);
+        
+        // 計算新的整點時間
+        let newHours = hours;
         if (minutes >= 30) {
-          date.setHours(date.getHours() + 1);
+          newHours = hours + 1;
         }
-        date.setMinutes(0, 0, 0);
-        this.value = date.toISOString().slice(0, 16);
+        
+        // 格式化新值
+        const newHourStr = String(newHours).padStart(2, '0');
+        const newValue = datePart + 'T' + newHourStr + ':00';
+        this.value = newValue;
       }
     });
   }
