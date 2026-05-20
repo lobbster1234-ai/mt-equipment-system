@@ -2163,10 +2163,15 @@ function reminderDueSoon() {
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const now = new Date();
+  
+  // 強制 now 為整點（分鐘秒設為00）
+  now.setMinutes(0, 0, 0);
+  
+  // 1小時後的整點
   const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
   
-  Logger.log(`現在時間: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
-  Logger.log(`1小時後: ${Utilities.formatDate(oneHourLater, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
+  Logger.log(`現在時間（整點）: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
+  Logger.log(`1小時後（整點）: ${Utilities.formatDate(oneHourLater, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
   
   // 讀取兩個工作表
   const sheets = [SHEET_NAME, SHEET_NAME_WEB];
@@ -2229,10 +2234,10 @@ function reminderOverdue() {
   Logger.log('=== 逾期提醒檢查開始 ===');
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const today = new Date();
-  const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
-  
   const now = new Date();
+  
+  // 強制 now 為整點
+  now.setMinutes(0, 0, 0);
   
   // 讀取兩個工作表
   const sheets = [SHEET_NAME, SHEET_NAME_WEB];

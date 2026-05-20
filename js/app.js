@@ -331,9 +331,10 @@ async function handleBorrowSubmit() {
     return;
   }
   
-  // 今天日期時間（台北時間）
+  // 今天日期時間（台北時間），強制整點（分鐘設為00）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  taipeiTime.setMinutes(0, 0, 0); // 強制整點
   const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   // 判斷是否為訪客
@@ -486,9 +487,10 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     borrowNameInput.value = '';
   }
   
-  // 設定最小日期時間為現在（台北時間）
+  // 設定最小日期時間為現在（台北時間），強制整點
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  taipeiTime.setMinutes(0, 0, 0); // 強制整點
   const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   document.getElementById('borrow-due-date').min = taipeiDateTime;
   
@@ -521,9 +523,10 @@ function openReturnModal(fixNo, deviceName, borrower) {
   
   document.getElementById('return-fix-no').value = fixNo;
   
-  // 設定預設日期時間為現在（台北時間）
+  // 設定預設日期時間為現在（台北時間），強制整點
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  taipeiTime.setMinutes(0, 0, 0); // 強制整點
   const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   const returnDateInput = document.getElementById('return-date');
@@ -772,10 +775,11 @@ document.addEventListener('DOMContentLoaded', () => {
         finalEmail = user.email;
         console.log('管理員借用，使用登入 email:', finalEmail);
       }
-      // 今天日期（台北時間）
+      // 今天日期時間（台北時間），強制整點
       const now = new Date();
       const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-      const dtBorrow = taipeiTime.toISOString().split('T')[0];
+      taipeiTime.setMinutes(0, 0, 0); // 強制整點
+      const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
       
       // 檢查是否為訪客（需要借用審核）
       const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
@@ -1785,9 +1789,10 @@ async function handleDeptBorrowSubmit() {
     return;
   }
   
-  // 今天日期時間（台北時間）
+  // 今天日期時間（台北時間），強制整點
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  taipeiTime.setMinutes(0, 0, 0); // 強制整點
   const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   const btn = document.querySelector('#dept-borrow-form button');
