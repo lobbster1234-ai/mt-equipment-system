@@ -586,11 +586,42 @@ function openReturnModal(fixNo, deviceName, borrower) {
   
   document.getElementById('return-fix-no').value = fixNo;
   
-  // 設定預設日期時間為現在（台北時間），強制整點
+  // 設定預設日期時間為現在（台北時間），四捨五入到最接近的整點
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  taipeiTime.setMinutes(0, 0, 0); // 強制整點
-  const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  const hours = taipeiTime.getUTCHours();
+  const minutes = taipeiTime.getUTCMinutes();
+  
+  // 四捨五入到最接近的整點
+  let newHours = hours;
+  if (minutes >= 30) {
+    newHours = hours + 1;
+  }
+  
+  // 處理跨日
+  let newYear = taipeiTime.getUTCFullYear();
+  let newMonth = taipeiTime.getUTCMonth() + 1;
+  let newDay = taipeiTime.getUTCDate();
+  
+  if (newHours >= 24) {
+    newHours = 0;
+    newDay++;
+    const daysInMonth = new Date(newYear, newMonth, 0).getDate();
+    if (newDay > daysInMonth) {
+      newDay = 1;
+      newMonth++;
+      if (newMonth > 12) {
+        newMonth = 1;
+        newYear++;
+      }
+    }
+  }
+  
+  const yStr = String(newYear);
+  const mStr = String(newMonth).padStart(2, '0');
+  const dStr = String(newDay).padStart(2, '0');
+  const hStr = String(newHours).padStart(2, '0');
+  const taipeiDateTime = `${yStr}-${mStr}-${dStr}T${hStr}:00`;
   
   const returnDateInput = document.getElementById('return-date');
   if (returnDateInput) {
