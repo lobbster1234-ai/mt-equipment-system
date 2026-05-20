@@ -100,8 +100,19 @@
         document.getElementById('device-name').textContent = data.device_name || 'N/A';
         document.getElementById('borrower-name').textContent = data.borrower || 'N/A';
         document.getElementById('borrower-email').textContent = data.borrower_email || 'N/A';
-        document.getElementById('borrow-date').textContent = data.dt_borrow || 'N/A';
-        document.getElementById('due-date').textContent = data.dt_due || '未設定';
+        
+        // 格式化日期時間顯示
+        const formatDateTime = (dt) => {
+          if (!dt) return '未設定';
+          if (dt.includes('T')) {
+            const [date, time] = dt.split('T');
+            return `${date} ${time}`;
+          }
+          return dt;
+        };
+        
+        document.getElementById('borrow-date').textContent = formatDateTime(data.dt_borrow) || 'N/A';
+        document.getElementById('due-date').textContent = formatDateTime(data.dt_due) || '未設定';
       } catch (err) {
         debug('載入錯誤: ' + err.message);
         document.getElementById('title').textContent = '❌ 錯誤';
