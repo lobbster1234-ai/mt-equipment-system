@@ -1957,14 +1957,24 @@ function escapeHtml(text) {
 
 // 頁面載入時載入部門儀器列表
 document.addEventListener('DOMContentLoaded', function() {
-  // 設定最小日期時間為現在
+  // 設定最小日期時間為現在，強制整點
   const today = new Date();
   const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
+  taipeiTime.setMinutes(0, 0, 0); // 強制整點
   const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   const deptDateInput = document.getElementById('dept-borrow-due-date');
   if (deptDateInput) {
     deptDateInput.min = taipeiDateTime;
+    
+    // 監聽變更事件，強制改為整點
+    deptDateInput.addEventListener('change', function() {
+      if (this.value) {
+        const date = new Date(this.value);
+        date.setMinutes(0, 0, 0);
+        this.value = date.toISOString().slice(0, 16);
+      }
+    });
   }
   
   // 載入列表（只在頁面切換時載入）
