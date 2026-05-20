@@ -240,14 +240,25 @@
     }
 
     /**
-     * 格式化日期時間為 yyyy-MM-dd HH:mm:ss（處理各種輸入格式）
+     * 格式化日期時間為 yyyy-MM-dd HH:mm（總是顯示時間）
      */
     function formatDateTime(value) {
-      if (!value) return '';
+      if (!value) return '未知';
       
-      // 如果已經是 yyyy-MM-dd HH:mm:ss 格式，直接返回
+      // 如果已經是 yyyy-MM-dd HH:mm:ss 格式
       if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/.test(value.trim())) {
-        return value.trim();
+        // 只取日期和時分
+        const parts = value.trim().split(' ');
+        if (parts.length === 2) {
+          return parts[0] + ' ' + parts[1].substring(0, 5); // yyyy-MM-dd HH:mm
+        }
+        return parts[0] + ' 00:00'; // 如果只有日期，補上時間
+      }
+      
+      // 處理 datetime-local 格式 (yyyy-MM-ddTHH:mm)
+      if (typeof value === 'string' && value.includes('T')) {
+        const [date, time] = value.split('T');
+        return date + ' ' + time.substring(0, 5);
       }
       
       // 嘗試解析為 Date
@@ -256,7 +267,7 @@
         return String(value).trim();
       }
       
-      // 格式化為 yyyy-MM-dd HH:mm:ss（台北時間 GMT+8）
+      // 格式化為 yyyy-MM-dd HH:mm（台北時間 GMT+8）
       const taipeiOffset = 8 * 60;
       const localOffset = date.getTimezoneOffset();
       const offsetDiff = taipeiOffset + localOffset;
@@ -267,13 +278,8 @@
       const day = String(taipeiDate.getDate()).padStart(2, '0');
       const hours = String(taipeiDate.getHours()).padStart(2, '0');
       const minutes = String(taipeiDate.getMinutes()).padStart(2, '0');
-      const seconds = String(taipeiDate.getSeconds()).padStart(2, '0');
       
-      // 如果是 00:00:00 就只顯示日期，否則顯示日期+時間
-      if (hours === '00' && minutes === '00' && seconds === '00') {
-        return `${year}-${month}-${day}`;
-      }
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
     }
   </script>
 </body>
