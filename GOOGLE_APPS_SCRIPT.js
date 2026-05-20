@@ -1056,8 +1056,14 @@ function returnEquipment(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   
   const fixNo = data.fix_no;
-  // 強制使用當天台北時間
-  const dtReturn = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  // 使用前端傳來的歸還時間（含時間），如果沒有則使用當前台北時間
+  let dtReturn = data.dt_return;
+  if (!dtReturn) {
+    // 如果沒有傳時間，使用當前台北時間（含時間）
+    dtReturn = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  }
+  
+  Logger.log(`歸還設備: ${fixNo}, 歸還時間: ${dtReturn}`);
   
   const fixNoCol = COLS.fix_no;
   const statusCol = COLS.status;
