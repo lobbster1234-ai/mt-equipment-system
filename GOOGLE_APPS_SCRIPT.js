@@ -2814,6 +2814,10 @@ function sendDeptDueSoonReminder() {
     }
     
     const now = new Date();
+    
+    // 強制 now 為整點
+    now.setMinutes(0, 0, 0);
+    
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
     
     const allData = sheet.getDataRange().getValues();
