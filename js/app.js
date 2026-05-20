@@ -588,13 +588,19 @@ function openReturnModal(fixNo, deviceName, borrower) {
   
   // 設定預設日期時間為現在（台北時間），四捨五入到最接近的整點
   const now = new Date();
-  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
   
-  // 從 ISO 字串解析台北時間（避免 UTC 轉換問題）
-  const isoStr = taipeiTime.toISOString(); // 2026-05-20T08:55:00.000Z
-  const hours = parseInt(isoStr.slice(11, 13), 10);
-  const minutes = parseInt(isoStr.slice(14, 16), 10);
-  const datePart = isoStr.slice(0, 10); // 2026-05-20
+  // 轉換為台北時間字串 (UTC+8)
+  const taipeiOffset = 8 * 60 * 60 * 1000; // 8小時毫秒
+  const taipeiTime = new Date(now.getTime() + taipeiOffset);
+  
+  // 取得台北時間的各個部分（注意：getUTCXXX 在加了 offset 後就是台北時間）
+  const year = taipeiTime.getUTCFullYear();
+  const month = taipeiTime.getUTCMonth() + 1; // 0-indexed
+  const day = taipeiTime.getUTCDate();
+  const hours = taipeiTime.getUTCHours();
+  const minutes = taipeiTime.getUTCMinutes();
+  
+  console.log('現在台北時間:', year, month, day, hours, ':', minutes);
   
   // 四捨五入到最接近的整點
   let newHours = hours;
@@ -603,32 +609,35 @@ function openReturnModal(fixNo, deviceName, borrower) {
   }
   
   // 處理跨日
-  let newDatePart = datePart;
+  let newYear = year;
+  let newMonth = month;
+  let newDay = day;
+  
   if (newHours >= 24) {
     newHours = 0;
-    const [y, m, d] = datePart.split('-').map(Number);
-    let newDay = d + 1;
-    let newMonth = m;
-    let newYear = y;
+    newDay++;
     
-    const daysInMonth = new Date(y, m, 0).getDate();
+    // 檢查跨月
+    const daysInMonth = new Date(year, month, 0).getDate();
     if (newDay > daysInMonth) {
       newDay = 1;
       newMonth++;
+      // 檢查跨年
       if (newMonth > 12) {
         newMonth = 1;
         newYear++;
       }
     }
-    
-    const yStr = String(newYear);
-    const mStr = String(newMonth).padStart(2, '0');
-    const dStr = String(newDay).padStart(2, '0');
-    newDatePart = `${yStr}-${mStr}-${dStr}`;
   }
   
+  // 格式化
+  const yStr = String(newYear);
+  const mStr = String(newMonth).padStart(2, '0');
+  const dStr = String(newDay).padStart(2, '0');
   const hStr = String(newHours).padStart(2, '0');
-  const taipeiDateTime = `${newDatePart}T${hStr}:00`;
+  const taipeiDateTime = `${yStr}-${mStr}-${dStr}T${hStr}:00`;
+  
+  console.log('歸還時間設定為:', taipeiDateTime);
   
   const returnDateInput = document.getElementById('return-date');
   if (returnDateInput) {
