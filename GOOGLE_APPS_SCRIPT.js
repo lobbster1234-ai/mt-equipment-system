@@ -2911,3 +2911,245 @@ function sendDeptDueTomorrowReminder() {
   Logger.log('sendDeptDueTomorrowReminder 已棄用，請使用 sendDeptDueSoonReminder');
   sendDeptDueSoonReminder();
 }
+
+// =============================================
+// 觸發器測試函數
+// =============================================
+
+/**
+ * 測試提醒功能 - 檢查即將到期設備（不發送郵件）
+ * 用法：在 GAS 編輯器中執行 testReminderDueSoon()
+ */
+function testReminderDueSoon() {
+  Logger.log('=== 測試即將到期提醒 ===');
+  
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  
+  Logger.log(`現在時間（整點）: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
+  Logger.log(`1小時後（整點）: ${Utilities.formatDate(oneHourLater, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
+  
+  const sheets = [SHEET_NAME, SHEET_NAME_WEB];
+  let foundCount = 0;
+  
+  sheets.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      Logger.log(`❌ 工作表 ${sheetName} 不存在`);
+      return;
+    }
+    
+    const lastRow = sheet.getLastRow();
+    Logger.log(`\n📋 檢查 ${sheetName}，共 ${lastRow} 行`);
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const status = sheet.getRange(i, COLS.status + 1).getValue();
+      const dtDue = sheet.getRange(i, COLS.dt_due + 1).getValue();
+      const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
+      const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
+      const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
+      
+      if (status !== 'borrowed' || !dtDue) continue;
+      
+      const dueDate = new Date(dtDue);
+      if (isNaN(dueDate.getTime())) {
+        Logger.log(`⚠️ 第 ${i} 行: 無法解析時間 "${dtDue}"`);
+        continue;
+      }
+      
+      const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      const isInRange = dueDate > now && dueDate <= oneHourLater;
+      
+      Logger.log(`  第 ${i} 行: ${fixNo} | ${deviceName} | ${borrower} | ${dueTimeStr} | ${isInRange ? '✅ 符合條件' : '❌ 不符合'}`);
+      
+      if (isInRange) {
+        foundCount++;
+        Logger.log(`     📧 將會發送提醒給: ${borrower}`);
+      }
+    }
+  });
+  
+  Logger.log(`\n🎯 總共找到 ${foundCount} 個設備將在一小時內到期`);
+  Logger.log('=== 測試完成 ===');
+}
+
+/**
+ * 測試提醒功能 - 檢查逾期設備（不發送郵件）
+ * 用法：在 GAS 編輯器中執行 testReminderOverdue()
+ */
+function testReminderOverdue() {
+  Logger.log('=== 測試逾期提醒 ===');
+  
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  
+  Logger.log(`現在時間（整點）: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
+  
+  const sheets = [SHEET_NAME, SHEET_NAME_WEB];
+  let foundCount = 0;
+  
+  sheets.forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      Logger.log(`❌ 工作表 ${sheetName} 不存在`);
+      return;
+    }
+    
+    const lastRow = sheet.getLastRow();
+    Logger.log(`\n📋 檢查 ${sheetName}，共 ${lastRow} 行`);
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const status = sheet.getRange(i, COLS.status + 1).getValue();
+      const dtDue = sheet.getRange(i, COLS.dt_due + 1).getValue();
+      const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
+      const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
+      const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
+      
+      if (status !== 'borrowed' || !dtDue) continue;
+      
+      const dueDate = new Date(dtDue);
+      if (isNaN(dueDate.getTime())) continue;
+      
+      const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      const isOverdue = dueDate < now;
+      
+      if (isOverdue) {
+        foundCount++;
+        const overdueHours = Math.floor((now - dueDate) / (1000 * 60 * 60));
+        Logger.log(`  第 ${i} 行: ${fixNo} | ${deviceName} | ${borrower} | ${dueTimeStr} | ⚠️ 逾期 ${overdueHours} 小時`);
+      }
+    }
+  });
+  
+  Logger.log(`\n🎯 總共找到 ${foundCount} 個逾期設備`);
+  Logger.log('=== 測試完成 ===');
+}
+
+/**
+ * 測試部門儀器提醒 - 檢查即將到期（不發送郵件）
+ * 用法：在 GAS 編輯器中執行 testDeptDueSoon()
+ */
+function testDeptDueSoon() {
+  Logger.log('=== 測試部門儀器即將到期 ===');
+  
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+  
+  Logger.log(`現在時間: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm')}`);
+  Logger.log(`1小時後: ${Utilities.formatDate(oneHourLater, 'Asia/Taipei', 'yyyy-MM-dd HH:mm')}`);
+  
+  const sheet = ss.getSheetByName('MT部門儀器');
+  if (!sheet) {
+    Logger.log('❌ 找不到 MT部門儀器 工作表');
+    return;
+  }
+  
+  const allData = sheet.getDataRange().getValues();
+  let foundCount = 0;
+  
+  Logger.log(`\n📋 共 ${allData.length - 1} 筆資料\n`);
+  
+  for (let i = 1; i < allData.length; i++) {
+    const id = allData[i][0];
+    const deviceName = allData[i][1];
+    const borrower = allData[i][2];
+    const borrowerEmail = allData[i][3];
+    const dtDue = allData[i][5];
+    const status = allData[i][7];
+    
+    if (status !== '借用中' || !dtDue) continue;
+    
+    const dueDate = new Date(dtDue);
+    if (isNaN(dueDate.getTime())) continue;
+    
+    const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    const isInRange = dueDate > now && dueDate <= oneHourLater;
+    
+    Logger.log(`第 ${i} 行: ${deviceName} | ${borrower} | ${dueTimeStr} | ${isInRange ? '✅ 符合' : '❌ 不符合'}`);
+    
+    if (isInRange) {
+      foundCount++;
+      Logger.log(`     📧 將會發送提醒給: ${borrower} (${borrowerEmail})`);
+    }
+  }
+  
+  Logger.log(`\n🎯 總共找到 ${foundCount} 個部門儀器將在一小時內到期`);
+  Logger.log('=== 測試完成 ===');
+}
+
+/**
+ * 測試部門儀器提醒 - 檢查逾期（不發送郵件）
+ * 用法：在 GAS 編輯器中執行 testDeptOverdue()
+ */
+function testDeptOverdue() {
+  Logger.log('=== 測試部門儀器逾期 ===');
+  
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const now = new Date();
+  
+  Logger.log(`現在時間: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm')}`);
+  
+  const sheet = ss.getSheetByName('MT部門儀器');
+  if (!sheet) {
+    Logger.log('❌ 找不到 MT部門儀器 工作表');
+    return;
+  }
+  
+  const allData = sheet.getDataRange().getValues();
+  let foundCount = 0;
+  
+  Logger.log(`\n📋 共 ${allData.length - 1} 筆資料\n`);
+  
+  for (let i = 1; i < allData.length; i++) {
+    const id = allData[i][0];
+    const deviceName = allData[i][1];
+    const borrower = allData[i][2];
+    const borrowerEmail = allData[i][3];
+    const dtDue = allData[i][5];
+    const dtReturn = allData[i][6];
+    const status = allData[i][7];
+    
+    if (status !== '借用中' || !dtDue || dtReturn) continue;
+    
+    const dueDate = new Date(dtDue);
+    if (isNaN(dueDate.getTime())) continue;
+    
+    const isOverdue = dueDate < now;
+    const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    
+    if (isOverdue) {
+      foundCount++;
+      const overdueHours = Math.floor((now - dueDate) / (1000 * 60 * 60));
+      Logger.log(`第 ${i} 行: ${deviceName} | ${borrower} | ${dueTimeStr} | ⚠️ 逾期 ${overdueHours} 小時`);
+    }
+  }
+  
+  Logger.log(`\n🎯 總共找到 ${foundCount} 個逾期部門儀器`);
+  Logger.log('=== 測試完成 ===');
+}
+
+/**
+ * 一鍵執行所有測試
+ * 用法：在 GAS 編輯器中執行 testAllReminders()
+ */
+function testAllReminders() {
+  Logger.log('╔════════════════════════════════════╗');
+  Logger.log('║     開始執行所有提醒測試           ║');
+  Logger.log('╚════════════════════════════════════╝');
+  
+  testReminderDueSoon();
+  testReminderOverdue();
+  testDeptDueSoon();
+  testDeptOverdue();
+  
+  Logger.log('╔════════════════════════════════════╗');
+  Logger.log('║     所有測試執行完成！             ║');
+  Logger.log('╚════════════════════════════════════╝');
+}
