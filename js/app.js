@@ -500,8 +500,7 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     borrowDueDateInput.addEventListener('change', function() {
       console.log('借用預計歸還時間變更:', this.value);
       if (this.value) {
-        // datetime-local 格式: 2026-05-20T14:46
-        // 注意：這是本地時間，不需要時區轉換
+        // datetime-local 格式: 2026-05-20T14:46 或 2026-05-20T23:36
         const parts = this.value.split('T');
         const datePart = parts[0];
         const timePart = parts[1];
@@ -520,18 +519,33 @@ function openBorrowModal(fixNo, deviceName, keeper) {
           console.log('進位到下一小時:', newHours);
         }
         
-        // 處理跨日（例如 23:30 -> 00:00）- 直接操作日期字串避免時區問題
+        // 處理跨日（例如 23:30 -> 00:00 隔天）
         let newDatePart = datePart;
         if (newHours >= 24) {
           newHours = 0;
-          // 解析日期字串
-          const [year, month, day] = datePart.split('-').map(Number);
-          // 計算隔天日期
-          const nextDate = new Date(year, month - 1, day + 1); // 月份是0-indexed
-          const y = nextDate.getFullYear();
-          const m = String(nextDate.getMonth() + 1).padStart(2, '0');
-          const d = String(nextDate.getDate()).padStart(2, '0');
-          newDatePart = `${y}-${m}-${d}`;
+          // 手動計算隔天日期（避免 Date 物件時區問題）
+          const [y, m, d] = datePart.split('-').map(Number);
+          let newDay = d + 1;
+          let newMonth = m;
+          let newYear = y;
+          
+          // 檢查是否跨月（例如 1/31 -> 2/1）
+          const daysInMonth = new Date(y, m, 0).getDate();
+          if (newDay > daysInMonth) {
+            newDay = 1;
+            newMonth = m + 1;
+            // 檢查是否跨年
+            if (newMonth > 12) {
+              newMonth = 1;
+              newYear = y + 1;
+            }
+          }
+          
+          const yStr = String(newYear);
+          const mStr = String(newMonth).padStart(2, '0');
+          const dStr = String(newDay).padStart(2, '0');
+          newDatePart = `${yStr}-${mStr}-${dStr}`;
+          console.log('跨日：', datePart, '->', newDatePart);
         }
         
         // 格式化新值
@@ -2019,7 +2033,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 監聽變更事件，強制改為最接近的整點（四捨五入）- deptDateInput
     deptDateInput.addEventListener('change', function() {
       if (this.value) {
-        // datetime-local 格式: 2026-05-20T14:46
+        // datetime-local 格式: 2026-05-20T14:46 或 2026-05-20T23:36
         const parts = this.value.split('T');
         const datePart = parts[0];
         const timePart = parts[1];
@@ -2035,18 +2049,32 @@ document.addEventListener('DOMContentLoaded', function() {
           newHours = hours + 1;
         }
         
-        // 處理跨日（例如 23:30 -> 00:00）- 直接操作日期字串避免時區問題
+        // 處理跨日（例如 23:30 -> 00:00 隔天）
         let newDatePart = datePart;
         if (newHours >= 24) {
           newHours = 0;
-          // 解析日期字串
-          const [year, month, day] = datePart.split('-').map(Number);
-          // 計算隔天日期
-          const nextDate = new Date(year, month - 1, day + 1); // 月份是0-indexed
-          const y = nextDate.getFullYear();
-          const m = String(nextDate.getMonth() + 1).padStart(2, '0');
-          const d = String(nextDate.getDate()).padStart(2, '0');
-          newDatePart = `${y}-${m}-${d}`;
+          // 手動計算隔天日期（避免 Date 物件時區問題）
+          const [y, m, d] = datePart.split('-').map(Number);
+          let newDay = d + 1;
+          let newMonth = m;
+          let newYear = y;
+          
+          // 檢查是否跨月（例如 1/31 -> 2/1）
+          const daysInMonth = new Date(y, m, 0).getDate();
+          if (newDay > daysInMonth) {
+            newDay = 1;
+            newMonth = m + 1;
+            // 檢查是否跨年
+            if (newMonth > 12) {
+              newMonth = 1;
+              newYear = y + 1;
+            }
+          }
+          
+          const yStr = String(newYear);
+          const mStr = String(newMonth).padStart(2, '0');
+          const dStr = String(newDay).padStart(2, '0');
+          newDatePart = `${yStr}-${mStr}-${dStr}`;
         }
         
         // 格式化新值
