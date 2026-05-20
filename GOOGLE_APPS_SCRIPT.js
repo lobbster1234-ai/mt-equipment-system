@@ -937,13 +937,23 @@ function getBorrowRequest(data, e) {
     // 使用寬鬆比對（轉為字串）
     if (rowRequestId && rowRequestId.toString() === requestId.toString()) {
       Logger.log('找到匹配的請求！');
+      
+      // 格式化日期時間顯示（如果有時間則顯示時間）
+      const formatDateTimeForDisplay = (val) => {
+        if (!val) return '';
+        if (val instanceof Date) {
+          return Utilities.formatDate(val, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+        }
+        return val.toString();
+      };
+      
       return successResponse({
         fix_no: pendingData[i][1],
         device_name: pendingData[i][2],
         borrower: pendingData[i][3],
         borrower_email: pendingData[i][4],
-        dt_borrow: formatDate(pendingData[i][5]),
-        dt_due: formatDate(pendingData[i][6]),
+        dt_borrow: formatDateTimeForDisplay(pendingData[i][5]),
+        dt_due: formatDateTimeForDisplay(pendingData[i][6]),
         keeper: pendingData[i][7],
         status: pendingData[i][8]
       });
