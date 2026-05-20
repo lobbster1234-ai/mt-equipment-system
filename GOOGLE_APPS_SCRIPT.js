@@ -969,6 +969,16 @@ function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEm
     const approveUrl = `${EMAIL_CONFIG.web_app_url}confirm-borrow.html?action=approve&request_id=${encodeURIComponent(requestId)}`;
     const rejectUrl = `${EMAIL_CONFIG.web_app_url}confirm-borrow.html?action=reject&request_id=${encodeURIComponent(requestId)}`;
     
+    // 格式化日期時間顯示
+    const formatDateTime = (dt) => {
+      if (!dt) return '未設定';
+      if (dt.includes('T')) {
+        const [date, time] = dt.split('T');
+        return `${date} ${time}`;
+      }
+      return dt;
+    };
+    
     const subject = `${EMAIL_CONFIG.subject_prefix} 借用申請需要您的審核`;
     const body = `親愛的 ${keeper} 您好：
 
@@ -978,8 +988,8 @@ function sendBorrowApprovalEmail(keeper, fixNo, deviceName, borrower, borrowerEm
 📝 設備名稱：${deviceName}
 👤 申請人：${borrower}
 📧 申請人 Email：${borrowerEmail}
-📅 借用日期：${dtBorrow}
-⏰ 預計歸還：${dtDue || '未設定'}
+📅 借用日期：${formatDateTime(dtBorrow)}
+⏰ 預計歸還：${formatDateTime(dtDue)}
 
 請點擊以下連結進行審核：
 ${EMAIL_CONFIG.web_app_url}confirm-borrow.html?request_id=${encodeURIComponent(requestId)}
@@ -1273,6 +1283,16 @@ function sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue) {
       return;
     }
     
+    // 格式化日期時間顯示
+    const formatDateTime = (dt) => {
+      if (!dt) return '未設定';
+      if (dt.includes('T')) {
+        const [date, time] = dt.split('T');
+        return `${date} ${time}`;
+      }
+      return dt;
+    };
+    
     const subject = `${EMAIL_CONFIG.subject_prefix} ${EMAIL_CONFIG.borrow_subject}`;
     const body = `親愛的 ${keeper} 您好：
 
@@ -1281,8 +1301,8 @@ function sendBorrowEmail(keeper, fixNo, deviceName, borrower, dtBorrow, dtDue) {
 📦 設備編號：${fixNo}
 📝 設備名稱：${deviceName}
 👤 借用人：${borrower}
-📅 借用日期：${dtBorrow}
-⏰ 預計歸還：${dtDue || '未設定'}
+📅 借用日期：${formatDateTime(dtBorrow)}
+⏰ 預計歸還：${formatDateTime(dtDue)}
 
 請留意設備歸還狀況。
 
