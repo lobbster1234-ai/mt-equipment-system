@@ -2158,7 +2158,7 @@ function deleteEquipment(data) {
  * 提醒即將到期的設備（預計歸還時間前 1 小時）
  * 建議設定在每小時整點執行（例如 09:00, 10:00...）
  */
-function reminderDueTomorrow() {
+function reminderDueSoon() {
   Logger.log('=== 即將到期提醒檢查開始 ===');
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
