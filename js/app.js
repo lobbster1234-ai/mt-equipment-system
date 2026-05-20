@@ -2015,8 +2015,14 @@ document.addEventListener('DOMContentLoaded', function() {
     deptDateInput.addEventListener('change', function() {
       if (this.value) {
         // datetime-local 格式: 2026-05-20T14:46
-        const [datePart, timePart] = this.value.split('T');
-        const [hours, minutes] = timePart.split(':').map(Number);
+        const parts = this.value.split('T');
+        const datePart = parts[0];
+        const timePart = parts[1];
+        const hourPart = timePart.substring(0, 2);
+        const minPart = timePart.substring(3, 5);
+        
+        const hours = parseInt(hourPart, 10);
+        const minutes = parseInt(minPart, 10);
         
         // 計算新的整點時間
         let newHours = hours;
@@ -2024,9 +2030,18 @@ document.addEventListener('DOMContentLoaded', function() {
           newHours = hours + 1;
         }
         
+        // 處理跨日（例如 23:30 -> 00:00）
+        let newDatePart = datePart;
+        if (newHours >= 24) {
+          newHours = 0;
+          const date = new Date(datePart + 'T00:00');
+          date.setDate(date.getDate() + 1);
+          newDatePart = date.toISOString().split('T')[0];
+        }
+        
         // 格式化新值
         const newHourStr = String(newHours).padStart(2, '0');
-        const newValue = datePart + 'T' + newHourStr + ':00';
+        const newValue = newDatePart + 'T' + newHourStr + ':00';
         this.value = newValue;
       }
     });
