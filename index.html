@@ -280,8 +280,8 @@
           </div>
 
           <div class="form-group">
-            <label>預計歸還日期 *</label>
-            <input type="date" id="dept-borrow-due-date" required>
+            <label>預計歸還日期時間 *</label>
+            <input type="datetime-local" id="dept-borrow-due-date" required>
           </div>
 
           <button type="button" class="btn-primary" onclick="handleDeptBorrowSubmit()" style="width:100%;padding:15px;font-size:1.1em;">
@@ -324,8 +324,8 @@
           <input type="email" id="borrow-email" required placeholder="請輸入您的電子郵件" style="width:100%;box-sizing:border-box;">
         </div>
         <div class="form-group">
-          <label>預計歸還日期 *</label>
-          <input type="date" id="borrow-due-date" required>
+          <label>預計歸還日期時間 *</label>
+          <input type="datetime-local" id="borrow-due-date" required>
         </div>
         <button type="button" class="btn-primary" onclick="handleBorrowSubmit()">確認借用</button>
       </form>
@@ -341,8 +341,8 @@
       <form id="return-form">
         <input type="hidden" id="return-fix-no">
         <div class="form-group">
-          <label>歸還日期（系統自動填入當天）</label>
-          <input type="date" id="return-date" readonly style="background:#e9ecef;cursor:not-allowed;">
+          <label>歸還日期時間（系統自動填入當下）</label>
+          <input type="datetime-local" id="return-date" readonly style="background:#e9ecef;cursor:not-allowed;">
         </div>
         <p style="color:#666;font-size:0.9em;margin-top:15px;">
           📧 送出後系統會自動寄信通知保管人（Keeper）<br>

@@ -327,14 +327,14 @@ async function handleBorrowSubmit() {
     return;
   }
   if (!dtDue) {
-    alert('請選擇預計歸還日期');
+    alert('請選擇預計歸還日期時間');
     return;
   }
   
-  // 今天日期（台北時間）
+  // 今天日期時間（台北時間）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  const dtBorrow = taipeiTime.toISOString().split('T')[0];
+  const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   // 判斷是否為訪客
   const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
@@ -486,11 +486,11 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     borrowNameInput.value = '';
   }
   
-  // 設定最小日期為今天（台北時間）
+  // 設定最小日期時間為現在（台北時間）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  const taipeiDate = taipeiTime.toISOString().split('T')[0];
-  document.getElementById('borrow-due-date').min = taipeiDate;
+  const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  document.getElementById('borrow-due-date').min = taipeiDateTime;
   
   if (modal) modal.style.display = 'block';
 }
@@ -521,11 +521,19 @@ function openReturnModal(fixNo, deviceName, borrower) {
   
   document.getElementById('return-fix-no').value = fixNo;
   
-  // 設定預設日期為今天（台北時間）
-  const today = new Date();
-  const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
-  const taipeiDate = taipeiTime.toISOString().split('T')[0];
-  document.getElementById('return-date').value = taipeiDate;
+  // 設定預設日期時間為現在（台北時間）
+  const now = new Date();
+  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+  const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  
+  const returnDateInput = document.getElementById('return-date');
+  if (returnDateInput) {
+    // 如果是 type="date"，改成 type="datetime-local"
+    if (returnDateInput.type === 'date') {
+      returnDateInput.type = 'datetime-local';
+    }
+    returnDateInput.value = taipeiDateTime;
+  }
   
   if (modal) modal.style.display = 'block';
 }
@@ -1773,14 +1781,14 @@ async function handleDeptBorrowSubmit() {
     return;
   }
   if (!dtDue) {
-    alert('請選擇預計歸還日期');
+    alert('請選擇預計歸還日期時間');
     return;
   }
   
-  // 今天日期（台北時間）
+  // 今天日期時間（台北時間）
   const now = new Date();
   const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  const dtBorrow = taipeiTime.toISOString().split('T')[0];
+  const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   const btn = document.querySelector('#dept-borrow-form button');
   if (btn) {
@@ -1944,14 +1952,14 @@ function escapeHtml(text) {
 
 // 頁面載入時載入部門儀器列表
 document.addEventListener('DOMContentLoaded', function() {
-  // 設定最小日期為今天
+  // 設定最小日期時間為現在
   const today = new Date();
   const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
-  const taipeiDate = taipeiTime.toISOString().split('T')[0];
+  const taipeiDateTime = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
   
   const deptDateInput = document.getElementById('dept-borrow-due-date');
   if (deptDateInput) {
-    deptDateInput.min = taipeiDate;
+    deptDateInput.min = taipeiDateTime;
   }
   
   // 載入列表（只在頁面切換時載入）

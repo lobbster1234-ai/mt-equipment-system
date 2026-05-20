@@ -2155,19 +2155,18 @@ function deleteEquipment(data) {
 // =============================================
 
 /**
- * 提醒即將到期的設備（預計歸還日前一天）
- * 建議設定在下午 17:00-18:00 執行
+ * 提醒即將到期的設備（預計歸還時間前 1 小時）
+ * 建議設定在每小時整點執行（例如 09:00, 10:00...）
  */
 function reminderDueTomorrow() {
-  Logger.log('=== 明天到期提醒檢查開始 ===');
+  Logger.log('=== 即將到期提醒檢查開始 ===');
   
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = Utilities.formatDate(tomorrow, 'Asia/Taipei', 'yyyy-MM-dd');
+  const now = new Date();
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
   
-  Logger.log(`明天日期: ${tomorrowStr}`);
+  Logger.log(`現在時間: ${Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
+  Logger.log(`1小時後: ${Utilities.formatDate(oneHourLater, 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss')}`);
   
   // 讀取兩個工作表
   const sheets = [SHEET_NAME, SHEET_NAME_WEB];
@@ -2191,31 +2190,35 @@ function reminderDueTomorrow() {
         continue;
       }
       
-      // 跳過沒有預計歸還日期的設備
+      // 跳過沒有預計歸還時間的設備
       if (!dtDue) {
         continue;
       }
       
-      const dtDueStr = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd');
-      
-      // 只處理明天到期的設備
-      if (dtDueStr !== tomorrowStr) {
+      // 解析預計歸還時間
+      const dueDate = new Date(dtDue);
+      if (isNaN(dueDate.getTime())) {
+        Logger.log(`無法解析預計歸還時間: ${dtDue}`);
         continue;
       }
       
-      const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
-      const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
-      const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
-      
-      // 從借用申請工作表查找借用人 Email
-      const borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
-      
-      Logger.log(`設備 ${fixNo} 將於明天到期，發送提醒給借用人 ${borrower}`);
-      sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'due_tomorrow');
+      // 檢查是否在未來 1 小時內到期
+      if (dueDate > now && dueDate <= oneHourLater) {
+        const fixNo = sheet.getRange(i, COLS.fix_no + 1).getValue();
+        const deviceName = sheet.getRange(i, COLS.device_name + 1).getValue();
+        const borrower = sheet.getRange(i, COLS.borrower + 1).getValue();
+        
+        // 從借用申請工作表查找借用人 Email
+        const borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
+        
+        const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+        Logger.log(`設備 ${fixNo} 將於 1 小時內到期 (${dueTimeStr})，發送提醒給借用人 ${borrower}`);
+        sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dueTimeStr, 'due_soon', now);
+      }
     }
   });
   
-  Logger.log('=== 明天到期提醒檢查完成 ===');
+  Logger.log('=== 即將到期提醒檢查完成 ===');
 }
 
 /**
@@ -2229,7 +2232,7 @@ function reminderOverdue() {
   const today = new Date();
   const todayStr = Utilities.formatDate(today, 'Asia/Taipei', 'yyyy-MM-dd');
   
-  Logger.log(`今天日期: ${todayStr}`);
+  const now = new Date();
   
   // 讀取兩個工作表
   const sheets = [SHEET_NAME, SHEET_NAME_WEB];
@@ -2253,15 +2256,20 @@ function reminderOverdue() {
         continue;
       }
       
-      // 跳過沒有預計歸還日期的設備
+      // 跳過沒有預計歸還時間的設備
       if (!dtDue) {
         continue;
       }
       
-      const dtDueStr = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd');
+      // 解析預計歸還時間
+      const dueDate = new Date(dtDue);
+      if (isNaN(dueDate.getTime())) {
+        Logger.log(`無法解析預計歸還時間: ${dtDue}`);
+        continue;
+      }
       
-      // 只處理已逾期的設備
-      if (new Date(dtDueStr) >= new Date(todayStr)) {
+      // 只處理已逾期的設備（dueDate 小於現在時間）
+      if (dueDate >= now) {
         continue;
       }
       
@@ -2273,15 +2281,16 @@ function reminderOverdue() {
       // 從借用申請工作表查找借用人 Email
       const borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
       
-      // 計算逾期天數
-      const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDueStr)) / (1000 * 60 * 60 * 24));
-      Logger.log(`設備 ${fixNo} 已逾期 ${overdueDays} 天，發送通知給 Keeper ${keeper} 和借用人 ${borrower}`);
+      // 計算逾期時間（小時）
+      const overdueHours = Math.floor((now - dueDate) / (1000 * 60 * 60));
+      const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      Logger.log(`設備 ${fixNo} 已逾期 ${overdueHours} 小時，發送通知給 Keeper ${keeper} 和借用人 ${borrower}`);
       
       // Keeper 每天收到通知
-      sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDueStr, todayStr);
+      sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dueTimeStr, now);
       
       // 每天提醒借用人
-      sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDueStr, 'overdue', todayStr);
+      sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dueTimeStr, 'overdue', now);
     }
   });
   
@@ -2345,11 +2354,11 @@ function getBorrowerEmailFromRequestSheet(fixNo, borrower) {
  * @param {string} borrowerEmail - 借用人 Email
  * @param {string} fixNo - 設備編號
  * @param {string} deviceName - 設備名稱
- * @param {string} dtDue - 預計歸還日期
- * @param {string} type - 'due_tomorrow' 或 'overdue'
- * @param {string} todayStr - 今天日期（逾期時使用）
+ * @param {string} dtDue - 預計歸還日期時間
+ * @param {string} type - 'due_soon' 或 'overdue'
+ * @param {Date} refTime - 參考時間
  */
-function sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDue, type, todayStr) {
+function sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDue, type, refTime) {
   try {
     if (!borrowerEmail) {
       Logger.log(`找不到 ${borrower} 的電子郵件，無法發送提醒`);
@@ -2358,33 +2367,44 @@ function sendReminderToBorrower(borrower, borrowerEmail, fixNo, deviceName, dtDu
     
     let subject, body;
     
-    if (type === 'due_tomorrow') {
-      // 預計歸還日前一天提醒
-      subject = `${EMAIL_CONFIG.subject_prefix} 【提醒】設備將於明天到期`;
+    if (type === 'due_soon') {
+      // 即將到期提醒（1小時內）
+      subject = `${EMAIL_CONFIG.subject_prefix} 【提醒】設備將於 1 小時內到期`;
       body = `親愛的 ${borrower} 您好：
 
-提醒您借用的設備將於明天到期，請準備歸還：
+提醒您借用的設備即將到期，請準備歸還：
 
 📦 設備編號：${fixNo}
 📝 設備名稱：${deviceName}
-📅 預計歸還：${dtDue}
+⏰ 預計歸還：${dtDue}
 
-請在預計歸還日前歸還設備，謝謝！
+請在預計歸還時間前歸還設備，謝謝！
 
 ---
 MT 部門設備管理系統 自動提醒`.trim();
     } else {
       // 逾期提醒
-      const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDue)) / (1000 * 60 * 60 * 24));
-      subject = `${EMAIL_CONFIG.subject_prefix} 【逾期提醒】設備已逾期 ${overdueDays} 天`;
+      const dueDate = new Date(dtDue);
+      const overdueHours = Math.floor((refTime - dueDate) / (1000 * 60 * 60));
+      const overdueDays = Math.floor(overdueHours / 24);
+      const remainingHours = overdueHours % 24;
+      
+      let overdueText = '';
+      if (overdueDays > 0) {
+        overdueText = `${overdueDays} 天 ${remainingHours} 小時`;
+      } else {
+        overdueText = `${overdueHours} 小時`;
+      }
+      
+      subject = `${EMAIL_CONFIG.subject_prefix} 【逾期提醒】設備已逾期 ${overdueText}`;
       body = `親愛的 ${borrower} 您好：
 
-您借用的設備已超過預計歸還日期，請盡快歸還：
+您借用的設備已超過預計歸還時間，請盡快歸還：
 
 📦 設備編號：${fixNo}
 📝 設備名稱：${deviceName}
-📅 預計歸還：${dtDue}
-⏰ 逾期天數：${overdueDays} 天
+⏰ 預計歸還：${dtDue}
+⚠️ 逾期時間：${overdueText}
 
 請盡快歸還設備，謝謝！
 
@@ -2405,10 +2425,10 @@ MT 部門設備管理系統 自動提醒`.trim();
  * @param {string} borrower - 借用人姓名
  * @param {string} fixNo - 設備編號
  * @param {string} deviceName - 設備名稱
- * @param {string} dtDue - 預計歸還日期
- * @param {string} todayStr - 今天日期
+ * @param {string} dtDue - 預計歸還日期時間
+ * @param {Date} refTime - 參考時間
  */
-function sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDue, todayStr) {
+function sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDue, refTime) {
   try {
     const keeperEmail = getKeeperEmail(keeper);
     
@@ -2417,18 +2437,28 @@ function sendOverdueNoticeToKeeper(keeper, borrower, fixNo, deviceName, dtDue, t
       return;
     }
     
-    const overdueDays = Math.floor((new Date(todayStr) - new Date(dtDue)) / (1000 * 60 * 60 * 24));
+    const dueDate = new Date(dtDue);
+    const overdueHours = Math.floor((refTime - dueDate) / (1000 * 60 * 60));
+    const overdueDays = Math.floor(overdueHours / 24);
+    const remainingHours = overdueHours % 24;
+    
+    let overdueText = '';
+    if (overdueDays > 0) {
+      overdueText = `${overdueDays} 天 ${remainingHours} 小時`;
+    } else {
+      overdueText = `${overdueHours} 小時`;
+    }
     
     const subject = `${EMAIL_CONFIG.subject_prefix} 【通知】借用人逾期未歸還設備`;
     const body = `親愛的 ${keeper} 您好：
 
-借用人 ${borrower} 借用的設備已超過預計歸還日期，尚未歸還：
+借用人 ${borrower} 借用的設備已超過預計歸還時間，尚未歸還：
 
 📦 設備編號：${fixNo}
 📝 設備名稱：${deviceName}
 👤 借用人：${borrower}
-📅 預計歸還：${dtDue}
-⏰ 逾期天數：${overdueDays} 天
+⏰ 預計歸還：${dtDue}
+⚠️ 逾期時間：${overdueText}
 
 請聯絡借用人盡快歸還設備。
 
@@ -2689,7 +2719,7 @@ MT 部門設備管理系統 自動通知`.trim();
 }
 
 /**
- * 發送部門儀器逾期提醒（手動測試用）
+ * 發送部門儀器逾期提醒（支援小時級別）
  * 找出所有逾期的部門儀器借用，寄信提醒借用人
  */
 function sendDeptOverdueReminder() {
@@ -2702,10 +2732,7 @@ function sendDeptOverdueReminder() {
       return;
     }
     
-    const today = new Date();
-    const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
-    const todayStr = taipeiTime.toISOString().split('T')[0];
-    
+    const now = new Date();
     const allData = sheet.getDataRange().getValues();
     let sentCount = 0;
     
@@ -2719,21 +2746,32 @@ function sendDeptOverdueReminder() {
       const dtReturn = allData[i][6];
       const status = allData[i][7];
       
-      // 只處理狀態是「借用中」且已逾期（歸還日期 < 今天）
-      if (status === '借用中' && dtDue && dtDue < today && !dtReturn) {
-        const overdueDays = Math.floor((today - new Date(dtDue)) / (1000 * 60 * 60 * 24));
+      // 只處理狀態是「借用中」且已逾期（歸還時間 < 現在）
+      if (status === '借用中' && dtDue && new Date(dtDue) < now && !dtReturn) {
+        const dueDate = new Date(dtDue);
+        const overdueHours = Math.floor((now - dueDate) / (1000 * 60 * 60));
+        const overdueDays = Math.floor(overdueHours / 24);
+        const remainingHours = overdueHours % 24;
         
-        Logger.log(`逾期項目：${deviceName} - ${borrower} (${borrowerEmail}) 已逾期 ${overdueDays} 天`);
+        let overdueText = '';
+        if (overdueDays > 0) {
+          overdueText = `${overdueDays} 天 ${remainingHours} 小時`;
+        } else {
+          overdueText = `${overdueHours} 小時`;
+        }
+        
+        const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+        Logger.log(`逾期項目：${deviceName} - ${borrower} (${borrowerEmail}) 已逾期 ${overdueText}`);
         
         if (borrowerEmail && borrowerEmail.includes('@')) {
-          const subject = `${EMAIL_CONFIG.subject_prefix} 【逾期提醒】部門儀器已逾期 ${overdueDays} 天`;
+          const subject = `${EMAIL_CONFIG.subject_prefix} 【逾期提醒】部門儀器已逾期 ${overdueText}`;
           const body = `親愛的 ${borrower} 您好：
 
-您借用的部門儀器已超過預計歸還日期，請盡快歸還：
+您借用的部門儀器已超過預計歸還時間，請盡快歸還：
 
 📦 設備名稱：${deviceName}
-📅 預計歸還：${formatDate(dtDue)}
-⏰ 逾期天數：${overdueDays} 天
+⏰ 預計歸還：${dueTimeStr}
+⚠️ 逾期時間：${overdueText}
 
 請盡快歸還設備，謝謝！
 
@@ -2757,9 +2795,10 @@ MT 部門設備管理系統 自動提醒`.trim();
 }
 
 /**
- * 發送部門儀器歸還前一天的提醒（手動測試用）
+ * 發送部門儀器歸還前 1 小時的提醒
+ * 建議設定為每小時執行
  */
-function sendDeptDueTomorrowReminder() {
+function sendDeptDueSoonReminder() {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName('MT部門儀器');
@@ -2769,13 +2808,8 @@ function sendDeptDueTomorrowReminder() {
       return;
     }
     
-    const today = new Date();
-    const taipeiTime = new Date(today.getTime() + (8 * 60 * 60 * 1000));
-    const todayStr = taipeiTime.toISOString().split('T')[0];
-    
-    // 明天
-    const tomorrow = new Date(today.getTime() + (24 * 60 * 60 * 1000));
-    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    const now = new Date();
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
     
     const allData = sheet.getDataRange().getValues();
     let sentCount = 0;
@@ -2790,36 +2824,51 @@ function sendDeptDueTomorrowReminder() {
       const dtReturn = allData[i][6];
       const status = allData[i][7];
       
-      // 只處理狀態是「借用中」且明天是預計歸還日
-      if (status === '借用中' && dtDue && dtDue.toString().split('T')[0] === tomorrowStr && !dtReturn) {
-        Logger.log(`明天到期：${deviceName} - ${borrower}`);
+      // 只處理狀態是「借用中」且在 1 小時內到期
+      if (status === '借用中' && dtDue && !dtReturn) {
+        const dueDate = new Date(dtDue);
         
-        if (borrowerEmail && borrowerEmail.includes('@')) {
-          const subject = `${EMAIL_CONFIG.subject_prefix} 【提醒】部門儀器將於明天到期`;
-          const body = `親愛的 ${borrower} 您好：
+        // 檢查是否在未來 1 小時內到期
+        if (dueDate > now && dueDate <= oneHourLater) {
+          const dueTimeStr = Utilities.formatDate(dueDate, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+          Logger.log(`即將到期：${deviceName} - ${borrower} (歸還時間: ${dueTimeStr})`);
+          
+          if (borrowerEmail && borrowerEmail.includes('@')) {
+            const subject = `${EMAIL_CONFIG.subject_prefix} 【提醒】部門儀器將於 1 小時內到期`;
+            const body = `親愛的 ${borrower} 您好：
 
-提醒您借用的部門儀器將於明天到期，請準備歸還：
+提醒您借用的部門儀器即將到期，請準備歸還：
 
 📦 設備名稱：${deviceName}
-📅 預計歸還：${formatDate(dtDue)}
+⏰ 預計歸還：${dueTimeStr}
 
-請在明天歸還設備，謝謝！
+請在預計歸還時間前歸還設備，謝謝！
 
 ---
 MT 部門設備管理系統 自動提醒`.trim();
-          
-          MailApp.sendEmail(borrowerEmail, subject, body);
-          Logger.log(`已發送明天到期提醒給 ${borrower} (${borrowerEmail})`);
-          sentCount++;
+            
+            MailApp.sendEmail(borrowerEmail, subject, body);
+            Logger.log(`已發送即將到期提醒給 ${borrower} (${borrowerEmail})`);
+            sentCount++;
+          }
         }
       }
     }
     
-    Logger.log(`明天到期提醒發送完畢，共發送 ${sentCount} 封`);
+    Logger.log(`即將到期提醒發送完畢，共發送 ${sentCount} 封`);
     return sentCount;
     
   } catch (err) {
-    Logger.log(`發送部門儀器到期提醒失敗: ${err.message}`);
+    Logger.log(`發送部門儀器即將到期提醒失敗: ${err.message}`);
     return 0;
   }
+}
+
+/**
+ * 發送部門儀器歸還前一天的提醒（手動測試用）
+ * 已棄用，請使用 sendDeptDueSoonReminder
+ */
+function sendDeptDueTomorrowReminder() {
+  Logger.log('sendDeptDueTomorrowReminder 已棄用，請使用 sendDeptDueSoonReminder');
+  sendDeptDueSoonReminder();
 }
