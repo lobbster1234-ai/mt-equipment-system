@@ -1188,6 +1188,26 @@ function getEquipmentInfo(fixNo) {
   
   const row = targetSheet.getRange(foundRow, 1, 1, 11).getValues()[0];
   
+  // 格式化日期時間顯示（含時間）
+  const formatDateTimeForDisplay = (val) => {
+    if (!val) return '';
+    if (val instanceof Date) {
+      return Utilities.formatDate(val, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    }
+    // 如果已經是字串，檢查是否有時間部分
+    const str = val.toString().trim();
+    if (str.includes(' ') || str.includes('T')) {
+      // 已經有時間部分
+      if (str.includes('T')) {
+        const [date, time] = str.split('T');
+        return `${date} ${time.substring(0, 5)}`;
+      }
+      return str.substring(0, 16); // yyyy-MM-dd HH:mm
+    }
+    // 只有日期，補上 00:00
+    return str + ' 00:00';
+  };
+  
   return successResponse({
     fix_type: row[COLS.fix_type] || '',
     fix_no: row[COLS.fix_no] || '',
@@ -1196,9 +1216,9 @@ function getEquipmentInfo(fixNo) {
     keeper: row[COLS.keeper] || '',
     status: row[COLS.status] || 'available',
     borrower: row[COLS.borrower] || '',
-    dt_borrow: forceFormatDate(row[COLS.dt_borrow]),
-    dt_due: forceFormatDate(row[COLS.dt_due]),
-    dt_return: forceFormatDate(row[COLS.dt_return]),
+    dt_borrow: formatDateTimeForDisplay(row[COLS.dt_borrow]),
+    dt_due: formatDateTimeForDisplay(row[COLS.dt_due]),
+    dt_return: formatDateTimeForDisplay(row[COLS.dt_return]),
     return_confirmed: row[COLS.return_confirmed] || false
   });
 }
