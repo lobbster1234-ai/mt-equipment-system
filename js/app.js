@@ -1332,6 +1332,11 @@ function renderHistory(history, sortOrder = 'newest') {
         } else if (record.action === 'confirm' || record.action === 'confirmed') {
           targetCycle.dt_return = record.dt_return || '';
           targetCycle.return_confirmed = true;
+        } else if (record.action === 'postpone' || record.action === 'postpone_approved') {
+          // 延後申請核准後，更新預計歸還時間
+          if (record.dt_due) {
+            targetCycle.dt_due = record.dt_due;
+          }
         }
       } else {
         // 沒有找到現有週期（可能只有 return/confirm，沒有 borrow），建立新週期
