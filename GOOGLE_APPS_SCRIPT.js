@@ -3971,8 +3971,11 @@ function getTransferRequest(data, e) {
           return errorResponse('此連結已失效');
         }
         
-        // 取得該 Keeper 的所有設備
-        const equipment = getKeeperEquipmentForTransfer(fromKeeper);
+        // 只需要顯示正在轉讓的設備（單一設備）
+        const equipment = [{
+          fix_no: fixNo,
+          device_name: deviceName
+        }];
         
         return successResponse({
           fix_no: fixNo,
