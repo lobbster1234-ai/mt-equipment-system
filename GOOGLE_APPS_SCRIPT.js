@@ -2902,11 +2902,11 @@ function deptReturn(data) {
     sheet.getRange(rowIndex, 7).setValue(dtReturn); // G 欄：實際歸還日期
     sheet.getRange(rowIndex, 8).setValue('已歸還'); // H 欄：狀態
     
-    // 取得所有管理員郵件
-    const adminEmails = getAllAdminEmails();
+    // 取得手動 Keeper Email 清單
+    const manualKeeperEmails = getManualKeeperEmails();
     
-    // 發送歸還通知給所有管理員
-    sendDeptReturnNotice(adminEmails, deviceName, borrower, dtBorrow, dtReturn);
+    // 發送歸還通知給「手動Keeper」
+    sendDeptReturnNotice(manualKeeperEmails, deviceName, borrower, dtBorrow, dtReturn);
     
     return successResponse({
       success: true,
@@ -2959,6 +2959,37 @@ function getDeptBorrowList() {
 /**
  * 取得所有管理員郵件
  */
+/**
+ * 取得手動 Keeper Email 清單
+ */
+function getManualKeeperEmails() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(MANUAL_KEEPER_SHEET_NAME);
+    
+    if (!sheet) {
+      Logger.log(`找不到工作表：${MANUAL_KEEPER_SHEET_NAME}`);
+      return [];
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    const emails = [];
+    
+    // 從第 2 行開始（跳過標題列）
+    for (let i = 1; i < data.length; i++) {
+      const email = data[i][1];
+      if (email && email.includes('@')) {
+        emails.push(email);
+      }
+    }
+    
+    return emails;
+  } catch (err) {
+    Logger.log('取得手動 Keeper 郵件失敗:', err);
+    return [];
+  }
+}
+
 function getAllAdminEmails() {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
