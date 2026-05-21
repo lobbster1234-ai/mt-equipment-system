@@ -157,8 +157,10 @@
             ? '✅ 設備轉讓已核准！<br><br>設備已移轉至您的名下。'
             : '❌ 設備轉讓已拒絕。<br><br>設備維持在原 Keeper 名下。';
           document.getElementById('content').innerHTML = '<p style="font-size:1.2em;padding:20px;">' + msg + '</p>';
-          document.getElementById('buttons').style.display = 'none';
-          document.getElementById('prompt').style.display = 'none';
+          const buttonsEl = document.getElementById('buttons');
+          const promptEl = document.getElementById('prompt');
+          if (buttonsEl) buttonsEl.style.display = 'none';
+          if (promptEl) promptEl.style.display = 'none';
           
           setTimeout(() => {
             window.location.href = 'index.html';
