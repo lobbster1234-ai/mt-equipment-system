@@ -1931,6 +1931,8 @@ function queryHistory(params) {
   const result = filtered.map(row => {
     const action = row[1] || '';
     
+    console.log('[歷史] row[3] device_name:', row[3], 'length:', (row[3] || '').toString().length);
+    
     // 根據動作類型，正確對應日期欄位
     // 欄位索引：0=時間戳，1=動作，2=設備編號，3=設備名稱，4=借用人，5=保管人，6=借用日期，7=預計歸還，8=歸還日期
     let dt_borrow = '';
@@ -1956,13 +1958,19 @@ function queryHistory(params) {
       dt_due = formatDisplayDate(row[7]);
       dt_return = formatDisplayDate(row[8]);
       return_confirmed = true;
+    } else if (action === 'postpone_approved') {
+      // 延後核准：row[6]=空，row[7]=新的預計歸還
+      dt_borrow = formatDisplayDate(row[6]);
+      dt_due = formatDisplayDate(row[7]);
+      dt_return = '';
+      return_confirmed = false;
     }
     
     return {
       timestamp: row[0] || '',
       action: action,
       fix_no: row[2] || '',
-      device_name: row[3] || '',
+      device_name: (row[3] || '').toString(),
       borrower: row[4] || '',
       keeper: row[5] || '',
       dt_borrow: dt_borrow,
