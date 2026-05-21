@@ -1334,8 +1334,12 @@ function renderHistory(history, sortOrder = 'newest') {
           targetCycle.return_confirmed = true;
         } else if (record.action === 'postpone' || record.action === 'postpone_approved') {
           // 延後申請核准後，更新預計歸還時間
+          console.log(`[歷史] 收到 postpone_approved 記錄, fix_no=${record.fix_no}, borrower=${borrower}, dt_due=${record.dt_due}`);
           if (record.dt_due) {
             targetCycle.dt_due = record.dt_due;
+            console.log(`[歷史] 更新 dt_due 為: ${record.dt_due}`);
+          } else {
+            console.log(`[歷史] dt_due 是空的，無法更新`);
           }
         }
       } else {
