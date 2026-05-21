@@ -1526,7 +1526,8 @@ function validateAndMarkReturnToken(token) {
       const rowToken = data[i][0];
       if (rowToken && rowToken.toString() === token.toString()) {
         const isUsed = data[i][3];
-        if (isUsed) {
+        // 檢查是否已使用（支援 boolean 和 string）
+        if (isUsed === true || isUsed === 'TRUE' || isUsed === 'true') {
           Logger.log(`歸還 Token 已使用過: ${token}`);
           return false; // 已經用過了
         }

@@ -191,7 +191,8 @@
 
         const data = await res.json();
 
-        if (data.error && (data.error.includes('無效') || data.error.includes('過期'))) {
+        // 檢查是否是連結無效或已過期的錯誤
+        if (data.error && (data.error.includes('無效') || data.error.includes('過期') || data.error.includes('失效'))) {
           contentDiv.innerHTML = `
             <p class="error" style="font-size: 1.2em; margin: 20px 0;">
               ❌ ${data.error}
