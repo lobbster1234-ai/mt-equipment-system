@@ -72,8 +72,13 @@ function doGet(e) {
     } else if (action === 'confirmReturn') {
       return confirmReturn({
         fix_no: e.parameter.fix_no,
-        keeper_email: e.parameter.keeper_email
+        keeper_email: e.parameter.keeper_email,
+        token: e.parameter.token
       });
+    } else if (action === 'validateReturnToken') {
+      const isValid = validateAndMarkReturnToken(e.parameter.token);
+      return ContentService.createTextOutput(JSON.stringify({ valid: isValid }))
+        .setMimeType(ContentService.MimeType.JSON);
     } else if (action === 'loginAdmin') {
       const params = {
         email: e.parameter.email,

@@ -109,19 +109,44 @@
     if (!token) {
       showError('❌ 無效的確認連結');
     } else {
-      // 解碼 token 獲取設備資訊和 keeper email
-      try {
-        const decoded = atob(token);
-        const [fixNo, keeperEmail, timestamp] = decoded.split(':');
-        
-        if (!fixNo || !keeperEmail || !timestamp) {
-          showError('❌ 無效的確認連結');
+      // 先驗證 Token 是否有效（一次性）
+      validateToken(token).then(isValid => {
+        if (!isValid) {
+          showError('❌ 連結無效或已過期');
         } else {
-          // 直接載入設備資訊並顯示確認表單（不需要再驗證 email）
-          loadEquipmentInfo(fixNo, keeperEmail);
+          // Token 有效，解碼並載入設備資訊
+          try {
+            const decoded = atob(token);
+            const [fixNo, keeperEmail, timestamp] = decoded.split(':');
+            
+            if (!fixNo || !keeperEmail || !timestamp) {
+              showError('❌ 無效的確認連結');
+            } else {
+              loadEquipmentInfo(fixNo, keeperEmail);
+            }
+          } catch (err) {
+            showError('❌ 無效的確認連結');
+          }
         }
+      });
+    }
+
+    // 驗證 Token 是否有效（一次性）
+    async function validateToken(token) {
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'validateReturnToken');
+        url.searchParams.append('token', token);
+
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const data = await res.json();
+        return data.valid === true;
       } catch (err) {
-        showError('❌ 無效的確認連結');
+        return false;
       }
     }
 
