@@ -3408,6 +3408,28 @@ function requestPostpone(data) {
     
     Logger.log(`延後申請已寫入: ${requestId}`);
     
+    // 格式化日期時間（Display purpose）
+    const formatDisplayDate = (dateVal) => {
+      if (!dateVal) return '未設定';
+      if (typeof dateVal === 'string') {
+        // 如果是 ISO 字串，轉換 T 為空格
+        if (dateVal.includes('T')) {
+          const [d, t] = dateVal.split('T');
+          return d + ' ' + t.substring(0, 5);
+        }
+        return dateVal;
+      }
+      // Date 物件轉換
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '未設定';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${h}:${min}`;
+    };
+    
     // 寄送 email 給 Keeper
     const keeperEmail = getKeeperEmail(keeper) || (keeper && keeper.includes('@') ? keeper : null);
     Logger.log(`延後申請 - Keeper: "${keeper}", Email: "${keeperEmail}"`);
@@ -3415,14 +3437,16 @@ function requestPostpone(data) {
     if (keeperEmail) {
       const approveUrl = EMAIL_CONFIG.web_app_url + 'confirm-postpone.html?request_id=' + encodeURIComponent(requestId);
       const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還申請 - ' + deviceName;
+      const currentDueDisplay = formatDisplayDate(currentDue);
+      const newDueDisplay = formatDisplayDate(new_due_date);
       const body = `
 📋 延後歸還申請通知
 
 設備編號：${fix_no}
 設備名稱：${deviceName}
 借用人：${borrower}
-目前預計歸還：${currentDue}
-申請延後至：${new_due_date}
+原預計歸還：${currentDueDisplay}
+申請延後至：${newDueDisplay}
 
 請點擊以下連結審核：
 ${approveUrl}
@@ -3565,15 +3589,36 @@ function approvePostpone(data, e) {
       logHistory('postpone_approved', fixNo, deviceName, borrower, keeper, '', newDue, '');
     }
     
+    // 格式化日期時間
+    const formatDisplayDate = (dateVal) => {
+      if (!dateVal) return '未設定';
+      if (typeof dateVal === 'string') {
+        if (dateVal.includes('T')) {
+          const [d, t] = dateVal.split('T');
+          return d + ' ' + t.substring(0, 5);
+        }
+        return dateVal;
+      }
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '未設定';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${h}:${min}`;
+    };
+    
     // 寄送核准通知給借用人
     if (borrowerEmail) {
+      const newDueDisplay = formatDisplayDate(newDue);
       const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還已核准 - ' + deviceName;
       const body = `
 ✅ 延後歸還申請已核准
 
 設備編號：${fixNo}
 設備名稱：${deviceName}
-新預計歸還時間：${newDue}
+新預計歸還時間：${newDueDisplay}
 
 請在新的預計歸還時間前歸還設備。
 
@@ -3634,15 +3679,36 @@ function rejectPostpone(data, e) {
     // 更新申請狀態為 rejected
     postponeSheet.getRange(foundRow, 9).setValue('rejected');
     
+    // 格式化日期時間
+    const formatDisplayDate = (dateVal) => {
+      if (!dateVal) return '未設定';
+      if (typeof dateVal === 'string') {
+        if (dateVal.includes('T')) {
+          const [d, t] = dateVal.split('T');
+          return d + ' ' + t.substring(0, 5);
+        }
+        return dateVal;
+      }
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return '未設定';
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${y}-${m}-${day} ${h}:${min}`;
+    };
+    
     // 寄送拒絕通知給借用人
     if (borrowerEmail) {
+      const currentDueDisplay = formatDisplayDate(currentDue);
       const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還已拒絕 - ' + deviceName;
       const body = `
 ❌ 延後歸還申請已拒絕
 
 設備編號：${fixNo}
 設備名稱：${deviceName}
-維持原本預計歸還時間：${currentDue}
+維持原本預計歸還時間：${currentDueDisplay}
 
 請在原本的預計歸還時間前歸還設備。
 
