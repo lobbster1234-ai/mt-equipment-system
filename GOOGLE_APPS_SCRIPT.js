@@ -841,6 +841,8 @@ function rejectBorrow(data, e) {
         device_name: pendingData[i][2],
         borrower: pendingData[i][3],
         borrower_email: pendingData[i][4],
+        dt_borrow: pendingData[i][5],
+        dt_due: pendingData[i][6],
         keeper: pendingData[i][7]
       };
       Logger.log('找到匹配的請求，資料:', JSON.stringify(requestData));
@@ -1070,12 +1072,14 @@ MT 部門設備管理系統 自動通知`.trim();
  */
 function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, dtDue, isApproved) {
   try {
+    Logger.log('sendBorrowResultEmail - dtDue:', dtDue, 'isApproved:', isApproved);
     const subject = isApproved 
       ? `${EMAIL_CONFIG.subject_prefix} 您的借用申請已核准`
       : `${EMAIL_CONFIG.subject_prefix} 您的借用申請未通過`;
     
     const statusText = isApproved ? '✅ 已核准' : '❌ 未通過';
     const dueText = isApproved && dtDue ? `\n⏰ 預計歸還：${dtDue}` : '';
+    Logger.log('dueText:', JSON.stringify(dueText));
     const messageText = isApproved 
       ? '您可以前往設備系統查看設備借用狀態。' 
       : '如需借用設備，請聯繫保管人或其他管理員。';
