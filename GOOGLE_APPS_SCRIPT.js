@@ -17,6 +17,7 @@ const KEEPER_SHEET_NAME = 'Keeper 聯絡資訊';
 const HISTORY_SHEET_NAME = '歷史紀錄';
 const AVATAR_SHEET_NAME = '頭像資料';
 const RETURN_TOKEN_SHEET_NAME = '歸還Token';
+const MANUAL_KEEPER_SHEET_NAME = '手動Keeper';  // 手動輸入設備的額外通知 Keeper
 
 // 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
 // 建立方式：在 Google Drive 建立一個資料夾，分享為「知道連結的使用者」可檢視，然後複製資料夾網址的最後一段
@@ -1155,6 +1156,7 @@ function returnEquipment(data) {
   let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
   let targetSheet = null;
+  let sheetSource = null;
   
   if (sheet) {
     const lastRow = sheet.getLastRow();
@@ -1163,6 +1165,7 @@ function returnEquipment(data) {
       if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
         foundRow = i;
         targetSheet = sheet;
+        sheetSource = SHEET_NAME;
         break;
       }
     }
@@ -1178,6 +1181,7 @@ function returnEquipment(data) {
         if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
           foundRow = i;
           targetSheet = sheet;
+          sheetSource = SHEET_NAME_WEB;
           break;
         }
       }
@@ -1206,8 +1210,14 @@ function returnEquipment(data) {
   
   logHistory('return', fixNo, deviceName, borrower, keeper, dtBorrowVal, dtDueVal, dtReturn);
   
+  // 發送歸還通知
   if (EMAIL_CONFIG.enabled && keeper) {
     sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn);
+    
+    // 如果是手動輸入設備（SHEET_NAME_WEB），額外寄給「手動Keeper」工作表的人
+    if (sheetSource === SHEET_NAME_WEB) {
+      sendReturnEmailToManualKeepers(fixNo, deviceName, borrower, dtReturn);
+    }
   }
   
   return successResponse({
@@ -1492,6 +1502,64 @@ MT 部門設備管理系統 自動通知`.trim();
     Logger.log(`已發送歸還通知給 ${keeperEmail}`);
   } catch (err) {
     Logger.error('發送歸還通知郵件失敗:', err);
+  }
+}
+
+/**
+ * 發送歸還通知給「手動Keeper」工作表中的所有人
+ * （僅用於手動輸入設備）
+ */
+function sendReturnEmailToManualKeepers(fixNo, deviceName, borrower, dtReturn) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(MANUAL_KEEPER_SHEET_NAME);
+    
+    if (!sheet) {
+      Logger.log(`找不到工作表：${MANUAL_KEEPER_SHEET_NAME}，跳過額外通知`);
+      return;
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    // 格式化歸還日期
+    const formatDateTime = (dt) => {
+      if (!dt) return '未設定';
+      if (typeof dt === 'string' && dt.includes('T')) {
+        return dt.replace('T', ' ').substring(0, 16);
+      }
+      return dt;
+    };
+    
+    const subject = `${EMAIL_CONFIG.subject_prefix} 手動設備歸還通知 - ${fixNo}`;
+    const bodyTemplate = `親愛的 Keeper 您好：
+
+有一筆手動輸入的設備已被歸還，需要您確認：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+👤 原借用人：${borrower}
+📅 歸還日期：${formatDateTime(dtReturn)}
+
+請前往設備系統進行確認。
+
+---
+MT 部門設備管理系統 自動通知`;
+    
+    // 遍歷工作表，寄給所有人（A欄姓名，B欄Email）
+    let sentCount = 0;
+    for (let i = 1; i < data.length; i++) {
+      const name = data[i][0];
+      const email = data[i][1];
+      if (name && email) {
+        const body = bodyTemplate.replace('親愛的 Keeper 您好', `親愛的 ${name} 您好`);
+        MailApp.sendEmail(email, subject, body);
+        sentCount++;
+        Logger.log(`已發送歸還通知給手動Keeper: ${name} <${email}>`);
+      }
+    }
+    Logger.log(`已發送歸還通知給 ${sentCount} 位手動Keeper`);
+  } catch (err) {
+    Logger.error('發送手動Keeper歸還通知失敗:', err);
   }
 }
 
