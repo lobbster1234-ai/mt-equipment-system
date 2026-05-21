@@ -336,11 +336,26 @@ async function handleBorrowSubmit() {
     return;
   }
   
-  // 今天日期時間（台北時間），強制整點（分鐘設為00）
+  // 借用日期：四捨五入到最接近的整點（分鐘>=30則進位到下一小時）
   const now = new Date();
-  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  taipeiTime.setMinutes(0, 0, 0); // 強制整點
-  const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  let borrowHour = hours + 1; // 預設往後一小時
+  if (minutes >= 30) {
+    borrowHour = hours + 2; // >=30分鐘，往後兩小時（進位到下一個整點）
+  }
+  // 處理跨日
+  let borrowDay = now.getDate();
+  if (borrowHour >= 24) {
+    borrowHour = 0;
+    borrowDay++;
+  }
+  // 格式化為 yyyy-MM-ddTHH:mm
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(borrowDay).padStart(2, '0');
+  const hour = String(borrowHour).padStart(2, '0');
+  const dtBorrow = `${year}-${month}-${day}T${hour}:00`;
   
   // 判斷是否為訪客
   const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
@@ -2235,11 +2250,26 @@ async function handleDeptBorrowSubmit() {
     return;
   }
   
-  // 今天日期時間（台北時間），強制整點
+  // 借用日期：四捨五入到最接近的整點（分鐘>=30則進位到下一小時）
   const now = new Date();
-  const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
-  taipeiTime.setMinutes(0, 0, 0); // 強制整點
-  const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+  const hours = now.getHours();
+  const minutes = now.getMinutes();
+  let borrowHour = hours + 1; // 預設往後一小時
+  if (minutes >= 30) {
+    borrowHour = hours + 2; // >=30分鐘，往後兩小時（進位到下一個整點）
+  }
+  // 處理跨日
+  let borrowDay = now.getDate();
+  if (borrowHour >= 24) {
+    borrowHour = 0;
+    borrowDay++;
+  }
+  // 格式化為 yyyy-MM-ddTHH:mm
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(borrowDay).padStart(2, '0');
+  const hour = String(borrowHour).padStart(2, '0');
+  const dtBorrow = `${year}-${month}-${day}T${hour}:00`;
   
   const btn = document.querySelector('#dept-borrow-form button');
   if (btn) {
