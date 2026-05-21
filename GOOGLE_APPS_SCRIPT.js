@@ -4070,31 +4070,56 @@ function approveTransfer(data, e) {
     const fixNoCol = COLS.fix_no;
     const keeperCol = COLS.keeper;
     
+    Logger.log(`開始查找設備 ${fixNo}，在 ${SHEET_NAME} 中...`);
+    
     // 查找設備所在的 sheet 並更新
     let sheet = ss.getSheetByName(SHEET_NAME);
     let targetRow = -1;
+    let foundInSheet = '';
     
-    for (let i = 2; i <= sheet.getLastRow(); i++) {
-      if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
-        targetRow = i;
-        break;
-      }
-    }
-    
-    if (targetRow === -1) {
-      sheet = ss.getSheetByName(SHEET_NAME_WEB);
-      for (let i = 2; i <= sheet.getLastRow(); i++) {
-        if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+    // 在 SHEET_NAME 中搜尋
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      Logger.log(`${SHEET_NAME} 共有 ${lastRow} 列`);
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        Logger.log(`第 ${i} 列: fix_no="${rowFixNo}" (type: ${typeof rowFixNo}), 比對="${fixNo}"`);
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo.toString().trim()) {
           targetRow = i;
+          foundInSheet = SHEET_NAME;
+          Logger.log(`✅ 在 ${SHEET_NAME} 第 ${i} 列找到設備`);
           break;
         }
       }
     }
     
+    // 在 SHEET_NAME_WEB 中搜尋
+    if (targetRow === -1) {
+      Logger.log(`在 ${SHEET_NAME} 找不到，搜尋 ${SHEET_NAME_WEB}...`);
+      sheet = ss.getSheetByName(SHEET_NAME_WEB);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        Logger.log(`${SHEET_NAME_WEB} 共有 ${lastRow} 列`);
+        for (let i = 2; i <= lastRow; i++) {
+          const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+          Logger.log(`第 ${i} 列: fix_no="${rowFixNo}" (type: ${typeof rowFixNo}), 比對="${fixNo}"`);
+          if (rowFixNo && rowFixNo.toString().trim() === fixNo.toString().trim()) {
+            targetRow = i;
+            foundInSheet = SHEET_NAME_WEB;
+            Logger.log(`✅ 在 ${SHEET_NAME_WEB} 第 ${i} 列找到設備`);
+            break;
+          }
+        }
+      }
+    }
+    
     if (targetRow !== -1) {
+      Logger.log(`更新設備 ${fixNo} 的 Keeper 欄位 (第 ${keeperCol + 1} 欄) 從 "${fromKeeper}" 改為 "${toKeeper}"`);
       sheet.getRange(targetRow, keeperCol + 1).setValue(toKeeper);
       Logger.log(`✅ 設備 ${fixNo} 的 Keeper 已從 ${fromKeeper} 變更為 ${toKeeper}`);
       logHistory('transfer', fixNo, deviceName, fromKeeper, toKeeper, '', '', '');
+    } else {
+      Logger.log(`❌ 找不到設備 ${fixNo}，無法更新 Keeper`);
     }
     
     // 寄送核准通知給原 Keeper
