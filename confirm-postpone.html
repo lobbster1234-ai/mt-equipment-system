@@ -118,9 +118,44 @@
         const data = await res.json();
         
         if (data.success) {
+          let newDueDisplay = '';
+          if (action === 'approve' && data.new_due) {
+            // 格式化新時間顯示
+            const dt = new Date(data.new_due);
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const d = String(dt.getDate()).padStart(2, '0');
+            const h = String(dt.getHours()).padStart(2, '0');
+            const min = String(dt.getMinutes()).padStart(2, '0');
+            newDueDisplay = `${y}-${m}-${d} ${h}:${min}`;
+          }
+          
           document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准延後' : '❌ 已拒絕延後';
-          const msg = action === 'approve' ? '✅ 延後申請已核准！\n\n預計歸還時間已更新。' : '❌ 延後申請已拒絕。\n\n維持原本的歸還時間。';
-          document.getElementById('content').innerHTML = '<p class="success" style="font-size:1.2em;padding:20px;">' + msg + '</p>';
+          
+          if (action === 'approve') {
+            document.getElementById('content').innerHTML = `
+              <p class="success" style="font-size:1.2em;padding:20px;">
+                ✅ 延後申請已核准！
+              </p>
+              <div style="background:#d4edda;padding:15px;border-radius:8px;margin:20px 0;text-align:left;">
+                <strong>📅 新預計歸還時間：</strong><br>
+                <span style="font-size:1.5em;color:#155724;font-weight:bold;">${newDueDisplay}</span>
+              </div>
+              <p style="color:#666;">系統已通知借用人。</p>
+              <p style="color:#888;font-size:0.9em;margin-top:20px;">3 秒後自動跳轉...</p>
+            `;
+          } else {
+            document.getElementById('content').innerHTML = `
+              <p style="font-size:1.2em;padding:20px;color:#721c24;">
+                ❌ 延後申請已拒絕
+              </p>
+              <div style="background:#f8d7da;padding:15px;border-radius:8px;margin:20px 0;text-align:left;">
+                維持原本的歸還時間<br>
+                系統已通知借用人。
+              </div>
+              <p style="color:#888;font-size:0.9em;margin-top:20px;">3 秒後自動跳轉...</p>
+            `;
+          }
           
           setTimeout(() => {
             window.location.href = 'index.html';
