@@ -177,6 +177,25 @@ function doGet(e) {
       });
     } else if (action === 'getDeptBorrowList') {
       return getDeptBorrowList();
+    } else if (action === 'requestTransfer') {
+      return requestTransfer({
+        fix_no: e.parameter.fix_no,
+        to_keeper: e.parameter.to_keeper
+      });
+    } else if (action === 'getTransferRequest') {
+      return getTransferRequest({
+        request_id: e.parameter.request_id
+      }, e);
+    } else if (action === 'approveTransfer') {
+      return approveTransfer({
+        request_id: e.parameter.request_id
+      }, e);
+    } else if (action === 'rejectTransfer') {
+      return rejectTransfer({
+        request_id: e.parameter.request_id
+      }, e);
+    } else if (action === 'getKeeperList') {
+      return getKeeperList();
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -3786,5 +3805,429 @@ function rejectPostpone(data, e) {
   } catch (err) {
     Logger.log(`拒絕延後失敗: ${err.message}`);
     return errorResponse('拒絕失敗：' + err.message);
+  }
+}
+
+// =============================================
+// 設備轉讓功能
+// =============================================
+
+/**
+ * 建立「轉讓申請」工作表（如果不存在）
+ */
+function getOrCreateTransferSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName('轉讓申請');
+  if (!sheet) {
+    sheet = ss.insertSheet('轉讓申請');
+    sheet.getRange(1, 1, 1, 7).setValues([['request_id', 'fix_no', 'device_name', 'from_keeper', 'to_keeper', 'dt_request', 'status']]);
+    sheet.getRange(1, 1, 1, 7).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * 發送轉讓申請（管理員發起）
+ */
+function requestTransfer(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const { fix_no, to_keeper } = data;
+    
+    Logger.log(`=== 轉讓申請開始 ===`);
+    Logger.log(`設備編號: ${fix_no}, 轉讓給: ${to_keeper}`);
+    
+    if (!fix_no || !to_keeper) {
+      return errorResponse('缺少設備編號或轉讓對象');
+    }
+    
+    // 查找設備和目前 Keeper 資訊
+    const fixNoCol = COLS.fix_no;
+    const keeperCol = COLS.keeper;
+    const deviceNameCol = COLS.device_name;
+    
+    let sheet = ss.getSheetByName(SHEET_NAME);
+    let foundRow = -1;
+    let fromKeeper = '';
+    let deviceName = '';
+    
+    // 在「工作表 1」查找
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fix_no) {
+          foundRow = i;
+          fromKeeper = sheet.getRange(i, keeperCol + 1).getValue() || '';
+          deviceName = sheet.getRange(i, deviceNameCol + 1).getValue() || '';
+          break;
+        }
+      }
+    }
+    
+    // 在「網站新增設備」查找
+    if (foundRow === -1) {
+      sheet = ss.getSheetByName(SHEET_NAME_WEB);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        for (let i = 2; i <= lastRow; i++) {
+          const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+          if (rowFixNo && rowFixNo.toString().trim() === fix_no) {
+            foundRow = i;
+            fromKeeper = sheet.getRange(i, keeperCol + 1).getValue() || '';
+            deviceName = sheet.getRange(i, deviceNameCol + 1).getValue() || '';
+            break;
+          }
+        }
+      }
+    }
+    
+    if (foundRow === -1) {
+      return errorResponse(`找不到設備編號：${fix_no}`);
+    }
+    
+    if (fromKeeper === to_keeper) {
+      return errorResponse('不能轉讓給自己');
+    }
+    
+    // 產生 request_id
+    const requestId = 'TR' + new Date().getTime();
+    
+    // 寫入轉讓申請工作表
+    const transferSheet = getOrCreateTransferSheet();
+    const now = new Date();
+    const requestTime = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    
+    transferSheet.appendRow([requestId, fix_no, deviceName, fromKeeper, to_keeper, requestTime, 'pending']);
+    
+    Logger.log(`轉讓申請已寫入: ${requestId}`);
+    
+    // 寄送 email 給新的 Keeper
+    const toKeeperEmail = getKeeperEmail(to_keeper);
+    const fromKeeperEmail = getKeeperEmail(fromKeeper);
+    
+    if (toKeeperEmail) {
+      const approveUrl = EMAIL_CONFIG.web_app_url + 'confirm-transfer.html?request_id=' + encodeURIComponent(requestId);
+      const subject = EMAIL_CONFIG.subject_prefix + ' 設備轉讓申請 - ' + deviceName;
+      const body = `
+🔄 設備轉讓申請通知
+
+設備編號：${fix_no}
+設備名稱：${deviceName}
+目前保管人：${fromKeeper}
+申請轉讓至：${to_keeper}
+
+請點擊以下連結審核：
+${approveUrl}
+
+此郵件由系統自動產生，請勿直接回覆。
+      `.trim();
+      
+      MailApp.sendEmail(toKeeperEmail, subject, body);
+      Logger.log(`已寄送轉讓審核郵件給 ${to_keeper}: ${toKeeperEmail}`);
+    } else {
+      Logger.log(`❌ 找不到新 Keeper (${to_keeper}) 的 email`);
+    }
+    
+    return successResponse({
+      message: '轉讓申請已送出，等待新 Keeper 審核',
+      request_id: requestId
+    });
+    
+  } catch (err) {
+    Logger.log(`轉讓申請失敗: ${err.message}`);
+    return errorResponse('轉讓申請失敗：' + err.message);
+  }
+}
+
+/**
+ * 取得轉讓申請資訊（用於審核頁面）
+ */
+function getTransferRequest(data, e) {
+  try {
+    const { request_id } = data;
+    
+    Logger.log(`取得轉讓申請: ${request_id}`);
+    
+    const transferSheet = getOrCreateTransferSheet();
+    const lastRow = transferSheet.getLastRow();
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const rowRequestId = transferSheet.getRange(i, 1).getValue();
+      if (rowRequestId && rowRequestId.toString() === request_id) {
+        const fixNo = transferSheet.getRange(i, 2).getValue();
+        const deviceName = transferSheet.getRange(i, 3).getValue();
+        const fromKeeper = transferSheet.getRange(i, 4).getValue();
+        const toKeeper = transferSheet.getRange(i, 5).getValue();
+        const dtRequest = transferSheet.getRange(i, 6).getValue();
+        const status = transferSheet.getRange(i, 7).getValue();
+        
+        if (status === 'approved') {
+          return errorResponse('此連結已失效（轉讓已核准）');
+        } else if (status === 'rejected') {
+          return errorResponse('此連結已失效（轉讓已拒絕）');
+        } else if (status !== 'pending') {
+          return errorResponse('此連結已失效');
+        }
+        
+        // 取得該 Keeper 的所有設備
+        const equipment = getKeeperEquipmentForTransfer(fromKeeper);
+        
+        return successResponse({
+          fix_no: fixNo,
+          device_name: deviceName,
+          from_keeper: fromKeeper,
+          to_keeper: toKeeper,
+          dt_request: dtRequest,
+          status: status,
+          equipment: equipment
+        });
+      }
+    }
+    
+    return errorResponse('找不到此轉讓申請');
+    
+  } catch (err) {
+    Logger.log(`取得轉讓申請失敗: ${err.message}`);
+    return errorResponse('載入失敗：' + err.message);
+  }
+}
+
+/**
+ * 取得某 Keeper 名下的所有設備（用於轉讓審核顯示）
+ */
+function getKeeperEquipmentForTransfer(keeperName) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const equipment = [];
+  
+  // 搜尋兩個工作表
+  const sheets = [SHEET_NAME, SHEET_NAME_WEB];
+  
+  for (const sheetName of sheets) {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) continue;
+    
+    const lastRow = sheet.getLastRow();
+    for (let i = 2; i <= lastRow; i++) {
+      const keeper = sheet.getRange(i, COLS.keeper + 1).getValue();
+      if (keeper && keeper.toString().trim() === keeperName.toString().trim()) {
+        equipment.push({
+          fix_no: sheet.getRange(i, COLS.fix_no + 1).getValue() || '',
+          device_name: sheet.getRange(i, COLS.device_name + 1).getValue() || '',
+          status: sheet.getRange(i, COLS.status + 1).getValue() || ''
+        });
+      }
+    }
+  }
+  
+  return equipment;
+}
+
+/**
+ * 核准轉讓申請（新的 Keeper 按下同意）
+ */
+function approveTransfer(data, e) {
+  try {
+    const { request_id } = data;
+    
+    Logger.log(`核准轉讓申請: ${request_id}`);
+    
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const transferSheet = getOrCreateTransferSheet();
+    const lastRow = transferSheet.getLastRow();
+    let foundRow = -1;
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const rowRequestId = transferSheet.getRange(i, 1).getValue();
+      if (rowRequestId && rowRequestId.toString() === request_id) {
+        foundRow = i;
+        break;
+      }
+    }
+    
+    if (foundRow === -1) {
+      return errorResponse('找不到此轉讓申請');
+    }
+    
+    const status = transferSheet.getRange(foundRow, 7).getValue();
+    if (status !== 'pending') {
+      return errorResponse('此申請已經處理過了');
+    }
+    
+    const fixNo = transferSheet.getRange(foundRow, 2).getValue();
+    const deviceName = transferSheet.getRange(foundRow, 3).getValue();
+    const fromKeeper = transferSheet.getRange(foundRow, 4).getValue();
+    const toKeeper = transferSheet.getRange(foundRow, 5).getValue();
+    
+    // 更新申請狀態為 approved
+    transferSheet.getRange(foundRow, 7).setValue('approved');
+    
+    // 更新設備的 keeper
+    const fixNoCol = COLS.fix_no;
+    const keeperCol = COLS.keeper;
+    
+    // 查找設備所在的 sheet 並更新
+    let sheet = ss.getSheetByName(SHEET_NAME);
+    let targetRow = -1;
+    
+    for (let i = 2; i <= sheet.getLastRow(); i++) {
+      if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+        targetRow = i;
+        break;
+      }
+    }
+    
+    if (targetRow === -1) {
+      sheet = ss.getSheetByName(SHEET_NAME_WEB);
+      for (let i = 2; i <= sheet.getLastRow(); i++) {
+        if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+          targetRow = i;
+          break;
+        }
+      }
+    }
+    
+    if (targetRow !== -1) {
+      sheet.getRange(targetRow, keeperCol + 1).setValue(toKeeper);
+      Logger.log(`✅ 設備 ${fixNo} 的 Keeper 已從 ${fromKeeper} 變更為 ${toKeeper}`);
+      logHistory('transfer', fixNo, deviceName, fromKeeper, toKeeper, '', '', '');
+    }
+    
+    // 寄送核准通知給原 Keeper
+    const fromKeeperEmail = getKeeperEmail(fromKeeper);
+    if (fromKeeperEmail) {
+      const subject = EMAIL_CONFIG.subject_prefix + ' 設備轉讓已核准 - ' + deviceName;
+      const body = `
+✅ 設備轉讓已核准
+
+設備編號：${fixNo}
+設備名稱：${deviceName}
+已轉讓至：${toKeeper}
+
+設備已從您的名下移轉至 ${toKeeper}。
+
+此郵件由系統自動產生，請勿直接回覆。
+      `.trim();
+      
+      MailApp.sendEmail(fromKeeperEmail, subject, body);
+      Logger.log(`已寄送轉讓核准通知給原 Keeper: ${fromKeeperEmail}`);
+    }
+    
+    return successResponse({
+      message: '已核准轉讓申請',
+      fix_no: fixNo,
+      new_keeper: toKeeper
+    });
+    
+  } catch (err) {
+    Logger.log(`核准轉讓失敗: ${err.message}`);
+    return errorResponse('核准失敗：' + err.message);
+  }
+}
+
+/**
+ * 拒絕轉讓申請（新的 Keeper 按下不同意）
+ */
+function rejectTransfer(data, e) {
+  try {
+    const { request_id } = data;
+    
+    Logger.log(`拒絕轉讓申請: ${request_id}`);
+    
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const transferSheet = getOrCreateTransferSheet();
+    const lastRow = transferSheet.getLastRow();
+    let foundRow = -1;
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const rowRequestId = transferSheet.getRange(i, 1).getValue();
+      if (rowRequestId && rowRequestId.toString() === request_id) {
+        foundRow = i;
+        break;
+      }
+    }
+    
+    if (foundRow === -1) {
+      return errorResponse('找不到此轉讓申請');
+    }
+    
+    const status = transferSheet.getRange(foundRow, 7).getValue();
+    if (status !== 'pending') {
+      return errorResponse('此申請已經處理過了');
+    }
+    
+    const fixNo = transferSheet.getRange(foundRow, 2).getValue();
+    const deviceName = transferSheet.getRange(foundRow, 3).getValue();
+    const fromKeeper = transferSheet.getRange(foundRow, 4).getValue();
+    const toKeeper = transferSheet.getRange(foundRow, 5).getValue();
+    
+    // 更新申請狀態為 rejected
+    transferSheet.getRange(foundRow, 7).setValue('rejected');
+    
+    // 寄送拒絕通知給原 Keeper
+    const fromKeeperEmail = getKeeperEmail(fromKeeper);
+    if (fromKeeperEmail) {
+      const subject = EMAIL_CONFIG.subject_prefix + ' 設備轉讓已拒絕 - ' + deviceName;
+      const body = `
+❌ 設備轉讓已拒絕
+
+設備編號：${fixNo}
+設備名稱：${deviceName}
+原本要轉讓至：${toKeeper}
+
+${toKeeper} 拒絕了轉讓申請。
+設備維持在您的名下。
+
+如有疑問，請聯繫 ${toKeeper}。
+
+此郵件由系統自動產生，請勿直接回覆。
+      `.trim();
+      
+      MailApp.sendEmail(fromKeeperEmail, subject, body);
+      Logger.log(`已寄送轉讓拒絕通知給原 Keeper: ${fromKeeperEmail}`);
+    }
+    
+    return successResponse({
+      message: '已拒絕轉讓申請',
+      fix_no: fixNo
+    });
+    
+  } catch (err) {
+    Logger.log(`拒絕轉讓失敗: ${err.message}`);
+    return errorResponse('拒絕失敗：' + err.message);
+  }
+}
+
+/**
+ * 取得 Keeper 清單（給前端下拉選單用）
+ */
+function getKeeperList() {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const keeperSheet = ss.getSheetByName(KEEPER_SHEET_NAME);
+    
+    if (!keeperSheet) {
+      return errorResponse('找不到 Keeper 聯絡資訊工作表');
+    }
+    
+    const data = keeperSheet.getDataRange().getValues();
+    const keepers = [];
+    
+    for (let i = 1; i < data.length; i++) {
+      const name = data[i][0];
+      const email = data[i][1];
+      if (name) {
+        keepers.push({
+          name: name.toString().trim(),
+          email: email ? email.toString().trim() : ''
+        });
+      }
+    }
+    
+    return successResponse({ keepers: keepers });
+    
+  } catch (err) {
+    return errorResponse(err.message);
   }
 }

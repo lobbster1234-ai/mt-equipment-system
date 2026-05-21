@@ -1906,8 +1906,8 @@ async function loadMyEquipment() {
           </div>
           <div style="margin-top:15px;display:flex;gap:10px;">
             ${(isBorrowed || isReturnPending) ? 
-              '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button>' :
-              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>'
+              '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法轉讓">🔄 轉讓</button>' :
+              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button><button onclick="openTransferModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.keeper || '') + '\')" style="padding:8px 15px;background:#17a2b8;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 轉讓</button>'
             }
           </div>
         </div>
@@ -2041,6 +2041,148 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     alert('❌ 更新失敗：' + err.message);
   }
 });
+
+// =============================================
+// 設備轉讓功能
+// =============================================
+
+/**
+ * 開啟轉讓設備 Modal
+ */
+function openTransferModal(fixNo, deviceName, keeper) {
+  // 動態建立 Modal（如果還沒有）
+  let modal = document.getElementById('transfer-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'transfer-modal';
+    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);';
+    modal.innerHTML = `
+      <div style="background-color:#fefefe;margin:10% auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
+        <span onclick="closeTransferModal()" style="color:#aaa;float:right;font-size:28px;font-weight:bold;cursor:pointer;">&times;</span>
+        <h2 style="color:#17a2b8;margin-bottom:20px;">🔄 轉讓設備</h2>
+        <div id="transfer-info" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;"></div>
+        <form id="transfer-form">
+          <input type="hidden" id="transfer-fix-no">
+          <div style="margin-bottom:15px;">
+            <label style="display:block;margin-bottom:5px;font-weight:bold;">選擇接收 Keeper：</label>
+            <select id="transfer-to-keeper" required style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:1em;">
+              <option value="">載入中...</option>
+            </select>
+          </div>
+          <div style="text-align:center;margin-top:20px;">
+            <button type="submit" class="btn" style="background:#17a2b8;color:#fff;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;">✅ 送出轉讓申請</button>
+            <button type="button" onclick="closeTransferModal()" style="background:#6c757d;color:#fff;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;margin-left:10px;">取消</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // 綁定表單提交事件
+    document.getElementById('transfer-form').addEventListener('submit', handleTransferSubmit);
+  }
+  
+  // 設定設備資訊
+  document.getElementById('transfer-fix-no').value = fixNo;
+  document.getElementById('transfer-info').innerHTML = `
+    <strong>設備編號：</strong>${fixNo}<br>
+    <strong>設備名稱：</strong>${decodeURIComponent(deviceName || '')}<br>
+    <strong>目前保管人：</strong>${decodeURIComponent(keeper || '')}
+  `;
+  
+  // 載入 Keeper 清單
+  loadKeeperListForTransfer(fixNo);
+  
+  modal.style.display = 'block';
+}
+
+/**
+ * 載入 Keeper 清單（排除自己）
+ */
+async function loadKeeperListForTransfer(currentFixNo) {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'getKeeperList');
+    
+    const res = await fetch(url.toString());
+    const data = await res.json();
+    
+    const select = document.getElementById('transfer-to-keeper');
+    const user = JSON.parse(localStorage.getItem('mt_user'));
+    
+    if (data.success && data.keepers) {
+      // 過濾掉自己
+      const keepers = data.keepers.filter(k => k.name !== user.name);
+      
+      if (keepers.length === 0) {
+        select.innerHTML = '<option value="">沒有其他 Keeper</option>';
+        return;
+      }
+      
+      select.innerHTML = keepers.map(k => 
+        `<option value="${k.name}">${k.name}</option>`
+      ).join('');
+    } else {
+      select.innerHTML = '<option value="">載入失敗</option>';
+    }
+  } catch (err) {
+    console.error('載入 Keeper 清單失敗:', err);
+    document.getElementById('transfer-to-keeper').innerHTML = '<option value="">載入失敗</option>';
+  }
+}
+
+/**
+ * 關閉轉讓 Modal
+ */
+function closeTransferModal() {
+  const modal = document.getElementById('transfer-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+/**
+ * 處理轉讓表單提交
+ */
+async function handleTransferSubmit(e) {
+  e.preventDefault();
+  
+  const fixNo = document.getElementById('transfer-fix-no').value;
+  const toKeeper = document.getElementById('transfer-to-keeper').value;
+  
+  if (!toKeeper) {
+    alert('請選擇要轉讓給哪位 Keeper');
+    return;
+  }
+  
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '🔄 處理中...';
+  }
+  
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'requestTransfer');
+    url.searchParams.append('fix_no', fixNo);
+    url.searchParams.append('to_keeper', toKeeper);
+    
+    const res = await fetch(url.toString());
+    const result = await res.json();
+    
+    if (result.success) {
+      alert('✅ 轉讓申請已送出！\n\n系統已寄信通知 ' + toKeeper + ' 審核');
+      closeTransferModal();
+      loadMyEquipment();
+    } else {
+      throw new Error(result.error || '申請失敗');
+    }
+  } catch (err) {
+    alert('❌ 轉讓失敗：' + err.message);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '✅ 送出轉讓申請';
+    }
+  }
+}
 
 // =============================================
 // 部門儀器借用功能（任何人可用）
