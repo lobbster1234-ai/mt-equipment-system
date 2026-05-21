@@ -1385,12 +1385,16 @@ function renderHistory(history, sortOrder = 'newest') {
     sortedCycles.forEach((cycle, cycleIndex) => {
       const hasConfirm = cycle.return_confirmed;
       const hasReturn = !hasConfirm && cycle.dt_return && cycle.dt_return !== '';
+      const isTransfer = cycle.records && cycle.records.some(r => r.action === 'transfer');
       // 最新的預設展開（根據排序方向）
       const isExpanded = cycleIndex === 0;
       
-      // 判斷狀態
+      // 判斷狀態（transfer 最優先）
       let statusIcon, statusText;
-      if (hasConfirm) {
+      if (isTransfer) {
+        statusIcon = '🔄';
+        statusText = '轉讓';
+      } else if (hasConfirm) {
         statusIcon = '✅';
         statusText = '已歸還';
       } else if (hasReturn) {
