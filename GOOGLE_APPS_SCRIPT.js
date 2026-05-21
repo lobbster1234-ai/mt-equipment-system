@@ -141,6 +141,11 @@ function doGet(e) {
       return getEmailByName({
         name: e.parameter.name
       });
+    } else if (action === 'postponeDueDate') {
+      return postponeDueDate({
+        fix_no: e.parameter.fix_no,
+        new_due_date: e.parameter.new_due_date
+      });
     } else if (action === 'deptBorrow') {
       return deptBorrow({
         device_name: e.parameter.device_name,
@@ -3184,4 +3189,100 @@ function testAllReminders() {
   Logger.log('╔════════════════════════════════════╗');
   Logger.log('║     所有測試執行完成！             ║');
   Logger.log('╚════════════════════════════════════╝');
+}
+
+// =============================================
+// 延後歸還功能
+// =============================================
+
+/**
+ * 延後預計歸還時間
+ * @param {Object} data - 包含 fix_no 和 new_due_date
+ * @returns {Object} 成功或失敗的回應
+ */
+function postponeDueDate(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const fixNo = data.fix_no;
+    const newDueDate = data.new_due_date;
+    
+    Logger.log(`=== 延後歸還時間開始 ===`);
+    Logger.log(`設備編號: ${fixNo}, 新時間: ${newDueDate}`);
+    
+    if (!fixNo || !newDueDate) {
+      return errorResponse('缺少設備編號或新的預計歸還時間');
+    }
+    
+    const fixNoCol = COLS.fix_no;
+    const statusCol = COLS.status;
+    const dtDueCol = COLS.dt_due;
+    const keeperCol = COLS.keeper;
+    const deviceNameCol = COLS.device_name;
+    const borrowerCol = COLS.borrower;
+    
+    // 先在「工作表 1」查找
+    let sheet = ss.getSheetByName(SHEET_NAME);
+    let foundRow = -1;
+    let targetSheet = null;
+    
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+    
+    // 如果找不到，在「網站新增設備」查找
+    if (foundRow === -1) {
+      sheet = ss.getSheetByName(SHEET_NAME_WEB);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        for (let i = 2; i <= lastRow; i++) {
+          const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+          if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
+            foundRow = i;
+            targetSheet = sheet;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (foundRow === -1 || !targetSheet) {
+      return errorResponse(`找不到設備編號：${fixNo}`);
+    }
+    
+    // 檢查設備狀態是否為借用中
+    const currentStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
+    if (currentStatus !== 'borrowed') {
+      return errorResponse(`設備狀態不是借用中（當前狀態：${currentStatus}）`);
+    }
+    
+    // 更新預計歸還時間
+    targetSheet.getRange(foundRow, dtDueCol + 1).setValue(newDueDate);
+    
+    const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+    const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
+    const borrower = targetSheet.getRange(foundRow, borrowerCol + 1).getValue();
+    
+    Logger.log(`設備 ${fixNo} 預計歸還時間已更新為: ${newDueDate}`);
+    
+    // 記錄歷史
+    logHistory('postpone', fixNo, deviceName, borrower, keeper, '', newDueDate, '');
+    
+    return successResponse({
+      message: '預計歸還時間已更新',
+      fix_no: fixNo,
+      new_due_date: newDueDate
+    });
+    
+  } catch (err) {
+    Logger.log(`延後歸還時間失敗: ${err.message}`);
+    return errorResponse('延後失敗：' + err.message);
+  }
 }
