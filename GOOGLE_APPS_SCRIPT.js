@@ -960,6 +960,16 @@ function getBorrowRequest(data, e) {
     if (rowRequestId && rowRequestId.toString() === requestId.toString()) {
       Logger.log('找到匹配的請求！');
       
+      // 檢查狀態，如果已經處理過則回傳失效
+      const reqStatus = pendingData[i][8];
+      if (reqStatus === 'approved') {
+        return errorResponse('此連結已失效（借用已核准）');
+      } else if (reqStatus === 'rejected') {
+        return errorResponse('此連結已失效（借用已拒絕）');
+      } else if (reqStatus !== 'pending') {
+        return errorResponse('此連結已失效');
+      }
+      
       // 格式化日期時間顯示（如果有時間則顯示時間）
       const formatDateTimeForDisplay = (val) => {
         if (!val) return '';
@@ -977,7 +987,7 @@ function getBorrowRequest(data, e) {
         dt_borrow: formatDateTimeForDisplay(pendingData[i][5]),
         dt_due: formatDateTimeForDisplay(pendingData[i][6]),
         keeper: pendingData[i][7],
-        status: pendingData[i][8]
+        status: reqStatus
       });
     }
   }
