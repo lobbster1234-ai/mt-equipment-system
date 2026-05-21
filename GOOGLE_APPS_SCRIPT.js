@@ -76,7 +76,7 @@ function doGet(e) {
         token: e.parameter.token
       });
     } else if (action === 'validateReturnToken') {
-      const isValid = validateAndMarkReturnToken(e.parameter.token);
+      const isValid = checkReturnToken(e.parameter.token);
       return ContentService.createTextOutput(JSON.stringify({ valid: isValid }))
         .setMimeType(ContentService.MimeType.JSON);
     } else if (action === 'loginAdmin') {
@@ -1310,7 +1310,7 @@ function confirmReturn(data) {
   
   // 驗證 Token（一次性）
   if (token) {
-    const isValid = validateAndMarkReturnToken(token);
+    const isValid = checkReturnToken(token);
     if (!isValid) {
       return errorResponse('連結無效或已過期');
     }
@@ -1381,6 +1381,11 @@ function confirmReturn(data) {
   targetSheet.getRange(foundRow, dtDueCol + 1).setValue('');
   
   logHistory('confirm', fixNo, deviceName, borrower || '', keeperName, dtBorrowVal || '', dtDueVal || '', dtReturnVal || '');
+  
+  // 標記 Token 為已使用
+  if (token) {
+    markReturnTokenUsed(token);
+  }
   
   if (EMAIL_CONFIG.enabled && keeperName) {
     sendReturnConfirmEmail(keeperName, fixNo, deviceName);
@@ -1512,10 +1517,9 @@ function saveReturnToken(token, fixNo, keeperEmail) {
 }
 
 /**
- * 驗證並標記歸還 Token（一次性）
- * 回傳 true = 有效且已標記使用, false = 無效或已使用
+ * 檢查歸還 Token 是否有效（僅檢查，不標記）
  */
-function validateAndMarkReturnToken(token) {
+function checkReturnToken(token) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(RETURN_TOKEN_SHEET_NAME);
@@ -1534,11 +1538,9 @@ function validateAndMarkReturnToken(token) {
         // 檢查是否已使用（支援 boolean 和 string）
         if (isUsed === true || isUsed === 'TRUE' || isUsed === 'true') {
           Logger.log(`歸還 Token 已使用過: ${token}`);
-          return false; // 已經用過了
+          return false;
         }
-        // 標記為已使用
-        sheet.getRange(i + 1, 4).setValue(true);
-        Logger.log(`歸還 Token 已標記為已使用: ${token}`);
+        // Token 有效但還沒使用
         return true;
       }
     }
@@ -1546,7 +1548,38 @@ function validateAndMarkReturnToken(token) {
     Logger.log(`找不到歸還 Token: ${token}`);
     return false;
   } catch (err) {
-    Logger.error('驗證歸還 Token 失敗:', err);
+    Logger.error('檢查歸還 Token 失敗:', err);
+    return false;
+  }
+}
+
+/**
+ * 標記歸還 Token 為已使用
+ */
+function markReturnTokenUsed(token) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(RETURN_TOKEN_SHEET_NAME);
+    
+    if (!sheet) {
+      Logger.log('找不到歸還 Token 工作表');
+      return false;
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      const rowToken = data[i][0];
+      if (rowToken && rowToken.toString() === token.toString()) {
+        sheet.getRange(i + 1, 4).setValue(true);
+        Logger.log(`歸還 Token 已標記為已使用: ${token}`);
+        return true;
+      }
+    }
+    
+    return false;
+  } catch (err) {
+    Logger.error('標記歸還 Token 失敗:', err);
     return false;
   }
 }
