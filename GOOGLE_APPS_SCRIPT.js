@@ -3660,7 +3660,9 @@ function approvePostpone(data, e) {
       Logger.log(`更新設備 ${fixNo} 的 dt_due: ${newDue}`);
       sheet.getRange(targetRow, dtDueCol + 1).setValue(newDue);
       const keeper = sheet.getRange(targetRow, keeperCol + 1).getValue();
-      logHistory('postpone_approved', fixNo, deviceName, borrower, keeper, '', newDue, '');
+      // 格式化 newDue 為字串後記錄歷史
+      const newDueStr = Utilities.formatDate(new Date(newDue), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      logHistory('postpone_approved', fixNo, deviceName, borrower, keeper, '', newDueStr, '');
       Logger.log(`✅ dt_due 更新成功`);
     } else {
       Logger.log(`❌ 找不到設備 ${fixNo} 的列，無法更新 dt_due`);
