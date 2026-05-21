@@ -191,7 +191,6 @@ function renderEquipment(equipment) {
                 if (isAvailable) {
                   statusHtml = '<span style="color:#0a0;">✅ 可借用</span>';
                 } else if (isBorrowed) {
-                  // 明確是 borrowed 狀態
                   statusHtml = '<span style="color:#c00;">📤 借用中</span>';
                 } else if (isBorrowPending) {
                   statusHtml = '<span style="color:#ffc107;">⏳ 借用審核中</span>';
@@ -204,20 +203,26 @@ function renderEquipment(equipment) {
                   statusHtml = '<span style="color:#c00;">📤 借用中</span>';
                 }
                 
-                // 借用/歸還按鈕
+                // 借用/歸還/延後按鈕
                 let actionButton = '';
                 // URL 編碼設備名稱，避免特殊字元破壞 HTML/JavaScript 語法
                 const encodedDeviceName = encodeURIComponent(eq.device_name || '');
                 if (isAvailable) {
                   actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.keeper}')">借用</button>`;
+                } else if (isBorrowed) {
+                  // 借用中 - 顯示【歸還】和【延後】按鈕
+                  actionButton = `
+                    <button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.borrower}')">📧 歸還</button>
+                    <button class="btn-postpone-sm" onclick="openPostponeModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.borrower}', '${eq.dt_due}')" style="margin-left:5px;background:#ffc107;color:#000;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:0.85em;">⏰ 延後</button>
+                  `;
                 } else if (isBorrowPending) {
                   // 借用審核中，顯示提示文字
                   actionButton = '<span style="color:#ffc107;font-size:0.85em;">⏳ 等待 Keeper 審核</span>';
                 } else if (isReturnPending) {
                   // 歸還認證中，不顯示按鈕
                   actionButton = '<span style="color:#17a2b8;font-size:0.85em;">等待 Keeper 確認</span>';
-                } else if (!isConfirmed) {
-                  // 借用中，未歸還
+                } else if (!isConfirmed && !isAvailable) {
+                  // 借用中，未歸還（其他狀態）
                   const hasReturnDate = eq.dt_return && eq.dt_return.toString().trim() !== '';
                   if (hasReturnDate) {
                     actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';
@@ -655,6 +660,183 @@ function openReturnModal(fixNo, deviceName, borrower) {
 function closeReturnModal() {
   const modal = document.getElementById('return-modal');
   if (modal) modal.style.display = 'none';
+}
+
+// 開啟延後歸還 Modal
+function openPostponeModal(fixNo, deviceName, borrower, currentDueDate) {
+  // 檢查是否已經有延後 Modal，如果沒有則動態建立
+  let modal = document.getElementById('postpone-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'postpone-modal';
+    modal.className = 'modal';
+    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);';
+    modal.innerHTML = `
+      <div style="background-color:#fefefe;margin:10% auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
+        <span onclick="closePostponeModal()" style="color:#aaa;float:right;font-size:28px;font-weight:bold;cursor:pointer;">&times;</span>
+        <h2 style="color:#667eea;margin-bottom:20px;">⏰ 延後歸還</h2>
+        <div id="postpone-info" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;"></div>
+        <form id="postpone-form">
+          <input type="hidden" id="postpone-fix-no">
+          <div style="margin-bottom:15px;">
+            <label style="display:block;margin-bottom:5px;font-weight:bold;">新的預計歸還時間：</label>
+            <input type="datetime-local" id="postpone-new-due-date" step="3600" required style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:1em;">
+          </div>
+          <div style="text-align:center;margin-top:20px;">
+            <button type="submit" class="btn" style="background:#ffc107;color:#000;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;">✅ 確認延後</button>
+            <button type="button" onclick="closePostponeModal()" style="background:#6c757d;color:#fff;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;margin-left:10px;">取消</button>
+          </div>
+        </form>
+      </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // 綁定表單提交事件
+    const form = document.getElementById('postpone-form');
+    if (form) {
+      form.addEventListener('submit', handlePostponeSubmit);
+    }
+    
+    // 綁定 datetime-local 變更事件（四捨五入到整點）
+    const dateInput = document.getElementById('postpone-new-due-date');
+    if (dateInput) {
+      dateInput.addEventListener('change', function() {
+        if (this.value) {
+          const parts = this.value.split('T');
+          const datePart = parts[0];
+          const timePart = parts[1];
+          const hourPart = timePart.substring(0, 2);
+          const minPart = timePart.substring(3, 5);
+          
+          const hours = parseInt(hourPart, 10);
+          const minutes = parseInt(minPart, 10);
+          
+          let newHours = hours;
+          if (minutes >= 30) {
+            newHours = hours + 1;
+          }
+          
+          // 處理跨日
+          let newDatePart = datePart;
+          if (newHours >= 24) {
+            newHours = 0;
+            const [y, m, d] = datePart.split('-').map(Number);
+            let newDay = d + 1;
+            let newMonth = m;
+            let newYear = y;
+            
+            const daysInMonth = new Date(y, m, 0).getDate();
+            if (newDay > daysInMonth) {
+              newDay = 1;
+              newMonth++;
+              if (newMonth > 12) {
+                newMonth = 1;
+                newYear++;
+              }
+            }
+            
+            const yStr = String(newYear);
+            const mStr = String(newMonth).padStart(2, '0');
+            const dStr = String(newDay).padStart(2, '0');
+            newDatePart = `${yStr}-${mStr}-${dStr}`;
+          }
+          
+          const newHourStr = String(newHours).padStart(2, '0');
+          const newValue = newDatePart + 'T' + newHourStr + ':00';
+          this.value = newValue;
+        }
+      });
+    }
+  }
+  
+  // 設定當前資訊
+  const infoDiv = document.getElementById('postpone-info');
+  if (infoDiv) {
+    infoDiv.innerHTML = `
+      <strong>設備編號：</strong>${fixNo}<br>
+      <strong>設備名稱：</strong>${deviceName}<br>
+      <strong>借用人：</strong>${borrower}<br>
+      <strong>目前預計歸還：</strong>${currentDueDate || '未設定'}
+    `;
+  }
+  
+  document.getElementById('postpone-fix-no').value = fixNo;
+  
+  // 設定新的預計歸還時間預設值（從當前時間往後 1 天，四捨五入到整點）
+  const now = new Date();
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const taipeiOffset = 8 * 60 * 60 * 1000;
+  const taipeiTime = new Date(tomorrow.getTime() + taipeiOffset);
+  
+  const year = taipeiTime.getUTCFullYear();
+  const month = String(taipeiTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(taipeiTime.getUTCDate()).padStart(2, '0');
+  const hours = String(taipeiTime.getUTCHours()).padStart(2, '0');
+  
+  const dateInput = document.getElementById('postpone-new-due-date');
+  if (dateInput) {
+    dateInput.min = `${year}-${month}-${day}T${hours}:00`;
+    dateInput.value = `${year}-${month}-${day}T${hours}:00`;
+  }
+  
+  modal.style.display = 'block';
+}
+
+// 關閉延後歸還 Modal
+function closePostponeModal() {
+  const modal = document.getElementById('postpone-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+// 處理延後歸還表單提交
+async function handlePostponeSubmit(e) {
+  e.preventDefault();
+  
+  const fixNo = document.getElementById('postpone-fix-no').value;
+  const newDueDate = document.getElementById('postpone-new-due-date').value;
+  
+  if (!newDueDate) {
+    alert('請選擇新的預計歸還時間');
+    return;
+  }
+  
+  const submitBtn = e.target.querySelector('button[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = '🔄 處理中...';
+  }
+  
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'postponeDueDate');
+    url.searchParams.append('fix_no', fixNo);
+    url.searchParams.append('new_due_date', newDueDate);
+    
+    console.log('延後請求 URL:', url.toString());
+    
+    const res = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow'
+    });
+    
+    const result = await res.json();
+    console.log('延後結果:', result);
+    
+    if (result.success) {
+      alert('✅ 預計歸還時間已更新！');
+      closePostponeModal();
+      searchEquipment(); // 重新整理列表
+    } else {
+      throw new Error(result.error || '更新失敗');
+    }
+  } catch (err) {
+    console.error('延後失敗:', err);
+    alert('❌ 延後失敗：' + err.message);
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '✅ 確認延後';
+    }
+  }
 }
 
 // 借用設備
