@@ -3393,8 +3393,28 @@ function requestPostpone(data) {
       return errorResponse(`設備狀態不是借用中，無法申請延後`);
     }
     
-    // 取得借用人 email
-    const borrowerEmail = getKeeperEmail(borrower) || '';
+    // 取得借用人 email（優先從「借用申請」工作表找，否則從 Keeper 聯絡資訊）
+    let borrowerEmail = '';
+    
+    // 先從「借用申請」工作表找借用人 email
+    const borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+    if (borrowRequestSheet) {
+      const requestData = borrowRequestSheet.getDataRange().getValues();
+      for (let i = 1; i < requestData.length; i++) {
+        const reqBorrower = requestData[i][3]; // 借用人欄位
+        const reqBorrowerEmail = requestData[i][4]; // 借用人Email欄位
+        if (reqBorrower && reqBorrower.toString().trim() === borrower.toString().trim() && reqBorrowerEmail) {
+          borrowerEmail = reqBorrowerEmail.toString().trim();
+          Logger.log(`從借用申請找到借用人 email: ${borrowerEmail}`);
+          break;
+        }
+      }
+    }
+    
+    // 如果找不到，從 Keeper 聯絡資訊找
+    if (!borrowerEmail) {
+      borrowerEmail = getKeeperEmail(borrower) || '';
+    }
     
     // 產生 request_id
     const requestId = 'PP' + new Date().getTime();
