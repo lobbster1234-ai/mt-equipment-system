@@ -1082,12 +1082,14 @@ function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, dtDue, 
     // 格式化 dtDue 為 yyyy-MM-dd HH:mm
     let formattedDue = dtDue;
     if (dtDue) {
-      if (typeof dtDue === 'object' && dtDue instanceof Date) {
-        // 是 Date 物件，格式化成 yyyy-MM-dd HH:mm
-        formattedDue = Utilities.formatDate(dtDue, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
-      } else if (typeof dtDue === 'string' && dtDue.includes('T')) {
-        // 是 ISO 字串格式
-        formattedDue = dtDue.replace('T', ' ');
+      try {
+        // 嘗試用 Utilities.formatDate 格式化
+        formattedDue = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      } catch (e) {
+        // 如果失敗，可能是字串，直接替換 T
+        if (typeof dtDue === 'string' && dtDue.includes('T')) {
+          formattedDue = dtDue.replace('T', ' ').substring(0, 16);
+        }
       }
     }
     
