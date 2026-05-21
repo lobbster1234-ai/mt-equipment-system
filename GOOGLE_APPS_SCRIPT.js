@@ -1078,7 +1078,20 @@ function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, dtDue, 
       : `${EMAIL_CONFIG.subject_prefix} 您的借用申請未通過`;
     
     const statusText = isApproved ? '✅ 已核准' : '❌ 未通過';
-    const dueText = isApproved && dtDue ? `\n⏰ 預計歸還：${dtDue}` : '';
+    
+    // 格式化 dtDue 為 yyyy-MM-dd HH:mm
+    let formattedDue = dtDue;
+    if (dtDue) {
+      if (typeof dtDue === 'object' && dtDue instanceof Date) {
+        // 是 Date 物件，格式化成 yyyy-MM-dd HH:mm
+        formattedDue = Utilities.formatDate(dtDue, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      } else if (typeof dtDue === 'string' && dtDue.includes('T')) {
+        // 是 ISO 字串格式
+        formattedDue = dtDue.replace('T', ' ');
+      }
+    }
+    
+    const dueText = isApproved && formattedDue ? `\n⏰ 預計歸還：${formattedDue}` : '';
     Logger.log('dueText:', JSON.stringify(dueText));
     const messageText = isApproved 
       ? '您可以前往設備系統查看設備借用狀態。' 
