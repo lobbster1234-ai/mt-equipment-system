@@ -3565,19 +3565,29 @@ function approvePostpone(data, e) {
     // 查找設備所在的 sheet 並更新
     let sheet = ss.getSheetByName(SHEET_NAME);
     let targetRow = -1;
+    let foundInSheet = '';
     
+    Logger.log(`在 ${SHEET_NAME} 中搜尋設備 ${fixNo}...`);
     for (let i = 2; i <= sheet.getLastRow(); i++) {
-      if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+      Logger.log(`第 ${i} 列: 值="${rowFixNo}" (${typeof rowFixNo}), 比對="${fixNo}"`);
+      if (rowFixNo && rowFixNo.toString().trim() === fixNo.toString().trim()) {
         targetRow = i;
+        foundInSheet = SHEET_NAME;
+        Logger.log(`✅ 在 ${SHEET_NAME} 第 ${i} 列找到`);
         break;
       }
     }
     
     if (targetRow === -1) {
+      Logger.log(`在 ${SHEET_NAME} 找不到，搜尋 ${SHEET_NAME_WEB}...`);
       sheet = ss.getSheetByName(SHEET_NAME_WEB);
       for (let i = 2; i <= sheet.getLastRow(); i++) {
-        if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fixNo.toString().trim()) {
           targetRow = i;
+          foundInSheet = SHEET_NAME_WEB;
+          Logger.log(`✅ 在 ${SHEET_NAME_WEB} 第 ${i} 列找到`);
           break;
         }
       }
