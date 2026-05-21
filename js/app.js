@@ -336,11 +336,14 @@ async function handleBorrowSubmit() {
     return;
   }
   
-  // 借用日期：四捨五入到最接近的整點（小時+1）
+  // 借用日期：四捨五入到最接近的整點
   const now = new Date();
   const hours = now.getHours();
   const minutes = now.getMinutes();
-  let borrowHour = hours + 1; // 統一往後一小時（分鐘>=30本來就會自動進位）
+  let borrowHour = hours;
+  if (minutes >= 30) {
+    borrowHour = hours + 1; // >=30分鐘，小時+1
+  }
   // 處理跨日
   let borrowDay = now.getDate();
   if (borrowHour >= 24) {
@@ -2247,11 +2250,14 @@ async function handleDeptBorrowSubmit() {
     return;
   }
   
-  // 借用日期：四捨五入到最接近的整點（小時+1）
+  // 借用日期：四捨五入到最接近的整點
   const now = new Date();
   const hours = now.getHours();
   const minutes = now.getMinutes();
-  let borrowHour = hours + 1; // 統一往後一小時（分鐘>=30本來就會自動進位）
+  let borrowHour = hours;
+  if (minutes >= 30) {
+    borrowHour = hours + 1; // >=30分鐘，小時+1
+  }
   // 處理跨日
   let borrowDay = now.getDate();
   if (borrowHour >= 24) {
