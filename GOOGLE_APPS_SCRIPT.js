@@ -2719,18 +2719,24 @@ function getAllAdminEmails() {
  */
 function sendDeptBorrowConfirmation(borrower, borrowerEmail, deviceName, dtBorrow, dtDue) {
   try {
+    // 格式化時間顯示（將 T 替換為空格）
+    const formatForEmail = (dt) => {
+      if (!dt) return '';
+      return dt.toString().replace('T', ' ');
+    };
+    
     const subject = `${EMAIL_CONFIG.subject_prefix} 借用成功確認`;
     const body = `親愛的 ${borrower} 您好：
 
 您已成功借用部門儀器：
 
 📦 設備名稱：${deviceName}
-📅 借用日期：${dtBorrow}
-📅 預計歸還：${dtDue}
+📅 借用日期：${formatForEmail(dtBorrow)}
+📅 預計歸還：${formatForEmail(dtDue)}
 
 ⚠️ 注意事項：
-1. 請於 ${dtDue} 前歸還設備
-2. 歸還前一天（${dtDue}）會收到提醒郵件
+1. 請於 ${formatForEmail(dtDue)} 前歸還設備
+2. 歸還前會收到提醒郵件
 3. 如逾期歸還，系統將每天發送提醒通知
 
 感謝您的配合！
