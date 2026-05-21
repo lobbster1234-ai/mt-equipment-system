@@ -782,7 +782,7 @@ function approveBorrow(data, e) {
   
   // 發送核准通知給借用人
   if (requestData.borrower_email) {
-    sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, true);
+    sendBorrowResultEmail(requestData.borrower_email, requestData.fix_no, requestData.device_name, requestData.keeper, requestData.dt_due, true);
   }
   
   return successResponse({
@@ -1068,13 +1068,14 @@ MT 部門設備管理系統 自動通知`.trim();
 /**
  * 發送借用審核結果給借用人
  */
-function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, isApproved) {
+function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, dtDue, isApproved) {
   try {
     const subject = isApproved 
       ? `${EMAIL_CONFIG.subject_prefix} 您的借用申請已核准`
       : `${EMAIL_CONFIG.subject_prefix} 您的借用申請未通過`;
     
     const statusText = isApproved ? '✅ 已核准' : '❌ 未通過';
+    const dueText = isApproved && dtDue ? `\n⏰ 預計歸還：${dtDue}` : '';
     const messageText = isApproved 
       ? '您可以前往設備系統查看設備借用狀態。' 
       : '如需借用設備，請聯繫保管人或其他管理員。';
@@ -1085,7 +1086,7 @@ function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, isAppro
 
 📦 設備編號：${fixNo}
 📝 設備名稱：${deviceName}
-👤 保管人：${keeper}
+👤 保管人：${keeper}${dueText}
 📋 審核結果：${statusText}
 
 ${messageText}
