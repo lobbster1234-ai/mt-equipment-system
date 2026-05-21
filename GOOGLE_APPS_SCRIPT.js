@@ -146,6 +146,23 @@ function doGet(e) {
         fix_no: e.parameter.fix_no,
         new_due_date: e.parameter.new_due_date
       });
+    } else if (action === 'requestPostpone') {
+      return requestPostpone({
+        fix_no: e.parameter.fix_no,
+        new_due_date: e.parameter.new_due_date
+      });
+    } else if (action === 'getPostponeRequest') {
+      return getPostponeRequest({
+        request_id: e.parameter.request_id
+      }, e);
+    } else if (action === 'approvePostpone') {
+      return approvePostpone({
+        request_id: e.parameter.request_id
+      }, e);
+    } else if (action === 'rejectPostpone') {
+      return rejectPostpone({
+        request_id: e.parameter.request_id
+      }, e);
     } else if (action === 'deptBorrow') {
       return deptBorrow({
         device_name: e.parameter.device_name,
@@ -3284,5 +3301,364 @@ function postponeDueDate(data) {
   } catch (err) {
     Logger.log(`延後歸還時間失敗: ${err.message}`);
     return errorResponse('延後失敗：' + err.message);
+  }
+}
+
+// =============================================
+// 延後歸還申請功能
+// =============================================
+
+/**
+ * 建立「延後申請」工作表（如果不存在）
+ */
+function getOrCreatePostponeSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName('延後申請');
+  if (!sheet) {
+    sheet = ss.insertSheet('延後申請');
+    sheet.getRange(1, 1, 1, 9).setValues([['request_id', 'fix_no', 'device_name', 'borrower', 'borrower_email', 'current_due', 'new_due', 'dt_request', 'status']]);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * 發送延後申請（借用人發起）
+ */
+function requestPostpone(data) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const { fix_no, new_due_date } = data;
+    
+    Logger.log(`=== 延後申請開始 ===`);
+    Logger.log(`設備編號: ${fix_no}, 新時間: ${new_due_date}`);
+    
+    if (!fix_no || !new_due_date) {
+      return errorResponse('缺少設備編號或新的預計歸還時間');
+    }
+    
+    // 查找設備和借用人資訊
+    const fixNoCol = COLS.fix_no;
+    const keeperCol = COLS.keeper;
+    const deviceNameCol = COLS.device_name;
+    const borrowerCol = COLS.borrower;
+    const statusCol = COLS.status;
+    const dtDueCol = COLS.dt_due;
+    
+    let sheet = ss.getSheetByName(SHEET_NAME);
+    let foundRow = -1;
+    let targetSheet = null;
+    
+    // 在「工作表 1」查找
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      for (let i = 2; i <= lastRow; i++) {
+        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+        if (rowFixNo && rowFixNo.toString().trim() === fix_no) {
+          foundRow = i;
+          targetSheet = sheet;
+          break;
+        }
+      }
+    }
+    
+    // 在「網站新增設備」查找
+    if (foundRow === -1) {
+      sheet = ss.getSheetByName(SHEET_NAME_WEB);
+      if (sheet) {
+        const lastRow = sheet.getLastRow();
+        for (let i = 2; i <= lastRow; i++) {
+          const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
+          if (rowFixNo && rowFixNo.toString().trim() === fix_no) {
+            foundRow = i;
+            targetSheet = sheet;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (foundRow === -1 || !targetSheet) {
+      return errorResponse(`找不到設備編號：${fix_no}`);
+    }
+    
+    const keeper = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+    const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
+    const borrower = targetSheet.getRange(foundRow, borrowerCol + 1).getValue();
+    const currentDue = targetSheet.getRange(foundRow, dtDueCol + 1).getValue();
+    const currentStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
+    
+    if (currentStatus !== 'borrowed') {
+      return errorResponse(`設備狀態不是借用中，無法申請延後`);
+    }
+    
+    // 取得借用人 email
+    const borrowerEmail = getEmailByName({ name: borrower }).email || '';
+    
+    // 產生 request_id
+    const requestId = 'PP' + new Date().getTime();
+    
+    // 寫入延後申請工作表
+    const postponeSheet = getOrCreatePostponeSheet();
+    const now = new Date();
+    const requestTime = Utilities.formatDate(now, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    
+    postponeSheet.appendRow([requestId, fix_no, deviceName, borrower, borrowerEmail, currentDue, new_due_date, requestTime, 'pending']);
+    
+    Logger.log(`延後申請已寫入: ${requestId}`);
+    
+    // 寄送 email 給 Keeper
+    const keeperEmail = getEmailByName({ name: keeper }).email;
+    if (keeperEmail) {
+      const approveUrl = EMAIL_CONFIG.web_app_url + 'confirm-postpone.html?request_id=' + encodeURIComponent(requestId);
+      const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還申請 - ' + deviceName;
+      const body = `
+📋 延後歸還申請通知
+
+設備編號：${fix_no}
+設備名稱：${deviceName}
+借用人：${borrower}
+目前預計歸還：${currentDue}
+申請延後至：${new_due_date}
+
+請點擊以下連結審核：
+✅ 同意延後：${approveUrl}&action=approve
+❌ 不同意：${approveUrl}&action=reject
+
+此郵件由系統自動產生，請勿直接回覆。
+      `.trim();
+      
+      MailApp.sendEmail(keeperEmail, subject, body);
+      Logger.log(`已寄送延後審核郵件給 Keeper: ${keeperEmail}`);
+    } else {
+      Logger.log(`找不到 Keeper (${keeper}) 的 email`);
+    }
+    
+    return successResponse({
+      message: '延後申請已送出，等待 Keeper 審核',
+      request_id: requestId
+    });
+    
+  } catch (err) {
+    Logger.log(`延後申請失敗: ${err.message}`);
+    return errorResponse('延後申請失敗：' + err.message);
+  }
+}
+
+/**
+ * 取得延後申請資訊（用於審核頁面）
+ */
+function getPostponeRequest(data, e) {
+  try {
+    const { request_id } = data;
+    
+    Logger.log(`取得延後申請: ${request_id}`);
+    
+    const postponeSheet = getOrCreatePostponeSheet();
+    const lastRow = postponeSheet.getLastRow();
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const rowRequestId = postponeSheet.getRange(i, 1).getValue();
+      if (rowRequestId && rowRequestId.toString() === request_id) {
+        const fixNo = postponeSheet.getRange(i, 2).getValue();
+        const deviceName = postponeSheet.getRange(i, 3).getValue();
+        const borrower = postponeSheet.getRange(i, 4).getValue();
+        const currentDue = postponeSheet.getRange(i, 6).getValue();
+        const newDue = postponeSheet.getRange(i, 7).getValue();
+        const status = postponeSheet.getRange(i, 9).getValue();
+        
+        if (status !== 'pending') {
+          return errorResponse('此申請已' + (status === 'approved' ? '核准' : '拒絕'));
+        }
+        
+        return successResponse({
+          fix_no: fixNo,
+          device_name: deviceName,
+          borrower: borrower,
+          current_due: currentDue,
+          new_due: newDue,
+          status: status
+        });
+      }
+    }
+    
+    return errorResponse('找不到此延後申請');
+    
+  } catch (err) {
+    Logger.log(`取得延後申請失敗: ${err.message}`);
+    return errorResponse('載入失敗：' + err.message);
+  }
+}
+
+/**
+ * 核准延後申請（Keeper 按下同意）
+ */
+function approvePostpone(data, e) {
+  try {
+    const { request_id } = data;
+    
+    Logger.log(`核准延後申請: ${request_id}`);
+    
+    const postponeSheet = getOrCreatePostponeSheet();
+    const lastRow = postponeSheet.getLastRow();
+    let foundRow = -1;
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const rowRequestId = postponeSheet.getRange(i, 1).getValue();
+      if (rowRequestId && rowRequestId.toString() === request_id) {
+        foundRow = i;
+        break;
+      }
+    }
+    
+    if (foundRow === -1) {
+      return errorResponse('找不到此延後申請');
+    }
+    
+    const status = postponeSheet.getRange(foundRow, 9).getValue();
+    if (status !== 'pending') {
+      return errorResponse('此申請已經處理過了');
+    }
+    
+    const fixNo = postponeSheet.getRange(foundRow, 2).getValue();
+    const deviceName = postponeSheet.getRange(foundRow, 3).getValue();
+    const borrower = postponeSheet.getRange(foundRow, 4).getValue();
+    const borrowerEmail = postponeSheet.getRange(foundRow, 5).getValue();
+    const newDue = postponeSheet.getRange(foundRow, 7).getValue();
+    
+    // 更新申請狀態為 approved
+    postponeSheet.getRange(foundRow, 9).setValue('approved');
+    
+    // 更新設備的 dt_due
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const fixNoCol = COLS.fix_no;
+    const dtDueCol = COLS.dt_due;
+    const keeperCol = COLS.keeper;
+    
+    // 查找設備所在的 sheet 並更新
+    let sheet = ss.getSheetByName(SHEET_NAME);
+    let targetRow = -1;
+    
+    for (let i = 2; i <= sheet.getLastRow(); i++) {
+      if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+        targetRow = i;
+        break;
+      }
+    }
+    
+    if (targetRow === -1) {
+      sheet = ss.getSheetByName(SHEET_NAME_WEB);
+      for (let i = 2; i <= sheet.getLastRow(); i++) {
+        if (sheet.getRange(i, fixNoCol + 1).getValue().toString().trim() === fixNo) {
+          targetRow = i;
+          break;
+        }
+      }
+    }
+    
+    if (targetRow !== -1) {
+      sheet.getRange(targetRow, dtDueCol + 1).setValue(newDue);
+      const keeper = sheet.getRange(targetRow, keeperCol + 1).getValue();
+      logHistory('postpone_approved', fixNo, deviceName, borrower, keeper, '', newDue, '');
+    }
+    
+    // 寄送核准通知給借用人
+    if (borrowerEmail) {
+      const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還已核准 - ' + deviceName;
+      const body = `
+✅ 延後歸還申請已核准
+
+設備編號：${fixNo}
+設備名稱：${deviceName}
+新預計歸還時間：${newDue}
+
+請在新的預計歸還時間前歸還設備。
+
+此郵件由系統自動產生，請勿直接回覆。
+      `.trim();
+      
+      MailApp.sendEmail(borrowerEmail, subject, body);
+    }
+    
+    return successResponse({
+      message: '已核准延後申請',
+      fix_no: fixNo,
+      new_due: newDue
+    });
+    
+  } catch (err) {
+    Logger.log(`核准延後失敗: ${err.message}`);
+    return errorResponse('核准失敗：' + err.message);
+  }
+}
+
+/**
+ * 拒絕延後申請（Keeper 按下不同意）
+ */
+function rejectPostpone(data, e) {
+  try {
+    const { request_id } = data;
+    
+    Logger.log(`拒絕延後申請: ${request_id}`);
+    
+    const postponeSheet = getOrCreatePostponeSheet();
+    const lastRow = postponeSheet.getLastRow();
+    let foundRow = -1;
+    
+    for (let i = 2; i <= lastRow; i++) {
+      const rowRequestId = postponeSheet.getRange(i, 1).getValue();
+      if (rowRequestId && rowRequestId.toString() === request_id) {
+        foundRow = i;
+        break;
+      }
+    }
+    
+    if (foundRow === -1) {
+      return errorResponse('找不到此延後申請');
+    }
+    
+    const status = postponeSheet.getRange(foundRow, 9).getValue();
+    if (status !== 'pending') {
+      return errorResponse('此申請已經處理過了');
+    }
+    
+    const fixNo = postponeSheet.getRange(foundRow, 2).getValue();
+    const deviceName = postponeSheet.getRange(foundRow, 3).getValue();
+    const borrower = postponeSheet.getRange(foundRow, 4).getValue();
+    const borrowerEmail = postponeSheet.getRange(foundRow, 5).getValue();
+    const currentDue = postponeSheet.getRange(foundRow, 6).getValue();
+    
+    // 更新申請狀態為 rejected
+    postponeSheet.getRange(foundRow, 9).setValue('rejected');
+    
+    // 寄送拒絕通知給借用人
+    if (borrowerEmail) {
+      const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還已拒絕 - ' + deviceName;
+      const body = `
+❌ 延後歸還申請已拒絕
+
+設備編號：${fixNo}
+設備名稱：${deviceName}
+維持原本預計歸還時間：${currentDue}
+
+請在原本的預計歸還時間前歸還設備。
+
+如有疑問，請聯繫 Keeper。
+
+此郵件由系統自動產生，請勿直接回覆。
+      `.trim();
+      
+      MailApp.sendEmail(borrowerEmail, subject, body);
+    }
+    
+    return successResponse({
+      message: '已拒絕延後申請',
+      fix_no: fixNo
+    });
+    
+  } catch (err) {
+    Logger.log(`拒絕延後失敗: ${err.message}`);
+    return errorResponse('拒絕失敗：' + err.message);
   }
 }

@@ -788,7 +788,7 @@ function closePostponeModal() {
   if (modal) modal.style.display = 'none';
 }
 
-// 處理延後歸還表單提交
+// 處理延後歸還表單提交 - 發送申請給 Keeper
 async function handlePostponeSubmit(e) {
   e.preventDefault();
   
@@ -803,16 +803,16 @@ async function handlePostponeSubmit(e) {
   const submitBtn = e.target.querySelector('button[type="submit"]');
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = '🔄 處理中...';
+    submitBtn.textContent = '🔄 發送申請中...';
   }
   
   try {
     const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'postponeDueDate');
+    url.searchParams.append('action', 'requestPostpone');
     url.searchParams.append('fix_no', fixNo);
     url.searchParams.append('new_due_date', newDueDate);
     
-    console.log('延後請求 URL:', url.toString());
+    console.log('延後申請 URL:', url.toString());
     
     const res = await fetch(url.toString(), {
       method: 'GET',
@@ -820,18 +820,17 @@ async function handlePostponeSubmit(e) {
     });
     
     const result = await res.json();
-    console.log('延後結果:', result);
+    console.log('延後申請結果:', result);
     
     if (result.success) {
-      alert('✅ 預計歸還時間已更新！');
+      alert('✅ 延後申請已送出！\n\n系統已寄信通知 Keeper 審核\n請留意您的電子郵件以接收審核結果。');
       closePostponeModal();
-      searchEquipment(); // 重新整理列表
     } else {
-      throw new Error(result.error || '更新失敗');
+      throw new Error(result.error || '申請失敗');
     }
   } catch (err) {
-    console.error('延後失敗:', err);
-    alert('❌ 延後失敗：' + err.message);
+    console.error('延後申請失敗:', err);
+    alert('❌ 延後申請失敗：' + err.message);
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = '✅ 確認延後';
