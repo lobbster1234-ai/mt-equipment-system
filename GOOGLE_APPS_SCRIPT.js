@@ -1439,6 +1439,15 @@ function sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn) {
     const token = Utilities.base64Encode(`${fixNo}:${keeperEmail}:${Date.now()}`);
     const confirmUrl = `${EMAIL_CONFIG.web_app_url}/confirm.html?token=${encodeURIComponent(token)}`;
     
+    // 格式化歸還日期（把 T 換成空白）
+    const formatDateTime = (dt) => {
+      if (!dt) return '未設定';
+      if (typeof dt === 'string' && dt.includes('T')) {
+        return dt.replace('T', ' ').substring(0, 16);
+      }
+      return dt;
+    };
+    
     const subject = `${EMAIL_CONFIG.subject_prefix} ${EMAIL_CONFIG.return_subject}`;
     const body = `親愛的 ${keeper} 您好：
 
@@ -1447,7 +1456,7 @@ function sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn) {
 📦 設備編號：${fixNo}
 📝 設備名稱：${deviceName}
 👤 原借用人：${borrower}
-📅 歸還日期：${dtReturn}
+📅 歸還日期：${formatDateTime(dtReturn)}
 
 ✅ 請點擊以下連結確認歸還：
 ${EMAIL_CONFIG.web_app_url}/confirm.html?token=${encodeURIComponent(token)}
