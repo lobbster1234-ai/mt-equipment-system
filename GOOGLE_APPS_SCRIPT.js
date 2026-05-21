@@ -3518,6 +3518,16 @@ function getPostponeRequest(data, e) {
           return errorResponse('此連結已失效（申請已核准）');
         } else if (status === 'rejected') {
           return errorResponse('此連結已失效（申請已拒絕）');
+        } else if (status === 'pending') {
+          // 還在等待審核，這是正確的
+          return successResponse({
+            fix_no: fixNo,
+            device_name: deviceName,
+            borrower: borrower,
+            current_due: currentDue,
+            new_due: newDue,
+            status: status
+          });
         } else {
           return errorResponse('此連結已失效');
         }

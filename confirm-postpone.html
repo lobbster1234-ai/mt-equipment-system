@@ -87,19 +87,26 @@
         document.getElementById('current-due').textContent = formatDateTime(data.current_due) || '未設定';
         document.getElementById('new-due').textContent = formatDateTime(data.new_due) || '未設定';
       } catch (err) {
-        document.getElementById('title').textContent = '❌ 連結無效';
-        document.getElementById('content').innerHTML = `
-          <div style="text-align:center;padding:30px;">
-            <p style="font-size:3em;margin-bottom:20px;">🔗</p>
-            <p style="color:#dc3545;font-size:1.2em;">此審核連結已失效</p>
-            <p style="color:#666;margin-top:10px;">可能原因：</p>
-            <ul style="color:#888;text-align:left;display:inline-block;margin-top:10px;">
-              <li> Keeper 已經審核過了</li>
-              <li> 此連結已過期</li>
-            </ul>
-            <p style="margin-top:30px;"><a href="index.html" style="color:#667eea;">→ 返回設備系統</a></p>
-          </div>
-        `;
+        // 根據錯誤訊息判斷是「連結無效」還是「載入失敗」
+        const errorMsg = err.message || '';
+        if (errorMsg.includes('已失效') || errorMsg.includes('找不到')) {
+          document.getElementById('title').textContent = '❌ 連結無效';
+          document.getElementById('content').innerHTML = `
+            <div style="text-align:center;padding:30px;">
+              <p style="font-size:3em;margin-bottom:20px;">🔗</p>
+              <p style="color:#dc3545;font-size:1.2em;">此審核連結已失效</p>
+              <p style="color:#666;margin-top:10px;">可能原因：</p>
+              <ul style="color:#888;text-align:left;display:inline-block;margin-top:10px;">
+                <li> Keeper 已經審核過了</li>
+                <li> 此連結已過期</li>
+              </ul>
+              <p style="margin-top:30px;"><a href="index.html" style="color:#667eea;">→ 返回設備系統</a></p>
+            </div>
+          `;
+        } else {
+          document.getElementById('title').textContent = '❌ 錯誤';
+          document.getElementById('content').innerHTML = '<p class="error">載入失敗：' + err.message + '</p>';
+        }
       }
     }
     
