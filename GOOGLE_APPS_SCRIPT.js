@@ -3394,7 +3394,7 @@ function requestPostpone(data) {
     }
     
     // 取得借用人 email
-    const borrowerEmail = getEmailByName({ name: borrower }).email || '';
+    const borrowerEmail = getKeeperEmail(borrower) || '';
     
     // 產生 request_id
     const requestId = 'PP' + new Date().getTime();
@@ -3409,7 +3409,9 @@ function requestPostpone(data) {
     Logger.log(`延後申請已寫入: ${requestId}`);
     
     // 寄送 email 給 Keeper
-    const keeperEmail = getEmailByName({ name: keeper }).email;
+    const keeperEmail = getKeeperEmail(keeper) || (keeper && keeper.includes('@') ? keeper : null);
+    Logger.log(`延後申請 - Keeper: "${keeper}", Email: "${keeperEmail}"`);
+    
     if (keeperEmail) {
       const approveUrl = EMAIL_CONFIG.web_app_url + 'confirm-postpone.html?request_id=' + encodeURIComponent(requestId);
       const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還申請 - ' + deviceName;
@@ -3423,16 +3425,16 @@ function requestPostpone(data) {
 申請延後至：${new_due_date}
 
 請點擊以下連結審核：
-✅ 同意延後：${approveUrl}&action=approve
-❌ 不同意：${approveUrl}&action=reject
+${approveUrl}
 
 此郵件由系統自動產生，請勿直接回覆。
       `.trim();
       
       MailApp.sendEmail(keeperEmail, subject, body);
-      Logger.log(`已寄送延後審核郵件給 Keeper: ${keeperEmail}`);
+      Logger.log(`✅ 已寄送延後審核郵件給 Keeper: ${keeperEmail}`);
     } else {
-      Logger.log(`找不到 Keeper (${keeper}) 的 email`);
+      Logger.log(`❌ 找不到 Keeper (${keeper}) 的 email，無法寄送通知`);
+      Logger.log(`   請確認「${KEEPER_SHEET_NAME}」工作表中是否有 "${keeper}" 的資料`);
     }
     
     return successResponse({
