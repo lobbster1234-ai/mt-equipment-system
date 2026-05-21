@@ -16,6 +16,7 @@ const SHEET_NAME_WEB = '網站新增設備';    // 網站新增的設備（管�
 const KEEPER_SHEET_NAME = 'Keeper 聯絡資訊';
 const HISTORY_SHEET_NAME = '歷史紀錄';
 const AVATAR_SHEET_NAME = '頭像資料';
+const RETURN_TOKEN_SHEET_NAME = '歸還Token';
 
 // 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
 // 建立方式：在 Google Drive 建立一個資料夾，分享為「知道連結的使用者」可檢視，然後複製資料夾網址的最後一段
@@ -1300,6 +1301,16 @@ function getEquipmentInfo(fixNo) {
 function confirmReturn(data) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   
+  const token = data.token;
+  
+  // 驗證 Token（一次性）
+  if (token) {
+    const isValid = validateAndMarkReturnToken(token);
+    if (!isValid) {
+      return errorResponse('連結無效或已過期');
+    }
+  }
+  
   const fixNo = data.fix_no;
   
   const fixNoCol = COLS.fix_no;
@@ -1448,6 +1459,9 @@ function sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn) {
       return dt;
     };
     
+    // 儲存歸還 Token（一次性）
+    saveReturnToken(token, fixNo, keeperEmail);
+    
     const subject = `${EMAIL_CONFIG.subject_prefix} ${EMAIL_CONFIG.return_subject}`;
     const body = `親愛的 ${keeper} 您好：
 
@@ -1459,7 +1473,7 @@ function sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn) {
 📅 歸還日期：${formatDateTime(dtReturn)}
 
 ✅ 請點擊以下連結確認歸還：
-${EMAIL_CONFIG.web_app_url}/confirm.html?token=${encodeURIComponent(token)}
+${confirmUrl}
 
 ---
 MT 部門設備管理系統 自動通知`.trim();
@@ -1468,6 +1482,66 @@ MT 部門設備管理系統 自動通知`.trim();
     Logger.log(`已發送歸還通知給 ${keeperEmail}`);
   } catch (err) {
     Logger.error('發送歸還通知郵件失敗:', err);
+  }
+}
+
+/**
+ * 儲存歸還 Token（一次性）
+ */
+function saveReturnToken(token, fixNo, keeperEmail) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    let sheet = ss.getSheetByName(RETURN_TOKEN_SHEET_NAME);
+    
+    if (!sheet) {
+      sheet = ss.insertSheet(RETURN_TOKEN_SHEET_NAME);
+      sheet.appendRow(['token', 'fix_no', 'keeper_email', 'used', 'created_at']);
+    }
+    
+    const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss');
+    sheet.appendRow([token, fixNo, keeperEmail, false, now]);
+    Logger.log(`歸還 Token 已儲存: ${token}`);
+  } catch (err) {
+    Logger.error('儲存歸還 Token 失敗:', err);
+  }
+}
+
+/**
+ * 驗證並標記歸還 Token（一次性）
+ * 回傳 true = 有效且已標記使用, false = 無效或已使用
+ */
+function validateAndMarkReturnToken(token) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(RETURN_TOKEN_SHEET_NAME);
+    
+    if (!sheet) {
+      Logger.log('找不到歸還 Token 工作表');
+      return false;
+    }
+    
+    const data = sheet.getDataRange().getValues();
+    
+    for (let i = 1; i < data.length; i++) {
+      const rowToken = data[i][0];
+      if (rowToken && rowToken.toString() === token.toString()) {
+        const isUsed = data[i][3];
+        if (isUsed) {
+          Logger.log(`歸還 Token 已使用過: ${token}`);
+          return false; // 已經用過了
+        }
+        // 標記為已使用
+        sheet.getRange(i + 1, 4).setValue(true);
+        Logger.log(`歸還 Token 已標記為已使用: ${token}`);
+        return true;
+      }
+    }
+    
+    Logger.log(`找不到歸還 Token: ${token}`);
+    return false;
+  } catch (err) {
+    Logger.error('驗證歸還 Token 失敗:', err);
+    return false;
   }
 }
 

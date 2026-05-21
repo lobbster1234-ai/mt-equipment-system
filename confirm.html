@@ -182,6 +182,7 @@
         url.searchParams.append('action', 'confirmReturn');
         url.searchParams.append('fix_no', fixNo);
         url.searchParams.append('keeper_email', keeperEmail);
+        url.searchParams.append('token', token); // 傳送一次性 token
 
         const res = await fetch(url.toString(), {
           method: 'GET',
@@ -190,7 +191,20 @@
 
         const data = await res.json();
 
-        if (data.success || data.status === 'success' || (!data.error && data.message)) {
+        if (data.error && (data.error.includes('無效') || data.error.includes('過期'))) {
+          contentDiv.innerHTML = `
+            <p class="error" style="font-size: 1.2em; margin: 20px 0;">
+              ❌ ${data.error}
+            </p>
+            <p style="color: #666;">
+              此連結已失效，可能是已使用過或已過期。<br>
+              如需確認歸還，請聯繫借用人或系統管理員。
+            </p>
+            <button class="btn btn-secondary" onclick="window.location.href='./index.html'">
+              返回首頁
+            </button>
+          `;
+        } else if (data.success || data.status === 'success' || (!data.error && data.message)) {
           contentDiv.innerHTML = `
             <p class="success" style="font-size: 1.2em; margin: 20px 0;">
               ✅ 歸還已確認！
