@@ -1079,16 +1079,17 @@ function sendBorrowResultEmail(borrowerEmail, fixNo, deviceName, keeper, dtDue, 
     
     const statusText = isApproved ? '✅ 已核准' : '❌ 未通過';
     
-    // 格式化 dtDue 為 yyyy-MM-dd HH:mm
+    // 格式化 dtDue 為 yyyy-MM-dd HH:00
     let formattedDue = dtDue;
     if (dtDue) {
       try {
-        // 嘗試用 Utilities.formatDate 格式化
-        formattedDue = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+        // 嘗試用 Utilities.formatDate 格式化，固定為 :00
+        formattedDue = Utilities.formatDate(new Date(dtDue), 'Asia/Taipei', 'yyyy-MM-dd HH:00');
       } catch (e) {
-        // 如果失敗，可能是字串，直接替換 T
+        // 如果失敗，可能是字串，直接替換 T 並取到小時
         if (typeof dtDue === 'string' && dtDue.includes('T')) {
-          formattedDue = dtDue.replace('T', ' ').substring(0, 16);
+          const [dateTime] = dtDue.replace('T', ' ').split(':');
+          formattedDue = dateTime + ':00';
         }
       }
     }
