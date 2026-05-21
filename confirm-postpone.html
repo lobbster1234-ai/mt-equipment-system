@@ -94,11 +94,32 @@
     
     function formatDateTime(value) {
       if (!value) return '';
-      if (value.includes('T')) {
-        const [date, time] = value.split('T');
-        return date + ' ' + time.substring(0, 5);
+      
+      // 如果是 Date 物件或是可以 parse 的字串
+      let date;
+      if (typeof value === 'object' && value instanceof Date) {
+        date = value;
+      } else if (typeof value === 'string') {
+        // ISO 格式 (有 T) 或 已格式化 (沒 T)
+        if (value.includes('T')) {
+          date = new Date(value);
+        } else {
+          // 已經是 yyyy-MM-dd HH:mm 格式，直接回傳
+          return value;
+        }
+      } else {
+        date = new Date(value);
       }
-      return value;
+      
+      if (isNaN(date.getTime())) return value || '未設定';
+      
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      const h = String(date.getHours()).padStart(2, '0');
+      const min = String(date.getMinutes()).padStart(2, '0');
+      
+      return `${y}-${m}-${d} ${h}:${min}`;
     }
     
     async function processPostpone(action) {
