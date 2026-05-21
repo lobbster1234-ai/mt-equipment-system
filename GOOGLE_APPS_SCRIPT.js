@@ -1212,11 +1212,12 @@ function returnEquipment(data) {
   
   // 發送歸還通知
   if (EMAIL_CONFIG.enabled && keeper) {
-    sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn);
-    
-    // 如果是手動輸入設備（SHEET_NAME_WEB），額外寄給「手動Keeper」工作表的人
     if (sheetSource === SHEET_NAME_WEB) {
+      // 手動輸入設備：只寄給「手動Keeper」工作表中的人
       sendReturnEmailToManualKeepers(fixNo, deviceName, borrower, dtReturn);
+    } else {
+      // 一般設備：寄給原本的 Keeper
+      sendReturnEmail(keeper, fixNo, deviceName, borrower, dtReturn);
     }
   }
   
