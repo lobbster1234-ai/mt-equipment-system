@@ -3514,8 +3514,12 @@ function getPostponeRequest(data, e) {
         const newDue = postponeSheet.getRange(i, 7).getValue();
         const status = postponeSheet.getRange(i, 9).getValue();
         
-        if (status !== 'pending') {
-          return errorResponse('此申請已' + (status === 'approved' ? '核准' : '拒絕'));
+        if (status === 'approved') {
+          return errorResponse('此連結已失效（申請已核准）');
+        } else if (status === 'rejected') {
+          return errorResponse('此連結已失效（申請已拒絕）');
+        } else {
+          return errorResponse('此連結已失效');
         }
         
         return successResponse({
