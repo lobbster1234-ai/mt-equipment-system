@@ -145,12 +145,12 @@
     
     <div class="form-group">
       <label>帳號 / 電子郵件</label>
-      <input type="text" id="admin-email" placeholder="請輸入帳號或電子郵件">
+      <input type="text" id="admin-email" placeholder="請輸入帳號或電子郵件" onkeydown="if(event.key==='Enter') loginAdmin()">
     </div>
-    
+
     <div class="form-group">
       <label>密碼</label>
-      <input type="password" id="admin-password" placeholder="請輸入密碼">
+      <input type="password" id="admin-password" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter') loginAdmin()">
     </div>
     
     <button class="btn-login" onclick="loginAdmin()">登入</button>
