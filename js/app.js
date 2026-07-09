@@ -988,6 +988,15 @@ async function confirmReturn(fixNo, deviceName, keeper) {
 // 登記功能
 // =============================================
 
+// 取得登入 token（管理員專屬動作需附帶，供後端驗證身分）
+function getAuthToken() {
+  try {
+    return (JSON.parse(localStorage.getItem('mt_user') || '{}').token) || '';
+  } catch (e) {
+    return '';
+  }
+}
+
 // 設備登記
 async function registerEquipment(formData) {
   try {
@@ -999,6 +1008,7 @@ async function registerEquipment(formData) {
     url.searchParams.append('device_name', formData.device_name);
     url.searchParams.append('qty_asset', formData.qty_asset || '1');
     url.searchParams.append('keeper', formData.keeper || '');
+    url.searchParams.append('token', getAuthToken());
 
     console.log('登記請求網址:', url.toString());
 
@@ -1976,7 +1986,8 @@ async function updateEquipment(fixNo, updateData) {
     url.searchParams.append('fix_no', fixNo);
     url.searchParams.append('device_name', updateData.device_name || '');
     url.searchParams.append('fix_type', updateData.fix_type || '');
-    
+    url.searchParams.append('token', getAuthToken());
+
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
     const data = await res.json();
     
@@ -2009,7 +2020,8 @@ async function deleteEquipment(fixNo) {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'deleteEquipment');
     url.searchParams.append('fix_no', fixNo);
-    
+    url.searchParams.append('token', getAuthToken());
+
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
     const data = await res.json();
     
@@ -2049,6 +2061,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     url.searchParams.append('device_name', deviceName);
     url.searchParams.append('fix_type', fixType);
     url.searchParams.append('qty_asset', qtyAsset || '1');
+    url.searchParams.append('token', getAuthToken());
     
     console.log('更新設備 URL:', url.toString());
     
@@ -2192,7 +2205,8 @@ async function handleTransferSubmit(e) {
     url.searchParams.append('action', 'requestTransfer');
     url.searchParams.append('fix_no', fixNo);
     url.searchParams.append('to_keeper', toKeeper);
-    
+    url.searchParams.append('token', getAuthToken());
+
     const res = await fetch(url.toString());
     const result = await res.json();
     

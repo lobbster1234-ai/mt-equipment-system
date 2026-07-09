@@ -48,13 +48,54 @@ const EMAIL_CONFIG = {
   web_app_url: 'https://lobbster1234-ai.github.io/mt-equipment-system/'
 };
 
+// =============================================
+// 登入 Session Token（伺服器端授權）
+// =============================================
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;  // token 有效時間：8 小時
+// 這些動作只有「已登入的管理員」才能執行，必須帶有效 token
+const PROTECTED_ACTIONS = ['register', 'updateEquipment', 'deleteEquipment', 'requestTransfer'];
+
+// 登入成功後建立 token，存入 Script Properties
+function createSession(email, name) {
+  const token = Utilities.getUuid();
+  PropertiesService.getScriptProperties().setProperty('session_' + token, JSON.stringify({
+    email: email,
+    name: name,
+    expiry: Date.now() + SESSION_TTL_MS
+  }));
+  return token;
+}
+
+// 驗證 token；有效回傳 session 物件，無效或過期回傳 null
+function validateSession(token) {
+  if (!token) return null;
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty('session_' + token);
+  if (!raw) return null;
+  try {
+    const session = JSON.parse(raw);
+    if (Date.now() > session.expiry) {
+      props.deleteProperty('session_' + token);  // 過期即清除
+      return null;
+    }
+    return session;
+  } catch (e) {
+    return null;
+  }
+}
+
 /**
  * GET 請求處理
  */
 function doGet(e) {
   try {
     const action = e.parameter.action || 'query';
-    
+
+    // 管理員專屬動作：必須帶有效 token，否則拒絕
+    if (PROTECTED_ACTIONS.indexOf(action) !== -1 && !validateSession(e.parameter.token)) {
+      return errorResponse('未授權：請重新登入後再操作');
+    }
+
     if (action === 'query') {
       return queryEquipment(e.parameter);
     } else if (action === 'register') {
@@ -232,7 +273,12 @@ function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
-    
+
+    // 管理員專屬動作：必須帶有效 token，否則拒絕
+    if (PROTECTED_ACTIONS.indexOf(action) !== -1 && !validateSession(data.token)) {
+      return errorResponse('未授權：請重新登入後再操作');
+    }
+
     if (action === 'query') {
       return queryEquipment(data);
     } else if (action === 'register') {
@@ -2229,11 +2275,9 @@ function loginAdmin(data) {
       
       // 檢查電子郵件或帳號是否匹配
       if (rowEmail === email || rowAccount === email) {
-        Logger.log('找到匹配：' + email);
-        Logger.log('收到的密碼："' + password + '"，長度=' + password.length);
-        Logger.log('資料庫密碼："' + rowPassword + '"，長度=' + rowPassword.length);
-        Logger.log('兩者相等？' + (rowPassword === password));
-        
+        Logger.log('找到匹配帳號：' + email);
+        // 注意：不要記錄密碼明文（避免出現在執行紀錄中）
+
         // 找到匹配的電子郵件，檢查密碼
         if (!rowPassword) {
           Logger.log('密碼為空，需要設定');
@@ -2249,11 +2293,12 @@ function loginAdmin(data) {
         
         if (rowPassword === password) {
           Logger.log('登入成功：' + rowName);
-          // 登入成功
+          // 登入成功，發給 session token
           return successResponse({
             name: rowName,
             email: rowEmail,
-            role: 'admin'
+            role: 'admin',
+            token: createSession(rowEmail, rowName)
           });
         } else {
           Logger.log('密碼錯誤');
@@ -2303,17 +2348,27 @@ function setupPassword(data) {
       const rowEmail = (row[1] || '').toString().trim();      // B 欄 - 電子郵件
       const rowAccount = (row[2] || '').toString().trim();   // C 欄 - 帳號
       const rowName = (row[0] || '').toString().trim();      // A 欄 - 姓名
-      
+      const rowPassword = (row[3] || '').toString().trim();  // D 欄 - 現有密碼
+
       // 檢查電子郵件或帳號是否匹配
       if (rowEmail === email || rowAccount === email) {
+        // 安全防護：只有在「尚未設定密碼」時才允許設定，
+        // 避免任何人用 setupPassword 覆蓋既有密碼而接管帳號。
+        // 若要重設密碼，請由管理員在試算表清空該帳號的 D 欄後，再重新設定。
+        if (rowPassword) {
+          return errorResponse('此帳號已設定過密碼，無法重設。如需重設請聯絡系統管理員。');
+        }
+
         // 找到匹配，更新密碼（D 欄）
         keeperSheet.getRange(i + 1, 4).setValue(newPassword);  // 第 4 欄 = D 欄
-        
+
         Logger.log('已為 ' + rowName + ' 設定密碼');
-        
+
         return successResponse({
           name: rowName,
           email: rowEmail,
+          role: 'admin',
+          token: createSession(rowEmail, rowName),
           message: '密碼設定成功'
         });
       }
