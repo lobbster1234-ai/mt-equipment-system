@@ -103,7 +103,7 @@
     <!-- 設備列表 -->
     <section id="equipment-tab" class="tab-content active">
       <div class="search-bar">
-        <input type="text" id="search-keyword" placeholder="🔍 搜尋關鍵字...">
+        <input type="text" id="search-keyword" placeholder="🔍 搜尋關鍵字..." onkeydown="if(event.key==='Enter') searchEquipment()">
         <select id="search-department">
           <option value="">所有部門</option>
         </select>
@@ -122,7 +122,7 @@
     <!-- 歷史紀錄 -->
     <section id="history-tab" class="tab-content">
       <div class="search-bar">
-        <input type="text" id="history-keyword" placeholder="🔍 搜尋關鍵字...">
+        <input type="text" id="history-keyword" placeholder="🔍 搜尋關鍵字..." onkeydown="if(event.key==='Enter') searchHistory()">
         <select id="history-action">
           <option value="">所有動作</option>
           <option value="borrow">借用</option>
@@ -261,7 +261,7 @@
           <br>借用成功後會收到確認郵件，並在歸還前收到提醒。
         </p>
         
-        <form id="dept-borrow-form">
+        <form id="dept-borrow-form" onkeydown="if(event.key==='Enter' && event.target.tagName==='INPUT'){event.preventDefault(); handleDeptBorrowSubmit();}">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:15px;">
             <div class="form-group">
               <label>設備名稱 * <span style="font-size:0.85em;color:#888;">(可含數量，如：USB x3)</span></label>
@@ -310,7 +310,7 @@
       <span class="close" onclick="closeBorrowModal()">&times;</span>
       <h2>📤 借用設備</h2>
       <div id="borrow-equipment-info"></div>
-      <form id="borrow-form">
+      <form id="borrow-form" onkeydown="if(event.key==='Enter' && event.target.tagName==='INPUT'){event.preventDefault(); handleBorrowSubmit();}">
         <input type="hidden" id="borrow-fix-no">
         <div class="form-group">
           <label>借用人姓名 *</label>
