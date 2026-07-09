@@ -84,6 +84,67 @@ function validateSession(token) {
   }
 }
 
+// =============================================
+// 登入失敗鎖定（防暴力破解）
+// =============================================
+const MAX_LOGIN_FAILS = 5;              // 連續失敗上限
+const LOCKOUT_MS = 15 * 60 * 1000;      // 達上限後鎖定 15 分鐘
+
+function loginFailKey(identifier) {
+  return 'login_fail_' + String(identifier || '').trim().toLowerCase();
+}
+
+// 回傳剩餘鎖定毫秒數；未鎖定回傳 0
+function getLockRemaining(identifier) {
+  const raw = PropertiesService.getScriptProperties().getProperty(loginFailKey(identifier));
+  if (!raw) return 0;
+  try {
+    const rec = JSON.parse(raw);
+    if (rec.lockUntil && Date.now() < rec.lockUntil) return rec.lockUntil - Date.now();
+    return 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+// 記錄一次登入失敗；達上限則設定鎖定時間
+function recordLoginFail(identifier) {
+  const props = PropertiesService.getScriptProperties();
+  const key = loginFailKey(identifier);
+  let rec = { count: 0, lockUntil: 0 };
+  const raw = props.getProperty(key);
+  if (raw) { try { rec = JSON.parse(raw); } catch (e) {} }
+  // 先前鎖定已過期則歸零重算
+  if (rec.lockUntil && Date.now() >= rec.lockUntil) rec = { count: 0, lockUntil: 0 };
+  rec.count = (rec.count || 0) + 1;
+  if (rec.count >= MAX_LOGIN_FAILS) rec.lockUntil = Date.now() + LOCKOUT_MS;
+  props.setProperty(key, JSON.stringify(rec));
+}
+
+// 登入成功時清除失敗紀錄
+function clearLoginFail(identifier) {
+  PropertiesService.getScriptProperties().deleteProperty(loginFailKey(identifier));
+}
+
+// =============================================
+// 密碼強度檢查
+// =============================================
+// 常見弱密碼（以小寫比對）
+const COMMON_PASSWORDS = [
+  'password', 'passw0rd', '123456', '1234567', '12345678', '123456789',
+  'qwerty', 'abc123', 'aaaaaa', '111111', '000000', '888888', '666666',
+  'iloveyou', 'admin', 'letmein', '123123', '1q2w3e', 'qwerty123', 'password1'
+];
+
+// 檢查密碼強度；通過回傳 null，否則回傳錯誤訊息字串
+function validatePasswordStrength(pw) {
+  const p = String(pw || '');
+  if (p.length < 6) return '密碼長度至少 6 個字元';
+  if (/^\d+$/.test(p)) return '密碼不可為純數字，請加入英文字母';
+  if (COMMON_PASSWORDS.indexOf(p.toLowerCase()) !== -1) return '此密碼過於常見，請改用其他密碼';
+  return null;
+}
+
 /**
  * GET 請求處理
  */
@@ -2251,7 +2312,14 @@ function loginAdmin(data) {
   if (!email || !password) {
     return errorResponse('請提供電子郵件和密碼');
   }
-  
+
+  // 登入失敗鎖定檢查：連續失敗過多則暫時拒絕，防暴力破解
+  const lockRemaining = getLockRemaining(email);
+  if (lockRemaining > 0) {
+    const mins = Math.ceil(lockRemaining / 60000);
+    return errorResponse('登入嘗試過多，帳號已暫時鎖定，請於約 ' + mins + ' 分鐘後再試');
+  }
+
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const keeperSheet = ss.getSheetByName(KEEPER_SHEET_NAME);
@@ -2281,6 +2349,7 @@ function loginAdmin(data) {
         // 找到匹配的電子郵件，檢查密碼
         if (!rowPassword) {
           Logger.log('密碼為空，需要設定');
+          clearLoginFail(email);
           // 密碼為空，回傳需要設定密碼的標記
           return successResponse({
             name: rowName,
@@ -2290,9 +2359,10 @@ function loginAdmin(data) {
             message: '首次登入，請設定密碼'
           });
         }
-        
+
         if (rowPassword === password) {
           Logger.log('登入成功：' + rowName);
+          clearLoginFail(email);  // 成功即清除失敗計數
           // 登入成功，發給 session token
           return successResponse({
             name: rowName,
@@ -2302,13 +2372,14 @@ function loginAdmin(data) {
           });
         } else {
           Logger.log('密碼錯誤');
-          // 密碼錯誤
+          recordLoginFail(email);  // 記錄失敗；達上限即鎖定
           return errorResponse('密碼錯誤');
         }
       }
     }
-    
+
     Logger.log('找不到帳號：' + email);
+    recordLoginFail(email);  // 帳號不存在也記錄，避免被拿來大量嘗試
     return errorResponse('找不到此管理員帳號');
     
   } catch (err) {
@@ -2327,11 +2398,13 @@ function setupPassword(data) {
   if (!email || !newPassword) {
     return errorResponse('請提供電子郵件/帳號和新密碼');
   }
-  
-  if (newPassword.length < 4) {
-    return errorResponse('密碼長度至少 4 個字元');
+
+  // 密碼強度檢查：至少 6 位、不可純數字、不可為常見密碼
+  const strengthError = validatePasswordStrength(newPassword);
+  if (strengthError) {
+    return errorResponse(strengthError);
   }
-  
+
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const keeperSheet = ss.getSheetByName(KEEPER_SHEET_NAME);
