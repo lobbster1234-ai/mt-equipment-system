@@ -150,7 +150,10 @@
 
     <div class="form-group">
       <label>密碼</label>
-      <input type="password" id="admin-password" placeholder="請輸入密碼" onkeydown="if(event.key==='Enter') loginAdmin()">
+      <div style="position:relative;">
+        <input type="password" id="admin-password" placeholder="請輸入密碼" style="box-sizing:border-box; padding-right:44px;" onkeydown="if(event.key==='Enter') loginAdmin()">
+        <span onclick="togglePw(this)" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); cursor:pointer; user-select:none; font-size:1.2em;" title="顯示/隱藏密碼">👁️</span>
+      </div>
     </div>
     
     <button class="btn-login" onclick="loginAdmin()">登入</button>
@@ -213,6 +216,18 @@
       }
     }
     
+    // 切換密碼顯示/隱藏
+    function togglePw(el) {
+      const input = el.parentNode.querySelector('input');
+      if (input.type === 'password') {
+        input.type = 'text';
+        el.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        el.textContent = '👁️';
+      }
+    }
+
     // 返回訪客模式
     function goBackAsGuest() {
       window.location.href = './index.html';
