@@ -94,8 +94,9 @@
           const equipSection = document.getElementById('equipment-section');
           if (equipSection) {
             equipSection.style.display = 'block';
-            document.getElementById('equipment-list').innerHTML = data.equipment.map(eq => 
-              '<div class="equipment-item">📦 ' + eq.fix_no + ' - ' + eq.device_name + '</div>'
+            const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            document.getElementById('equipment-list').innerHTML = data.equipment.map(eq =>
+              '<div class="equipment-item">📦 ' + esc(eq.fix_no) + ' - ' + esc(eq.device_name) + '</div>'
             ).join('');
           }
         }

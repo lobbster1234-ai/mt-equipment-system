@@ -207,13 +207,15 @@ function renderEquipment(equipment) {
                 let actionButton = '';
                 // URL 編碼設備名稱，避免特殊字元破壞 HTML/JavaScript 語法
                 const encodedDeviceName = encodeURIComponent(eq.device_name || '');
+                const encodedBorrower = encodeURIComponent(eq.borrower || '');
+                const encodedKeeper = encodeURIComponent(eq.keeper || '');
                 if (isAvailable) {
-                  actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.keeper}')">借用</button>`;
+                  actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedKeeper}'))">借用</button>`;
                 } else if (isBorrowed) {
                   // 借用中 - 顯示【歸還】和【延後】按鈕
                   actionButton = `
-                    <button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.borrower}')">📧 歸還</button>
-                    <button class="btn-postpone-sm" onclick="openPostponeModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.borrower}', '${eq.dt_due}')" style="margin-left:5px;background:#ffc107;color:#000;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:0.85em;">⏰ 延後</button>
+                    <button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))">📧 歸還</button>
+                    <button class="btn-postpone-sm" onclick="openPostponeModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'), '${eq.dt_due}')" style="margin-left:5px;background:#ffc107;color:#000;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:0.85em;">⏰ 延後</button>
                   `;
                 } else if (isBorrowPending) {
                   // 借用審核中，顯示提示文字
@@ -227,7 +229,7 @@ function renderEquipment(equipment) {
                   if (hasReturnDate) {
                     actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';
                   } else {
-                    actionButton = `<button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), '${eq.borrower}')">📧 歸還</button>`;
+                    actionButton = `<button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))">📧 歸還</button>`;
                   }
                 } else {
                   actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
@@ -235,14 +237,14 @@ function renderEquipment(equipment) {
                 
                 return `
                   <tr>
-                    <td>${eq.fix_type || ''}</td>
-                    <td>${eq.fix_no || ''}</td>
-                    <td>${eq.device_name || ''}</td>
-                    <td>${eq.qty_asset || '1'}</td>
+                    <td>${escapeHtml(eq.fix_type || '')}</td>
+                    <td>${escapeHtml(eq.fix_no || '')}</td>
+                    <td>${escapeHtml(eq.device_name || '')}</td>
+                    <td>${escapeHtml(eq.qty_asset || '1')}</td>
                     <td>
                       ${statusHtml}
                       <div style="margin-top:5px;">${actionButton}</div>
-                      ${(isBorrowed || isBorrowPending || isReturnPending || (!isAvailable && !isBorrowed && !isBorrowPending && !isReturnPending && !isConfirmed)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${eq.borrower} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
+                      ${(isBorrowed || isBorrowPending || isReturnPending || (!isAvailable && !isBorrowed && !isBorrowPending && !isReturnPending && !isConfirmed)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${escapeHtml(eq.borrower)} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
                     </td>
                   </tr>
                 `;
@@ -432,9 +434,9 @@ function openBorrowModal(fixNo, deviceName, keeper) {
   
   if (infoDiv) {
     infoDiv.innerHTML = `
-      <strong>設備編號：</strong>${fixNo}<br>
-      <strong>設備名稱：</strong>${deviceName}<br>
-      <strong>保管人：</strong>${keeper}
+      <strong>設備編號：</strong>${escapeHtml(fixNo)}<br>
+      <strong>設備名稱：</strong>${escapeHtml(deviceName)}<br>
+      <strong>保管人：</strong>${escapeHtml(keeper)}
     `;
   }
   
@@ -598,9 +600,9 @@ function openReturnModal(fixNo, deviceName, borrower) {
   
   if (infoDiv) {
     infoDiv.innerHTML = `
-      <strong>設備編號：</strong>${fixNo}<br>
-      <strong>設備名稱：</strong>${deviceName}<br>
-      <strong>借用人：</strong>${borrower}
+      <strong>設備編號：</strong>${escapeHtml(fixNo)}<br>
+      <strong>設備名稱：</strong>${escapeHtml(deviceName)}<br>
+      <strong>借用人：</strong>${escapeHtml(borrower)}
     `;
   }
   
@@ -768,10 +770,10 @@ function openPostponeModal(fixNo, deviceName, borrower, currentDueDate) {
   const infoDiv = document.getElementById('postpone-info');
   if (infoDiv) {
     infoDiv.innerHTML = `
-      <strong>設備編號：</strong>${fixNo}<br>
-      <strong>設備名稱：</strong>${deviceName}<br>
-      <strong>借用人：</strong>${borrower}<br>
-      <strong>目前預計歸還：</strong>${currentDueDate || '未設定'}
+      <strong>設備編號：</strong>${escapeHtml(fixNo)}<br>
+      <strong>設備名稱：</strong>${escapeHtml(deviceName)}<br>
+      <strong>借用人：</strong>${escapeHtml(borrower)}<br>
+      <strong>目前預計歸還：</strong>${escapeHtml(currentDueDate || '未設定')}
     `;
   }
   
@@ -1404,7 +1406,7 @@ function renderHistory(history, sortOrder = 'newest') {
       <div class="history-device-group" style="margin-bottom:20px;">
         <div class="history-device-header" onclick="toggleHistoryDevice(this)" style="cursor:pointer;user-select:none;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:white;padding:12px 15px;border-radius:6px;margin-bottom:10px;font-weight:bold;font-size:1.1em;display:flex;align-items:center;">
           <span class="device-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${deviceExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-          <span>📦 ${device.fix_no} - ${device.device_name || '未知設備'}</span>
+          <span>📦 ${escapeHtml(device.fix_no)} - ${escapeHtml(device.device_name || '未知設備')}</span>
         </div>
         <div class="history-device-content" style="${deviceExpanded ? 'display:block;' : 'display:none;'}">
     `;
@@ -1443,7 +1445,7 @@ function renderHistory(history, sortOrder = 'newest') {
         <div class="history-borrow-cycle" style="margin-bottom:10px;">
           <div class="history-borrow-header" onclick="toggleHistoryBorrow(event, this)" style="cursor:pointer;user-select:none;display:flex;align-items:center;padding:10px;background:#f8f9fa;border-radius:6px;border-left:4px solid #667eea;">
             <span class="borrow-arrow" style="display:inline-block;width:12px;margin-right:8px;transition:transform 0.2s;${isExpanded ? 'transform:rotate(90deg)' : ''}">▶</span>
-            <span style="font-weight:bold;font-size:0.95em;">---> ${getAvatarHtml(cycle.borrower, 24)} ${cycle.borrower} ${statusIcon} ${statusText}</span>
+            <span style="font-weight:bold;font-size:0.95em;">---> ${getAvatarHtml(cycle.borrower, 24)} ${escapeHtml(cycle.borrower)} ${statusIcon} ${statusText}</span>
           </div>
           <div class="history-borrow-detail" style="${isExpanded ? 'display:block;' : 'display:none;'}margin-left:20px;margin-top:8px;padding:10px;background:#fff;border-radius:6px;">
             <div style="font-size:0.9em;color:#666;line-height:1.8;">
@@ -1624,7 +1626,7 @@ function getAvatarHtml(name, size = 55) {  // 圖片預設 55px
   
   const url = avatarCache[name];
   if (url) {
-    return `<img src="${url}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span style="font-size:30px;display:none;">👤</span>`;
+    return `<img src="${escapeHtml(url)}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;vertical-align:middle;" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';"><span style="font-size:30px;display:none;">👤</span>`;
   }
   return `<span style="font-size:30px;">👤</span>`;
 }
@@ -1678,8 +1680,8 @@ async function loadAvatarList() {
     for (const [name, url] of Object.entries(avatarCache)) {
       html += `
         <div style="text-align:center;">
-          <img src="${url}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
-          <div style="font-size:0.85em;margin-top:5px;">${name}</div>
+          <img src="${escapeHtml(url)}" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #ddd;">
+          <div style="font-size:0.85em;margin-top:5px;">${escapeHtml(name)}</div>
         </div>
       `;
     }
@@ -1928,12 +1930,12 @@ async function loadMyEquipment() {
         <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;">
           <div style="display:flex;justify-content:space-between;align-items:start;">
             <div>
-              <strong style="font-size:1.1em;">${eq.device_name || '未知設備'}</strong>
+              <strong style="font-size:1.1em;">${escapeHtml(eq.device_name || '未知設備')}</strong>
               <div style="color:#666;font-size:0.85em;margin-top:5px;">
-                📋 編號：${eq.fix_no || '-'}
+                📋 編號：${escapeHtml(eq.fix_no || '-')}
               </div>
               <div style="color:#666;font-size:0.85em;">
-                📦 類型：${eq.fix_type || '-'}
+                📦 類型：${escapeHtml(eq.fix_type || '-')}
               </div>
             </div>
             <div style="text-align:right;">
@@ -2126,9 +2128,9 @@ function openTransferModal(fixNo, deviceName, keeper) {
   // 設定設備資訊
   document.getElementById('transfer-fix-no').value = fixNo;
   document.getElementById('transfer-info').innerHTML = `
-    <strong>設備編號：</strong>${fixNo}<br>
-    <strong>設備名稱：</strong>${decodeURIComponent(deviceName || '')}<br>
-    <strong>目前保管人：</strong>${decodeURIComponent(keeper || '')}
+    <strong>設備編號：</strong>${escapeHtml(fixNo)}<br>
+    <strong>設備名稱：</strong>${escapeHtml(decodeURIComponent(deviceName || ''))}<br>
+    <strong>目前保管人：</strong>${escapeHtml(decodeURIComponent(keeper || ''))}
   `;
   
   // 載入 Keeper 清單
@@ -2160,8 +2162,8 @@ async function loadKeeperListForTransfer(currentFixNo) {
         return;
       }
       
-      select.innerHTML = keepers.map(k => 
-        `<option value="${k.name}">${k.name}</option>`
+      select.innerHTML = keepers.map(k =>
+        `<option value="${escapeHtml(k.name)}">${escapeHtml(k.name)}</option>`
       ).join('');
     } else {
       select.innerHTML = '<option value="">載入失敗</option>';
