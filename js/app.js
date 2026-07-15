@@ -1229,8 +1229,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 頁面載入時自動查詢
-  searchEquipment();
+  // 頁面載入時：先從伺服器抓最新頭像快取，讓列表第一次渲染就帶頭像；
+  // 即使抓頭像失敗也照常查詢設備
+  preloadAvatars().finally(() => searchEquipment());
   
   // Modal 點擊外部關閉
   window.addEventListener('click', (e) => {
@@ -1627,6 +1628,25 @@ function saveAvatarCache() {
     localStorage.setItem('avatarCache', JSON.stringify(avatarCache));
   } catch (err) {
     console.log('儲存頭像快取失敗:', err);
+  }
+}
+
+// 從伺服器抓最新頭像並更新本地快取（頁面載入時呼叫，確保列表能正確顯示頭像）
+async function preloadAvatars() {
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'getAvatarList');
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const data = await res.json();
+    const avatars = Array.isArray(data) ? data : (data.data || data.result || []);
+    avatars.forEach(item => {
+      if (item.name && item.avatar_url) {
+        avatarCache[item.name] = item.avatar_url;
+      }
+    });
+    saveAvatarCache();
+  } catch (err) {
+    console.log('預載頭像失敗:', err);
   }
 }
 
