@@ -999,6 +999,17 @@ function getAuthToken() {
   }
 }
 
+// 若錯誤訊息為「未授權」（token 逾期/失效），提示並導回登入頁；有處理回傳 true
+function handleAuthExpiry(msg) {
+  if (msg && msg.indexOf('未授權') !== -1) {
+    alert('登入已逾期，請重新登入');
+    localStorage.removeItem('mt_user');
+    window.location.href = './login.html';
+    return true;
+  }
+  return false;
+}
+
 // 設備登記
 async function registerEquipment(formData) {
   try {
@@ -1203,6 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
         submitBtn.textContent = '登記設備';
       }
 
+      if (handleAuthExpiry(result.message)) return;
       alert(result.message);
 
       if (result.success) {
@@ -1997,6 +2009,7 @@ async function updateEquipment(fixNo, updateData) {
       alert('✅ 設備已更新');
       loadMyEquipment();  // 重新載入列表
     } else {
+      if (handleAuthExpiry(data.error)) return;
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
@@ -2031,6 +2044,7 @@ async function deleteEquipment(fixNo) {
       alert('✅ 設備已刪除');
       loadMyEquipment();  // 重新載入列表
     } else {
+      if (handleAuthExpiry(data.error)) return;
       alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
@@ -2077,6 +2091,7 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
       closeEditEquipmentModal();
       loadMyEquipment();
     } else {
+      if (handleAuthExpiry(data.error)) return;
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
@@ -2220,6 +2235,7 @@ async function handleTransferSubmit(e) {
       throw new Error(result.error || '申請失敗');
     }
   } catch (err) {
+    if (handleAuthExpiry(err.message)) return;
     alert('❌ 轉讓失敗：' + err.message);
     if (submitBtn) {
       submitBtn.disabled = false;
