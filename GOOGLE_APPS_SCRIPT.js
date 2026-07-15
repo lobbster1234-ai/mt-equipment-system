@@ -4620,15 +4620,15 @@ function getKeeperList() {
     
     for (let i = 1; i < data.length; i++) {
       const name = data[i][0];
-      const email = data[i][1];
       if (name) {
+        // 只回傳姓名；不回傳 email（前端只用姓名，寄信由後端 getKeeperEmail 另行查詢，
+        // 避免此開放端點洩漏全部管理員 email）
         keepers.push({
-          name: name.toString().trim(),
-          email: email ? email.toString().trim() : ''
+          name: name.toString().trim()
         });
       }
     }
-    
+
     return successResponse({ keepers: keepers });
     
   } catch (err) {
