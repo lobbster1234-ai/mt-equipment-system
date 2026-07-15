@@ -3819,8 +3819,8 @@ function requestPostpone(data) {
       borrowerEmail = getKeeperEmail(borrower) || '';
     }
     
-    // 產生 request_id
-    const requestId = 'PP' + new Date().getTime();
+    // 產生 request_id（用隨機 UUID，避免時間戳可被猜測而偽造審核連結）
+    const requestId = 'PP' + Utilities.getUuid();
     
     // 寫入延後申請工作表
     const postponeSheet = getOrCreatePostponeSheet();
@@ -4267,8 +4267,8 @@ function requestTransfer(data) {
       return errorResponse('不能轉讓給自己');
     }
     
-    // 產生 request_id
-    const requestId = 'TR' + new Date().getTime();
+    // 產生 request_id（用隨機 UUID，避免時間戳可被猜測而偽造審核連結）
+    const requestId = 'TR' + Utilities.getUuid();
     
     // 寫入轉讓申請工作表
     const transferSheet = getOrCreateTransferSheet();
