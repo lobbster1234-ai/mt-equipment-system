@@ -34,6 +34,12 @@
           ${user.role !== 'guest' ? '<button onclick="logout()" style="padding:5px 10px;background:#dc3545;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85em;">登出</button>' : ''}
         `;
         nav.appendChild(userInfo);
+
+        // 把「管理員登入」按鈕移到使用者資訊（👤 訪客）旁邊
+        const adminLoginBtn = document.querySelector('.admin-login-btn');
+        if (adminLoginBtn) {
+          userInfo.appendChild(adminLoginBtn);
+        }
       }
       
       // 訪客隱藏「設備登記」和「我的設備」按鈕
