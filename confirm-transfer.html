@@ -13,28 +13,28 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 16px;
     }
     .container {
       background: white;
-      padding: 40px;
+      padding: 28px 32px;
       border-radius: 12px;
       box-shadow: 0 10px 40px rgba(0,0,0,0.2);
       max-width: 500px;
       width: 100%;
       text-align: center;
     }
-    h1 { color: #667eea; margin-bottom: 20px; }
-    .info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; }
-    .info p { margin: 10px 0; color: #333; }
+    h1 { color: #667eea; margin-bottom: 12px; }
+    .info { background: #f8f9fa; padding: 14px 18px; border-radius: 8px; margin: 14px 0; text-align: left; }
+    .info p { margin: 6px 0; color: #333; }
     .info strong { color: #667eea; }
     .highlight { background: #fff3cd; padding: 5px 10px; border-radius: 4px; display: inline-block; }
-    .equipment-list { background: #e9ecef; padding: 15px; border-radius: 8px; margin: 15px 0; text-align: left; max-height: 200px; overflow-y: auto; }
+    .equipment-list { background: #e9ecef; padding: 12px; border-radius: 8px; margin: 10px 0; text-align: left; max-height: 150px; overflow-y: auto; }
     .equipment-item { padding: 5px 0; border-bottom: 1px solid #ccc; }
     .equipment-item:last-child { border-bottom: none; }
-    .btn-approve { background: #28a745; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 1.1em; cursor: pointer; margin: 10px 5px; }
+    .btn-approve { background: #28a745; color: white; border: none; padding: 11px 26px; border-radius: 8px; font-size: 1.05em; cursor: pointer; margin: 8px 5px; }
     .btn-approve:hover { background: #218838; }
-    .btn-reject { background: #dc3545; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 1.1em; cursor: pointer; margin: 10px 5px; }
+    .btn-reject { background: #dc3545; color: white; border: none; padding: 11px 26px; border-radius: 8px; font-size: 1.05em; cursor: pointer; margin: 8px 5px; }
     .btn-reject:hover { background: #c82333; }
     .loading { color: #667eea; }
     .error { color: #dc3545; }
@@ -55,7 +55,7 @@
         <strong>即將轉讓的設備：</strong>
         <div id="equipment-list"></div>
       </div>
-      <p id="prompt" style="color: #666; margin: 20px 0;">請確認上述資訊後，選擇是否同意接受轉讓：</p>
+      <p id="prompt" style="color: #666; margin: 12px 0;">請確認上述資訊後，選擇是否同意接受轉讓：</p>
       <div id="buttons">
         <button class="btn-approve" onclick="processTransfer('approve')">✅ 同意接受</button>
         <button class="btn-reject" onclick="processTransfer('reject')">❌ 不同意</button>
