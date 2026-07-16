@@ -584,7 +584,7 @@ function openBorrowModal(fixNo, deviceName, keeper) {
     });
   }
   
-  if (modal) modal.style.display = 'block';
+  if (modal) modal.style.display = 'flex';
 }
 
 // 關閉借用 Modal
@@ -675,7 +675,7 @@ function openReturnModal(fixNo, deviceName, borrower) {
     returnDateInput.value = taipeiDateTime;
   }
   
-  if (modal) modal.style.display = 'block';
+  if (modal) modal.style.display = 'flex';
 }
 
 // 關閉歸還 Modal
@@ -692,9 +692,9 @@ function openPostponeModal(fixNo, deviceName, borrower, currentDueDate) {
     modal = document.createElement('div');
     modal.id = 'postpone-modal';
     modal.className = 'modal';
-    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);';
+    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;overflow-y:auto;padding:20px;background-color:rgba(0,0,0,0.5);';
     modal.innerHTML = `
-      <div style="background-color:#fefefe;margin:10% auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
+      <div style="background-color:#fefefe;margin:auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
         <span onclick="closePostponeModal()" style="color:#aaa;float:right;font-size:28px;font-weight:bold;cursor:pointer;">&times;</span>
         <h2 style="color:#667eea;margin-bottom:20px;">⏰ 延後歸還</h2>
         <div id="postpone-info" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;"></div>
@@ -801,7 +801,7 @@ function openPostponeModal(fixNo, deviceName, borrower, currentDueDate) {
     dateInput.value = `${year}-${month}-${day}T${hours}:00`;
   }
   
-  modal.style.display = 'block';
+  modal.style.display = 'flex';
 }
 
 // 關閉延後歸還 Modal
@@ -2052,7 +2052,7 @@ function openEditEquipmentModal(fixNo, deviceName, fixType, qtyAsset) {
   document.getElementById('edit-device-name').value = decodeURIComponent(deviceName || '');
   document.getElementById('edit-fix-type').value = decodeURIComponent(fixType || '儀器設備');
   document.getElementById('edit-qty-asset').value = qtyAsset || '1';
-  document.getElementById('edit-equipment-modal').style.display = 'block';
+  document.getElementById('edit-equipment-modal').style.display = 'flex';
 }
 
 function closeEditEquipmentModal() {
@@ -2182,9 +2182,9 @@ function openTransferModal(fixNo, deviceName, keeper) {
   if (!modal) {
     modal = document.createElement('div');
     modal.id = 'transfer-modal';
-    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background-color:rgba(0,0,0,0.5);';
+    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;overflow-y:auto;padding:20px;background-color:rgba(0,0,0,0.5);';
     modal.innerHTML = `
-      <div style="background-color:#fefefe;margin:10% auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
+      <div style="background-color:#fefefe;margin:auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
         <span onclick="closeTransferModal()" style="color:#aaa;float:right;font-size:28px;font-weight:bold;cursor:pointer;">&times;</span>
         <h2 style="color:#17a2b8;margin-bottom:20px;">🔄 轉讓設備</h2>
         <div id="transfer-info" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;"></div>
@@ -2220,7 +2220,7 @@ function openTransferModal(fixNo, deviceName, keeper) {
   // 載入 Keeper 清單
   loadKeeperListForTransfer(fixNo);
   
-  modal.style.display = 'block';
+  modal.style.display = 'flex';
 }
 
 /**
