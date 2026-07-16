@@ -61,8 +61,14 @@
         if (settingsSection) {
           settingsSection.style.display = 'none';
         }
+      } else {
+        // 管理員已登入：隱藏「👑 管理員登入」按鈕
+        const adminLoginBtn = document.querySelector('.admin-login-btn');
+        if (adminLoginBtn) {
+          adminLoginBtn.style.display = 'none';
+        }
       }
-      
+
       // 管理員自動填入保管人（Keeper聯絡資訊的姓名）
       if (user.role === 'admin' && user.name) {
         const keeperInput = document.getElementById('register-keeper');
