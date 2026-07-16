@@ -1236,7 +1236,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 頁面載入時：先從伺服器抓最新頭像快取，讓列表第一次渲染就帶頭像；
   // 即使抓頭像失敗也照常查詢設備
-  preloadAvatars().finally(() => searchEquipment());
+  preloadAvatars().finally(() => {
+    searchEquipment();
+    // 設備列表顯示後，於背景預先載入其他分頁，讓切換時能立即顯示
+    setTimeout(preloadOtherTabs, 400);
+  });
   
   // Modal 點擊外部關閉
   window.addEventListener('click', (e) => {
@@ -1669,6 +1673,29 @@ async function preloadAvatars() {
     saveAvatarCache();
   } catch (err) {
     console.log('預載頭像失敗:', err);
+  }
+}
+
+// 背景預先載入其他分頁的資料，讓切換分頁時能立即顯示（不必等點選才載入）
+function preloadOtherTabs() {
+  const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
+
+  // 歷史紀錄（所有使用者皆可見）
+  if (!historyTabLoaded) {
+    searchHistory();
+    historyTabLoaded = true;
+  }
+
+  // 我的設備、個人設定（管理員專屬分頁）
+  if (user.role === 'admin') {
+    if (!myEquipTabLoaded) {
+      loadMyEquipment();
+      myEquipTabLoaded = true;
+    }
+    if (!settingsTabLoaded) {
+      loadAvatarList();
+      settingsTabLoaded = true;
+    }
   }
 }
 
