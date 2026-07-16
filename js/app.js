@@ -1569,6 +1569,7 @@ if (historyInput) {
 // 需重新整理頁面才會再載入（旗標隨頁面載入歸零）
 let historyTabLoaded = false;
 let myEquipTabLoaded = false;
+let settingsTabLoaded = false;
 
 // 綁定分頁切換
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1609,7 +1610,11 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
-      loadAvatarList();
+      // 只在第一次切到個人設定時載入頭像列表；之後不重抓
+      if (!settingsTabLoaded) {
+        loadAvatarList();
+        settingsTabLoaded = true;
+      }
     }
   });
 });
