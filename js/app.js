@@ -1560,6 +1560,11 @@ if (historyInput) {
 // 注意：排序選單事件綁定移到分頁切換時（因為元素預設隱藏）
 // 綁定歷史排序選單變更事件 - 在分頁切換到 history 時綁定
 
+// 「歷史紀錄」「我的設備」只在首次切換時載入一次；之後切分頁不重抓，
+// 需重新整理頁面才會再載入（旗標隨頁面載入歸零）
+let historyTabLoaded = false;
+let myEquipTabLoaded = false;
+
 // 綁定分頁切換
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', function() {
@@ -1575,8 +1580,12 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
     
     // 如果切換到歷史紀錄分頁，自動載入並綁定排序事件
     if (tab === 'history') {
-      searchHistory();
-      
+      // 只在第一次切到歷史頁時載入；之後切換不重抓
+      if (!historyTabLoaded) {
+        searchHistory();
+        historyTabLoaded = true;
+      }
+
       // 綁定排序選單事件（只在切換到歷史頁時綁定一次）
       const historySortSelect = document.getElementById('history-sort');
       if (historySortSelect && !historySortSelect._hasEventListener) {
@@ -1586,9 +1595,12 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         historySortSelect._hasEventListener = true;  // 標記已綁定，避免重複
       }
     }
-    // 如果切換到「我的設備」分頁，載入管理員的設備
+    // 如果切換到「我的設備」分頁，只在第一次切換時載入；之後不重抓
     if (tab === 'my-equipment') {
-      loadMyEquipment();
+      if (!myEquipTabLoaded) {
+        loadMyEquipment();
+        myEquipTabLoaded = true;
+      }
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
