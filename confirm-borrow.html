@@ -13,24 +13,24 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      padding: 16px;
     }
     .container {
       background: white;
-      padding: 40px;
+      padding: 28px 32px;
       border-radius: 12px;
       box-shadow: 0 10px 40px rgba(0,0,0,0.2);
       max-width: 500px;
       width: 100%;
       text-align: center;
     }
-    h1 { color: #667eea; margin-bottom: 20px; }
-    .info { background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; }
-    .info p { margin: 10px 0; color: #333; }
+    h1 { color: #667eea; margin-bottom: 12px; }
+    .info { background: #f8f9fa; padding: 14px 18px; border-radius: 8px; margin: 14px 0; text-align: left; }
+    .info p { margin: 6px 0; color: #333; }
     .info strong { color: #667eea; }
-    .btn-approve { background: #28a745; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 1.1em; cursor: pointer; margin: 10px 5px; }
+    .btn-approve { background: #28a745; color: white; border: none; padding: 11px 26px; border-radius: 8px; font-size: 1.05em; cursor: pointer; margin: 8px 5px; }
     .btn-approve:hover { background: #218838; }
-    .btn-reject { background: #dc3545; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 1.1em; cursor: pointer; margin: 10px 5px; }
+    .btn-reject { background: #dc3545; color: white; border: none; padding: 11px 26px; border-radius: 8px; font-size: 1.05em; cursor: pointer; margin: 8px 5px; }
     .btn-reject:hover { background: #c82333; }
     .loading { color: #667eea; }
     .error { color: #dc3545; }
@@ -52,7 +52,7 @@
         <p><strong>📅 借用日期：</strong><span id="borrow-date">載入中...</span></p>
         <p><strong>⏰ 預計歸還：</strong><span id="due-date">載入中...</span></p>
       </div>
-      <p id="prompt" style="color: #666; margin: 20px 0;">請確認上述資訊後，選擇是否同意借用：</p>
+      <p id="prompt" style="color: #666; margin: 12px 0;">請確認上述資訊後，選擇是否同意借用：</p>
       <div id="buttons">
         <button class="btn-approve" onclick="processBorrow('approve')">✅ 同意借用</button>
         <button class="btn-reject" onclick="processBorrow('reject')">❌ 不同意借用</button>
