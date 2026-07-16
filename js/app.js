@@ -9,6 +9,27 @@ function loadingHtml() {
   return '<div class="loading-box"><div class="spinner"></div><span>載入中...</span></div>';
 }
 
+// 開啟任一 modal 時鎖定背景捲動（讓右側捲軸暫時消失），
+// 使視窗能在完整畫面正中央置中、不會因捲軸看起來左右不對稱
+(function () {
+  function anyModalOpen() {
+    return Array.from(document.querySelectorAll('.modal'))
+      .some(m => m.style.display && m.style.display !== 'none');
+  }
+  function start() {
+    const sync = () => { document.body.style.overflow = anyModalOpen() ? 'hidden' : ''; };
+    new MutationObserver(sync).observe(document.body, {
+      subtree: true, childList: true, attributes: true, attributeFilter: ['style']
+    });
+    sync();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
+
 /**
  * 格式化日期時間為 yyyy-MM-dd HH:mm:ss（處理各種輸入格式）
  */
