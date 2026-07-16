@@ -181,11 +181,12 @@
         return;
       }
 
-      // 按下後：按鈕變灰、禁止再按
+      // 按下後：按鈕變灰、文字改為「登入中...」、禁止再按
       if (btn) {
         btn.disabled = true;
         btn.style.background = '#aaa';
         btn.style.cursor = 'not-allowed';
+        btn.textContent = '登入中...';
       }
 
       try {
@@ -251,6 +252,7 @@
         btn.disabled = false;
         btn.style.background = '';
         btn.style.cursor = '';
+        btn.textContent = '登入';
       }
     }
   </script>
