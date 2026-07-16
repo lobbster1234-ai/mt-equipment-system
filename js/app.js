@@ -4,6 +4,11 @@
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
 
+// 載入中動畫（旋轉圈圈 + 文字）
+function loadingHtml() {
+  return '<div class="loading-box"><div class="spinner"></div><span>載入中...</span></div>';
+}
+
 /**
  * 格式化日期時間為 yyyy-MM-dd HH:mm:ss（處理各種輸入格式）
  */
@@ -76,7 +81,7 @@ async function searchEquipment() {
 
   const listEl = document.getElementById('equipment-list');
   if (listEl) {
-    listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+    listEl.innerHTML = loadingHtml();
   }
 
   try {
@@ -1254,7 +1259,7 @@ async function searchHistory() {
 
   const listEl = document.getElementById('history-list');
   if (listEl) {
-    listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+    listEl.innerHTML = loadingHtml();
   }
 
   try {
@@ -1691,7 +1696,7 @@ async function loadAvatarList() {
     }
   }
   
-  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:20px;">🔄 載入中...</p>';
+  listEl.innerHTML = loadingHtml();
   
   try {
     // 從 GAS 取得頭像列表
@@ -1923,7 +1928,7 @@ async function loadMyEquipment() {
   }
   
   const listEl = document.getElementById('my-equipment-list');
-  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+  listEl.innerHTML = loadingHtml();
   
   try {
     // 查詢所有設備（從兩個工作表）
@@ -2387,7 +2392,7 @@ async function loadDeptBorrowList() {
   const listEl = document.getElementById('dept-borrow-list');
   if (!listEl) return;
   
-  listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">🔄 載入中...</p>';
+  listEl.innerHTML = loadingHtml();
   
   try {
     const url = new URL(GAS_URL);
