@@ -156,11 +156,10 @@
       </div>
     </div>
     
-    <button class="btn-login" onclick="loginAdmin()">登入</button>
+    <button id="btn-login" class="btn-login" onclick="loginAdmin()">登入</button>
     <button class="btn-guest" onclick="goBackAsGuest()">← 返回訪客模式</button>
-    
+
     <div id="error-message" class="error-message"></div>
-    <div id="loading" class="loading">🔄 登入中...</div>
   </div>
 
   <script>
@@ -168,16 +167,25 @@
     
     // 管理員登入
     async function loginAdmin() {
+      const btn = document.getElementById('btn-login');
+      // 防止重複送出（含 Enter 連按）：處理中直接忽略
+      if (btn && btn.disabled) return;
+
       const email = document.getElementById('admin-email').value.trim();
       const password = document.getElementById('admin-password').value;
-      
+
       if (!email || !password) {
         showError('請填寫電子郵件和密碼');
         return;
       }
-      
-      showLoading(true);
-      
+
+      // 按下後：按鈕變灰、禁止再按
+      if (btn) {
+        btn.disabled = true;
+        btn.style.background = '#aaa';
+        btn.style.cursor = 'not-allowed';
+      }
+
       try {
         const url = new URL(GAS_URL);
         url.searchParams.append('action', 'loginAdmin');
@@ -211,8 +219,6 @@
         }
       } catch (err) {
         showError('登入失敗：' + err.message);
-      } finally {
-        showLoading(false);
       }
     }
     
@@ -233,16 +239,17 @@
       window.location.href = './index.html';
     }
     
-    // 顯示錯誤
+    // 顯示錯誤（同時恢復登入按鈕，讓使用者可以重試）
     function showError(message) {
       const errorDiv = document.getElementById('error-message');
       errorDiv.textContent = '❌ ' + message;
       errorDiv.style.display = 'block';
-    }
-    
-    // 顯示/隱藏載入中
-    function showLoading(show) {
-      document.getElementById('loading').style.display = show ? 'block' : 'none';
+      const btn = document.getElementById('btn-login');
+      if (btn) {
+        btn.disabled = false;
+        btn.style.background = '';
+        btn.style.cursor = '';
+      }
     }
   </script>
 </body>
