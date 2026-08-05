@@ -109,26 +109,34 @@
     if (!token) {
       showError('❌ 無效的確認連結');
     } else {
-      // 先驗證 Token 是否有效（一次性）
-      validateToken(token).then(isValid => {
-        if (!isValid) {
-          showError('❌ 連結無效或已過期');
-        } else {
-          // Token 有效，解碼並載入設備資訊
-          try {
-            const decoded = atob(token);
-            const [fixNo, keeperEmail, timestamp] = decoded.split(':');
-            
-            if (!fixNo || !keeperEmail || !timestamp) {
-              showError('❌ 無效的確認連結');
-            } else {
-              loadEquipmentInfo(fixNo, keeperEmail);
-            }
-          } catch (err) {
-            showError('❌ 無效的確認連結');
+      // 先在前端解碼 token 取得設備編號，讓「驗證 token」與「載入設備」兩支 API 同時進行，省一半等待時間
+      let fixNo = '', keeperEmail = '', timestamp = '';
+      try {
+        const decoded = atob(token);
+        [fixNo, keeperEmail, timestamp] = decoded.split(':');
+      } catch (err) {
+        fixNo = '';
+      }
+
+      if (!fixNo || !keeperEmail || !timestamp) {
+        showError('❌ 無效的確認連結');
+      } else {
+        // 並行發送：驗證 token + 載入設備資訊
+        Promise.all([
+          validateToken(token),
+          fetchEquipmentInfo(fixNo)
+        ]).then(([isValid, equipment]) => {
+          if (!isValid) {
+            showError('❌ 連結無效或已過期');
+          } else if (!equipment || equipment.error) {
+            showError('❌ ' + ((equipment && equipment.error) ? equipment.error : '載入失敗'));
+          } else {
+            showConfirmForm(equipment, keeperEmail);
           }
-        }
-      });
+        }).catch(err => {
+          showError('❌ 載入失敗：' + err.message);
+        });
+      }
     }
 
     // 驗證 Token 是否有效（一次性）
@@ -150,28 +158,17 @@
       }
     }
 
-    // 載入設備資訊
-    async function loadEquipmentInfo(fixNo, keeperEmail) {
-      try {
-        const url = new URL(GAS_URL);
-        url.searchParams.append('action', 'getEquipmentInfo');
-        url.searchParams.append('fix_no', fixNo);
+    // 載入設備資訊（回傳資料，供並行使用）
+    async function fetchEquipmentInfo(fixNo) {
+      const url = new URL(GAS_URL);
+      url.searchParams.append('action', 'getEquipmentInfo');
+      url.searchParams.append('fix_no', fixNo);
 
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
-
-        const data = await res.json();
-
-        if (data.error) {
-          showError(`❌ ${data.error}`);
-        } else {
-          showConfirmForm(data, keeperEmail);
-        }
-      } catch (err) {
-        showError(`❌ 載入失敗：${err.message}`);
-      }
+      const res = await fetch(url.toString(), {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      return await res.json();
     }
 
     // 顯示確認表單

@@ -1380,51 +1380,40 @@ function returnEquipment(data) {
 }
 
 /**
+ * 依設備編號在「工作表1」與「網站新增設備」尋找列（一次讀整欄，避免逐格讀取）
+ * 回傳 { sheet, row }（row 為 1-based），找不到回傳 null
+ */
+function findEquipmentRow(ss, fixNo) {
+  const target = String(fixNo || '').trim();
+  const sheets = [ss.getSheetByName(SHEET_NAME), ss.getSheetByName(SHEET_NAME_WEB)];
+  for (let s = 0; s < sheets.length; s++) {
+    const sheet = sheets[s];
+    if (!sheet) continue;
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+    const colVals = sheet.getRange(2, COLS.fix_no + 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < colVals.length; i++) {
+      if (colVals[i][0] && colVals[i][0].toString().trim() === target) {
+        return { sheet: sheet, row: i + 2 };
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * 取得設備資訊（用於確認頁面）
  */
 function getEquipmentInfo(fixNo) {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  
-  const fixNoCol = COLS.fix_no;
-  const keeperCol = COLS.keeper;
-  
-  // 先在「工作表 1」查找
-  let sheet = ss.getSheetByName(SHEET_NAME);
-  let foundRow = -1;
-  let targetSheet = null;
-  
-  if (sheet) {
-    const lastRow = sheet.getLastRow();
-    for (let i = 2; i <= lastRow; i++) {
-      const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-      if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
-        foundRow = i;
-        targetSheet = sheet;
-        break;
-      }
-    }
-  }
-  
-  // 如果找不到，在「網站新增設備」查找
-  if (foundRow === -1) {
-    sheet = ss.getSheetByName(SHEET_NAME_WEB);
-    if (sheet) {
-      const lastRow = sheet.getLastRow();
-      for (let i = 2; i <= lastRow; i++) {
-        const rowFixNo = sheet.getRange(i, fixNoCol + 1).getValue();
-        if (rowFixNo && rowFixNo.toString().trim() === fixNo) {
-          foundRow = i;
-          targetSheet = sheet;
-          break;
-        }
-      }
-    }
-  }
-  
-  if (foundRow === -1 || !targetSheet) {
+
+  const found = findEquipmentRow(ss, fixNo);
+  if (!found) {
     return errorResponse(`找不到設備編號：${fixNo}`);
   }
-  
+  const targetSheet = found.sheet;
+  const foundRow = found.row;
+
   const row = targetSheet.getRange(foundRow, 1, 1, 11).getValues()[0];
   
   // 格式化日期時間顯示（含時間）
