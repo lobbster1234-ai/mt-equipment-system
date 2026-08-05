@@ -2682,24 +2682,46 @@ function snapToHour(input) {
   input.value = `${newDatePart}T${hStr}:00`;
 }
 
-// 載入測試站列表
+// 載入測試站列表（讀取為冪等操作，遇到 GAS 轉址不穩回傳 HTML 時自動重試）
 async function loadTestStations() {
   const list = document.getElementById('test-station-list');
   if (list) list.innerHTML = loadingHtml();
 
-  try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'queryStations');
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    const stations = Array.isArray(data) ? data : (data.data || []);
-    renderTestStations(stations);
-  } catch (err) {
-    console.error('載入測試站失敗:', err);
-    if (list) {
-      list.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${err.message}</p>`;
+  const maxTries = 3;
+  let lastErr = '載入失敗';
+
+  for (let attempt = 1; attempt <= maxTries; attempt++) {
+    try {
+      const url = new URL(GAS_URL);
+      url.searchParams.append('action', 'queryStations');
+      const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+      const text = await res.text();
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseErr) {
+        // GAS 偶爾轉址不穩回傳 HTML（暫時性）→ 稍等後重試
+        lastErr = '伺服器忙碌，請稍後再試';
+        if (attempt < maxTries) { await new Promise(r => setTimeout(r, 1200)); continue; }
+        break;
+      }
+
+      if (data.error) { lastErr = data.error; break; }
+      const stations = Array.isArray(data) ? data : (data.data || []);
+      renderTestStations(stations);
+      return; // 成功
+    } catch (err) {
+      // 網路層錯誤也重試
+      lastErr = err.message || '載入失敗';
+      if (attempt < maxTries) { await new Promise(r => setTimeout(r, 1200)); continue; }
     }
+  }
+
+  console.error('載入測試站失敗:', lastErr);
+  if (list) {
+    list.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${lastErr}<br>
+      <button onclick="loadTestStations()" style="margin-top:12px;padding:8px 18px;border:none;border-radius:6px;background:#667eea;color:#fff;cursor:pointer;">🔄 重新載入</button></p>`;
   }
 }
 
