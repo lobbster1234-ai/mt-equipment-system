@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>審核延後申請 - MT 設備系統</title>
+  <title>審核續借申請 - MT 設備系統</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -41,18 +41,18 @@
 </head>
 <body>
   <div class="container">
-    <h1 id="title">⏰ 審核延後申請</h1>
+    <h1 id="title">⏰ 審核續借申請</h1>
     <div id="content">
       <div class="info">
         <p><strong>📦 設備編號：</strong><span id="device-no">載入中...</span></p>
         <p><strong>📝 設備名稱：</strong><span id="device-name">載入中...</span></p>
         <p><strong>👤 借用人：</strong><span id="borrower-name">載入中...</span></p>
         <p><strong>📅 目前預計歸還：</strong><span id="current-due">載入中...</span></p>
-        <p><strong>📅 申請延後至：</strong><span class="highlight" id="new-due">載入中...</span></p>
+        <p><strong>📅 申請續借至：</strong><span class="highlight" id="new-due">載入中...</span></p>
       </div>
-      <p id="prompt" style="color: #666; margin: 12px 0;">請確認上述資訊後，選擇是否同意延後：</p>
+      <p id="prompt" style="color: #666; margin: 12px 0;">請確認上述資訊後，選擇是否同意續借：</p>
       <div id="buttons">
-        <button class="btn-approve" onclick="processPostpone('approve')">✅ 同意延後</button>
+        <button class="btn-approve" onclick="processPostpone('approve')">✅ 同意續借</button>
         <button class="btn-reject" onclick="processPostpone('reject')">❌ 不同意</button>
       </div>
     </div>
@@ -169,12 +169,12 @@
             newDueDisplay = `${y}-${m}-${d} ${h}:${min}`;
           }
           
-          document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准延後' : '❌ 已拒絕延後';
+          document.getElementById('title').textContent = action === 'approve' ? '✅ 已核准續借' : '❌ 已拒絕續借';
           
           if (action === 'approve') {
             document.getElementById('content').innerHTML = `
               <p class="success" style="font-size:1.2em;padding:20px;">
-                ✅ 延後申請已核准！
+                ✅ 續借申請已核准！
               </p>
               <div style="background:#d4edda;padding:15px;border-radius:8px;margin:20px 0;text-align:left;">
                 <strong>📅 新預計歸還時間：</strong><br>
@@ -186,7 +186,7 @@
           } else {
             document.getElementById('content').innerHTML = `
               <p style="font-size:1.2em;padding:20px;color:#721c24;">
-                ❌ 延後申請已拒絕
+                ❌ 續借申請已拒絕
               </p>
               <div style="background:#f8d7da;padding:15px;border-radius:8px;margin:20px 0;text-align:left;">
                 維持原本的歸還時間<br>
@@ -206,7 +206,7 @@
         alert('處理失敗：' + err.message);
         btnApprove.disabled = false;
         btnReject.disabled = false;
-        btnApprove.textContent = '✅ 同意延後';
+        btnApprove.textContent = '✅ 同意續借';
         btnReject.textContent = '❌ 不同意';
         prompt.textContent = '請確認後選擇：';
       }

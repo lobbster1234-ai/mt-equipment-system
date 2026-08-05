@@ -3859,17 +3859,17 @@ function requestPostpone(data) {
     
     if (keeperEmail) {
       const approveUrl = EMAIL_CONFIG.web_app_url + 'confirm-postpone.html?request_id=' + encodeURIComponent(requestId);
-      const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還申請 - ' + deviceName;
+      const subject = EMAIL_CONFIG.subject_prefix + ' 續借申請 - ' + deviceName;
       const currentDueDisplay = formatDisplayDate(currentDue);
       const newDueDisplay = formatDisplayDate(new_due_date);
       const body = `
-📋 延後歸還申請通知
+📋 續借申請通知
 
 設備編號：${fix_no}
 設備名稱：${deviceName}
 借用人：${borrower}
 原預計歸還：${currentDueDisplay}
-申請延後至：${newDueDisplay}
+申請續借至：${newDueDisplay}
 
 請點擊以下連結審核：
 ${approveUrl}
@@ -4065,9 +4065,9 @@ function approvePostpone(data, e) {
     // 寄送核准通知給借用人
     if (borrowerEmail) {
       const newDueDisplay = formatDisplayDate(newDue);
-      const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還已核准 - ' + deviceName;
+      const subject = EMAIL_CONFIG.subject_prefix + ' 續借已核准 - ' + deviceName;
       const body = `
-✅ 延後歸還申請已核准
+✅ 續借申請已核准
 
 設備編號：${fixNo}
 設備名稱：${deviceName}
@@ -4155,9 +4155,9 @@ function rejectPostpone(data, e) {
     // 寄送拒絕通知給借用人
     if (borrowerEmail) {
       const currentDueDisplay = formatDisplayDate(currentDue);
-      const subject = EMAIL_CONFIG.subject_prefix + ' 延後歸還已拒絕 - ' + deviceName;
+      const subject = EMAIL_CONFIG.subject_prefix + ' 續借已拒絕 - ' + deviceName;
       const body = `
-❌ 延後歸還申請已拒絕
+❌ 續借申請已拒絕
 
 設備編號：${fixNo}
 設備名稱：${deviceName}

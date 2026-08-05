@@ -696,7 +696,7 @@ function openPostponeModal(fixNo, deviceName, borrower, currentDueDate) {
     modal.innerHTML = `
       <div style="background-color:#fefefe;margin:auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:12px;position:relative;">
         <span onclick="closePostponeModal()" style="color:#aaa;float:right;font-size:28px;font-weight:bold;cursor:pointer;">&times;</span>
-        <h2 style="color:#667eea;margin-bottom:20px;">⏰ 延後歸還</h2>
+        <h2 style="color:#667eea;margin-bottom:20px;">⏰ 續借</h2>
         <div id="postpone-info" style="background:#f8f9fa;padding:15px;border-radius:8px;margin-bottom:20px;"></div>
         <form id="postpone-form">
           <input type="hidden" id="postpone-fix-no">
@@ -705,7 +705,7 @@ function openPostponeModal(fixNo, deviceName, borrower, currentDueDate) {
             <input type="datetime-local" id="postpone-new-due-date" step="3600" required style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:1em;">
           </div>
           <div style="text-align:center;margin-top:20px;">
-            <button type="submit" class="btn" style="background:#ffc107;color:#000;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;">✅ 確認延後</button>
+            <button type="submit" class="btn" style="background:#ffc107;color:#000;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;">✅ 確認續借</button>
             <button type="button" onclick="closePostponeModal()" style="background:#6c757d;color:#fff;padding:12px 24px;border:none;border-radius:8px;cursor:pointer;font-size:1em;margin-left:10px;">取消</button>
           </div>
         </form>
@@ -845,17 +845,17 @@ async function handlePostponeSubmit(e) {
     console.log('延後申請結果:', result);
     
     if (result.success) {
-      alert('✅ 延後申請已送出！\n\n系統已寄信通知 Keeper 審核\n請留意您的電子郵件以接收審核結果。');
+      alert('✅ 續借申請已送出！\n\n系統已寄信通知 Keeper 審核\n請留意您的電子郵件以接收審核結果。');
       closePostponeModal();
     } else {
       throw new Error(result.error || '申請失敗');
     }
   } catch (err) {
     console.error('延後申請失敗:', err);
-    alert('❌ 延後申請失敗：' + err.message);
+    alert('❌ 續借申請失敗：' + err.message);
     if (submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.textContent = '✅ 確認延後';
+      submitBtn.textContent = '✅ 確認續借';
     }
   }
 }
