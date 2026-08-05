@@ -291,6 +291,7 @@
             <button class="btn btn-secondary" onclick="window.location.href='./index.html'">返回首頁</button>
           `;
         } else if (data.success || (!data.error && data.message)) {
+          document.getElementById('title').textContent = '📥 未收到';
           contentDiv.innerHTML = `
             <p class="success" style="font-size: 1.2em; margin: 20px 0;">
               📨 已回報未收到
