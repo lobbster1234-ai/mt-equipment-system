@@ -2633,6 +2633,54 @@ document.addEventListener('DOMContentLoaded', function() {
 // 測試站（座位）借用功能
 // =============================================
 
+// 取得「現在」吸附到半小時後的 datetime-local 字串（台北時間），作為 min 值
+function stationMinDateTime() {
+  const now = new Date();
+  const taipei = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const mins = taipei.getUTCMinutes();
+  taipei.setUTCMinutes(mins < 30 ? 0 : 30, 0, 0);
+  return taipei.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+}
+
+// 將 datetime-local 的值強制吸附到最接近的半小時（:00 或 :30）
+// 規則：分鐘 0~14 → :00，15~44 → :30，45~59 → 進位到下一小時 :00（含跨日/跨月/跨年）
+function snapToHalfHour(input) {
+  if (!input || !input.value) return;
+  const [datePart, timePart] = input.value.split('T');
+  const hours = parseInt(timePart.substring(0, 2), 10);
+  const minutes = parseInt(timePart.substring(3, 5), 10);
+
+  let newMinutes = 0;
+  let newHours = hours;
+  if (minutes < 15) {
+    newMinutes = 0;
+  } else if (minutes < 45) {
+    newMinutes = 30;
+  } else {
+    newMinutes = 0;
+    newHours = hours + 1;
+  }
+
+  // 處理跨日（例如 23:50 → 00:00 隔天）
+  let newDatePart = datePart;
+  if (newHours >= 24) {
+    newHours = 0;
+    const [y, m, d] = datePart.split('-').map(Number);
+    let newDay = d + 1, newMonth = m, newYear = y;
+    const daysInMonth = new Date(y, m, 0).getDate();
+    if (newDay > daysInMonth) {
+      newDay = 1;
+      newMonth = m + 1;
+      if (newMonth > 12) { newMonth = 1; newYear = y + 1; }
+    }
+    newDatePart = `${newYear}-${String(newMonth).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+  }
+
+  const hStr = String(newHours).padStart(2, '0');
+  const minStr = String(newMinutes).padStart(2, '0');
+  input.value = `${newDatePart}T${hStr}:${minStr}`;
+}
+
 // 載入測試站列表
 async function loadTestStations() {
   const list = document.getElementById('test-station-list');
@@ -2728,7 +2776,7 @@ function openStationBorrowModal(station) {
       </div>
       <div class="form-group" style="margin-top:12px;">
         <label>預計歸還日期時間 *</label>
-        <input type="datetime-local" id="station-borrow-due" step="3600" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+        <input type="datetime-local" id="station-borrow-due" step="1800" min="${stationMinDateTime()}" onchange="snapToHalfHour(this)" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div style="text-align:center;margin-top:20px;">
         <button type="submit" class="btn-primary">✅ 確認借用</button>
@@ -2795,7 +2843,7 @@ function openStationPostponeModal(station, currentDue) {
     <form onsubmit="submitStationPostpone(event, '${station}')">
       <div class="form-group">
         <label>新的預計歸還日期時間 *</label>
-        <input type="datetime-local" id="station-postpone-due" step="3600" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+        <input type="datetime-local" id="station-postpone-due" step="1800" min="${stationMinDateTime()}" onchange="snapToHalfHour(this)" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div style="text-align:center;margin-top:20px;">
         <button type="submit" class="btn-primary" style="background:#ffc107;color:#495057;">✅ 確認續借</button>
