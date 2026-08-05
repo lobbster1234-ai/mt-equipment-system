@@ -191,7 +191,7 @@
         <button class="btn" onclick="confirmReturn('${equipment.fix_no}', '${keeperEmail}')">
           ✅ 確認收到
         </button>
-        <button class="btn btn-secondary" onclick="window.location.href='./index.html'">
+        <button class="btn btn-secondary" onclick="notReceived('${equipment.fix_no}', '${keeperEmail}')">
           未收到
         </button>
       `;
@@ -262,6 +262,61 @@
           <button class="btn" onclick="window.location.href='./index.html'" style="margin-top: 20px;">
             返回首頁
           </button>
+        `;
+      }
+    }
+
+    // Keeper 回報「未收到」：狀態改回借用中並通知借用人
+    async function notReceived(fixNo, keeperEmail) {
+      if (!confirm('確定要回報「未收到」嗎？\n\n系統會將設備狀態改回「借用中」，並寄信通知借用人再次確認。')) return;
+
+      const contentDiv = document.getElementById('content');
+      contentDiv.innerHTML = '<p class="loading">正在處理，請稍候...</p>';
+
+      try {
+        const url = new URL(GAS_URL);
+        url.searchParams.append('action', 'notReceivedReturn');
+        url.searchParams.append('fix_no', fixNo);
+        url.searchParams.append('keeper_email', keeperEmail);
+        url.searchParams.append('token', token);
+
+        const res = await fetch(url.toString(), {
+          method: 'GET',
+          redirect: 'follow'
+        });
+
+        const data = await res.json();
+
+        if (data.error && (data.error.includes('無效') || data.error.includes('過期') || data.error.includes('失效'))) {
+          contentDiv.innerHTML = `
+            <p class="error" style="font-size: 1.2em; margin: 20px 0;">❌ ${data.error}</p>
+            <p style="color: #666;">此連結已失效，可能是已使用過或已過期。</p>
+            <button class="btn btn-secondary" onclick="window.location.href='./index.html'">返回首頁</button>
+          `;
+        } else if (data.success || (!data.error && data.message)) {
+          contentDiv.innerHTML = `
+            <p class="success" style="font-size: 1.2em; margin: 20px 0;">
+              📨 已回報未收到
+            </p>
+            <p style="color: #666;">
+              設備狀態已改回「借用中」<br>
+              系統已寄信通知借用人再次確認。
+            </p>
+            <p style="color: #999; font-size: 0.9em; margin-top: 15px;">
+              3 秒後自動返回首頁...
+            </p>
+          `;
+          setTimeout(() => {
+            window.location.href = './index.html';
+          }, 3000);
+        } else {
+          throw new Error(data.error || '處理失敗');
+        }
+      } catch (err) {
+        contentDiv.innerHTML = `
+          <p class="error" style="font-size: 1.2em; margin: 20px 0;">❌ 處理失敗</p>
+          <p style="color: #666;">${err.message}</p>
+          <button class="btn" onclick="window.location.href='./index.html'" style="margin-top: 20px;">返回首頁</button>
         `;
       }
     }

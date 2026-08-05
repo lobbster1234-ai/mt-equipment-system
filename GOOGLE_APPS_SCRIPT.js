@@ -188,6 +188,12 @@ function doGet(e) {
         keeper_email: e.parameter.keeper_email,
         token: e.parameter.token
       });
+    } else if (action === 'notReceivedReturn') {
+      return notReceivedReturn({
+        fix_no: e.parameter.fix_no,
+        keeper_email: e.parameter.keeper_email,
+        token: e.parameter.token
+      });
     } else if (action === 'validateReturnToken') {
       const isValid = checkReturnToken(e.parameter.token);
       return ContentService.createTextOutput(JSON.stringify({ valid: isValid }))
@@ -1549,6 +1555,119 @@ function confirmReturn(data) {
   
   return successResponse({
     message: '歸還已確認，設備狀態已更新為可借用',
+    fix_no: fixNo
+  });
+}
+
+/**
+ * Keeper 回報「未收到」：狀態改回借用中，並寄信通知借用人再次確認
+ */
+function notReceivedReturn(data) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const token = data.token;
+
+  // 驗證 Token（一次性）
+  if (token) {
+    const isValid = checkReturnToken(token);
+    if (!isValid) {
+      return errorResponse('連結無效或已過期');
+    }
+  }
+
+  const fixNo = data.fix_no;
+  const fixNoCol = COLS.fix_no;
+  const statusCol = COLS.status;
+  const borrowerCol = COLS.borrower;
+  const dtReturnCol = COLS.dt_return;
+  const returnConfirmedCol = COLS.return_confirmed;
+  const keeperCol = COLS.keeper;
+  const deviceNameCol = COLS.device_name;
+
+  // 找設備（一次讀整欄再比對，避免逐格讀取）
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  let foundRow = -1;
+  let targetSheet = null;
+  if (sheet) {
+    const lastRow = sheet.getLastRow();
+    const colVals = lastRow >= 2 ? sheet.getRange(2, fixNoCol + 1, lastRow - 1, 1).getValues() : [];
+    for (let i = 0; i < colVals.length; i++) {
+      if (colVals[i][0] && colVals[i][0].toString().trim() === fixNo) {
+        foundRow = i + 2; targetSheet = sheet; break;
+      }
+    }
+  }
+  if (foundRow === -1) {
+    sheet = ss.getSheetByName(SHEET_NAME_WEB);
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      const colVals = lastRow >= 2 ? sheet.getRange(2, fixNoCol + 1, lastRow - 1, 1).getValues() : [];
+      for (let i = 0; i < colVals.length; i++) {
+        if (colVals[i][0] && colVals[i][0].toString().trim() === fixNo) {
+          foundRow = i + 2; targetSheet = sheet; break;
+        }
+      }
+    }
+  }
+  if (foundRow === -1 || !targetSheet) {
+    return errorResponse(`找不到設備編號：${fixNo}`);
+  }
+
+  const keeperName = targetSheet.getRange(foundRow, keeperCol + 1).getValue();
+  const deviceName = targetSheet.getRange(foundRow, deviceNameCol + 1).getValue();
+  const borrower = (targetSheet.getRange(foundRow, borrowerCol + 1).getValue() || '').toString().trim();
+
+  // 狀態改回借用中、清除歸還時間、取消已確認旗標
+  targetSheet.getRange(foundRow, statusCol + 1).setValue('borrowed');
+  targetSheet.getRange(foundRow, dtReturnCol + 1).setValue('');
+  targetSheet.getRange(foundRow, returnConfirmedCol + 1).setValue(false);
+
+  Logger.log(`未收到回報：${fixNo}，狀態改回借用中，借用人：${borrower}`);
+  logHistory('notReceived', fixNo, deviceName, borrower, keeperName, '', '', '');
+
+  // 標記 Token 已使用，避免連結重複點擊
+  if (token) {
+    markReturnTokenUsed(token);
+  }
+
+  // 找借用人 email 並通知
+  if (EMAIL_CONFIG.enabled && borrower) {
+    let borrowerEmail = '';
+    const borrowRequestSheet = ss.getSheetByName(BORROW_REQUEST_SHEET_NAME);
+    if (borrowRequestSheet) {
+      const reqData = borrowRequestSheet.getDataRange().getValues();
+      for (let i = 1; i < reqData.length; i++) {
+        if (reqData[i][3] && reqData[i][3].toString().trim() === borrower && reqData[i][4]) {
+          borrowerEmail = reqData[i][4].toString().trim();
+          break;
+        }
+      }
+    }
+    if (!borrowerEmail) {
+      borrowerEmail = getKeeperEmail(borrower) || '';
+    }
+    if (borrowerEmail) {
+      const subject = EMAIL_CONFIG.subject_prefix + ' 設備尚未收到，請確認 - ' + deviceName;
+      const body = `親愛的 ${borrower} 您好：
+
+保管人（Keeper）${keeperName} 回報「尚未收到」您歸還的設備，請再次確認：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+
+目前設備狀態已改回「借用中」。麻煩您確認設備是否已確實交還給 Keeper：
+・若已交還，請與 Keeper 聯繫確認。
+・若尚未交還，請儘快歸還。
+
+此郵件由系統自動產生，請勿直接回覆。`.trim();
+      MailApp.sendEmail(borrowerEmail, subject, body);
+      Logger.log(`已通知借用人未收到：${borrowerEmail}`);
+    } else {
+      Logger.log(`找不到借用人 ${borrower} 的 email，未寄送通知`);
+    }
+  }
+
+  return successResponse({
+    message: '已通知借用人，設備狀態改回借用中',
     fix_no: fixNo
   });
 }
