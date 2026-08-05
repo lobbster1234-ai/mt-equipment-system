@@ -1134,15 +1134,11 @@ function getBorrowRequest(data, e) {
   
   const pendingData = borrowRequestSheet.getDataRange().getValues();
   Logger.log('借用申請工作表共有 ' + pendingData.length + ' 列');
-  Logger.log('標題列:', JSON.stringify(pendingData[0]));
-  
+
   for (let i = 1; i < pendingData.length; i++) {
     const rowRequestId = pendingData[i][0];
-    Logger.log(`比對第 ${i+1} 列: requestId="${rowRequestId}" (type: ${typeof rowRequestId}) vs 輸入="${requestId}" (type: ${typeof requestId})`);
-    
     // 使用寬鬆比對（轉為字串）
     if (rowRequestId && rowRequestId.toString() === requestId.toString()) {
-      Logger.log('找到匹配的請求！');
       
       // 檢查狀態，如果已經處理過則回傳失效
       const reqStatus = pendingData[i][8];

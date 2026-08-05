@@ -961,7 +961,16 @@ async function submitReturn(formData) {
       redirect: 'follow'
     });
 
-    const result = await res.json();
+    const text = await res.text();
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (parseErr) {
+      // GAS 偶爾會在轉址時回傳 HTML 錯誤頁，但伺服器其實通常已執行成功（信也寄出了）。
+      // 這種情況視為「已送出但未能確認」，給友善提示並照常刷新列表，不要跳出嚇人的 JSON 解析錯誤。
+      console.warn('歸還回應非 JSON（GAS 轉址不穩），視為已送出:', text.slice(0, 120));
+      return { success: true, message: '📧 歸還通知應該已送出，但伺服器回應不穩定，系統無法確認結果。\n\n請稍後重新整理查看狀態；若設備仍顯示「借用中」，再按一次歸還即可（不會重複寄信）。' };
+    }
 
     if (result.success || result.status === 'success' || (!result.error && result.message)) {
       return { success: true, message: '📧 歸還通知已發送！\n\n系統已寄信通知保管人（Keeper）\n請等待 Keeper 點擊郵件中的【確認已收到】按鈕後，設備狀態才會更新為「可借用」。' };
