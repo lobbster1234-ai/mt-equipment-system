@@ -165,7 +165,7 @@ nav {
   border-bottom: none;
 }
 
-.btn-borrow-sm, .btn-return-sm {
+.btn-borrow-sm, .btn-return-sm, .btn-postpone-sm {
   padding: 6px 14px;
   border-radius: 6px;
   border: none;
@@ -174,6 +174,15 @@ nav {
   font-size: 0.9em;
   white-space: nowrap;
   transition: all 0.3s;
+}
+
+.btn-postpone-sm {
+  background: #ffc107;
+  color: #495057;
+}
+
+.btn-postpone-sm:hover {
+  background: #e0a800;
 }
 
 .btn-borrow-sm {
