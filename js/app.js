@@ -220,7 +220,7 @@ function renderEquipment(equipment) {
                   // 借用中 - 顯示【歸還】和【延後】按鈕
                   actionButton = `
                     <button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))">📧 歸還</button>
-                    <button class="btn-postpone-sm" onclick="openPostponeModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'), '${eq.dt_due}')" style="margin-left:5px;background:#ffc107;color:#000;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:0.85em;">⏰ 續借</button>
+                    <button class="btn-postpone-sm" onclick="openPostponeModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'), '${eq.dt_due}')" style="margin-left:5px;background:#ffc107;color:#000;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:0.9em;white-space:nowrap;">⏰ 續借</button>
                   `;
                 } else if (isBorrowPending) {
                   // 借用審核中，顯示提示文字
