@@ -2288,7 +2288,14 @@ function borrowStation(params) {
     if (String(data[i][0]).trim() === station) {
       const status = String(data[i][1] || '').trim().toLowerCase();
       if (status === 'borrowed') {
-        return errorResponse(`測試站 ${station} 目前已被 ${data[i][2] || '他人'} 借用中`);
+        const existingBorrower = (data[i][2] || '').toString().trim();
+        // 同一人重複送出（常見於網路不穩重試）→ 視為成功，僅更新預計歸還時間
+        if (existingBorrower && existingBorrower === borrower) {
+          sheet.getRange(i + 1, 5).setValue(formatStationDateTime(dtDue));
+          Logger.log(`測試站 ${station} 同一人 ${borrower} 重複借用，視為成功`);
+          return successResponse({ message: `測試站 ${station} 借用成功`, station: station });
+        }
+        return errorResponse(`測試站 ${station} 目前已被 ${existingBorrower || '他人'} 借用中`);
       }
       const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
       // 資料第 i 列（0-based）對應試算表第 i+1 列；從 B 欄開始寫 4 格

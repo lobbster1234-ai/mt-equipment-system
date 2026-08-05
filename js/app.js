@@ -2725,6 +2725,15 @@ async function loadTestStations() {
   }
 }
 
+// 判斷測試站是否已逾期（現在時間超過預計歸還時間）
+function isStationOverdue(dtDue) {
+  if (!dtDue) return false;
+  // dt_due 格式為 "yyyy-MM-dd HH:mm"，轉成 ISO 讓瀏覽器以本地時間解析
+  const due = new Date(dtDue.trim().replace(' ', 'T'));
+  if (isNaN(due.getTime())) return false;
+  return Date.now() > due.getTime();
+}
+
 // 渲染測試站卡片
 function renderTestStations(stations) {
   const list = document.getElementById('test-station-list');
@@ -2740,12 +2749,13 @@ function renderTestStations(stations) {
     const borrowed = String(s.status || '').toLowerCase() === 'borrowed';
     if (borrowed) {
       const dueSafe = (s.dt_due || '').replace(/'/g, '');
+      const overdue = isStationOverdue(s.dt_due);
       html += `
-        <div class="station-card borrowed">
+        <div class="station-card borrowed${overdue ? ' overdue' : ''}">
           <div class="station-badge">${s.station}</div>
-          <div class="station-avatar">🧑‍💻</div>
+          <div class="station-avatar">${overdue ? '⏰' : '🧑‍💻'}</div>
           <div class="station-name" title="${s.borrower || ''}">${s.borrower || '使用中'}</div>
-          <div class="station-status busy">使用中</div>
+          <div class="station-status ${overdue ? 'overdue' : 'busy'}">${overdue ? '⚠️ 已逾期' : '使用中'}</div>
           <div class="station-due">⏰ ${s.dt_due || '未設定'}</div>
           <div class="station-actions">
             <button class="btn-return-sm" onclick="returnStationBorrow('${s.station}')">📥 歸還</button>
@@ -2818,6 +2828,12 @@ async function submitStationBorrow(e, station) {
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
 
+  const closeAndRefresh = () => {
+    const modal = document.getElementById('station-borrow-modal');
+    if (modal) modal.style.display = 'none';
+    loadTestStations();
+  };
+
   try {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'borrowStation');
@@ -2825,11 +2841,23 @@ async function submitStationBorrow(e, station) {
     url.searchParams.append('borrower', name);
     url.searchParams.append('dt_due', due);
     const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const result = await res.json();
+    const text = await res.text();
+
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch (parseErr) {
+      // GAS 轉址不穩回傳 HTML：伺服器通常已執行成功 → 關閉並刷新讓使用者看真實狀態
+      console.warn('借用回應非 JSON（GAS 不穩），視為已送出:', text.slice(0, 120));
+      closeAndRefresh();
+      return;
+    }
+
     if (result.success) {
-      const modal = document.getElementById('station-borrow-modal');
-      if (modal) modal.style.display = 'none';
-      loadTestStations();
+      closeAndRefresh();
+    } else if (result.error && result.error.indexOf(name) !== -1 && result.error.indexOf('借用中') !== -1) {
+      // 已被「同一個人（你自己）」借用中 → 其實就是你剛剛借的，視為成功
+      closeAndRefresh();
     } else {
       throw new Error(result.error || '借用失敗');
     }
