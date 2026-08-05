@@ -1634,6 +1634,10 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         myEquipTabLoaded = true;
       }
     }
+    // 如果切換到測試站列表分頁，每次切換都重新載入以取得最新狀態
+    if (tab === 'test-station') {
+      loadTestStations();
+    }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
       // 只在第一次切到個人設定時載入頭像列表；之後不重抓
@@ -2624,3 +2628,207 @@ document.addEventListener('DOMContentLoaded', function() {
   // 載入列表（只在頁面切換時載入）
   loadDeptBorrowList();
 });
+
+// =============================================
+// 測試站（座位）借用功能
+// =============================================
+
+// 載入測試站列表
+async function loadTestStations() {
+  const list = document.getElementById('test-station-list');
+  if (list) list.innerHTML = loadingHtml();
+
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'queryStations');
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const stations = Array.isArray(data) ? data : (data.data || []);
+    renderTestStations(stations);
+  } catch (err) {
+    console.error('載入測試站失敗:', err);
+    if (list) {
+      list.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${err.message}</p>`;
+    }
+  }
+}
+
+// 渲染測試站卡片
+function renderTestStations(stations) {
+  const list = document.getElementById('test-station-list');
+  if (!list) return;
+
+  if (!stations || stations.length === 0) {
+    list.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">目前沒有測試站</p>';
+    return;
+  }
+
+  let html = '';
+  stations.forEach(s => {
+    const borrowed = String(s.status || '').toLowerCase() === 'borrowed';
+    if (borrowed) {
+      const dueSafe = (s.dt_due || '').replace(/'/g, '');
+      html += `
+        <div class="station-card borrowed">
+          <div class="station-badge">${s.station}</div>
+          <div class="station-avatar">🧑‍💻</div>
+          <div class="station-name" title="${s.borrower || ''}">${s.borrower || '使用中'}</div>
+          <div class="station-status busy">使用中</div>
+          <div class="station-due">⏰ ${s.dt_due || '未設定'}</div>
+          <div class="station-actions">
+            <button class="btn-return-sm" onclick="returnStationBorrow('${s.station}')">📥 歸還</button>
+            <button class="btn-postpone-sm" onclick="openStationPostponeModal('${s.station}', '${dueSafe}')">⏰ 續借</button>
+          </div>
+        </div>`;
+    } else {
+      html += `
+        <div class="station-card available">
+          <div class="station-badge">${s.station}</div>
+          <div class="station-avatar">💺</div>
+          <div class="station-name">空位</div>
+          <div class="station-status free">可借用</div>
+          <div class="station-due">&nbsp;</div>
+          <div class="station-actions">
+            <button class="btn-borrow-sm" onclick="openStationBorrowModal('${s.station}')">📤 借用</button>
+          </div>
+        </div>`;
+    }
+  });
+  list.innerHTML = html;
+}
+
+// 動態建立測試站用的 Modal 容器
+function buildStationModal(id, innerHtml) {
+  let modal = document.getElementById(id);
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = id;
+    modal.className = 'modal';
+    modal.style.cssText = 'display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;overflow-y:auto;padding:20px;background-color:rgba(0,0,0,0.5);';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `
+    <div style="background-color:#fefefe;margin:auto;padding:20px;border:1px solid #888;width:90%;max-width:460px;border-radius:12px;position:relative;">
+      <span onclick="document.getElementById('${id}').style.display='none'" style="color:#aaa;float:right;font-size:28px;font-weight:bold;cursor:pointer;">&times;</span>
+      ${innerHtml}
+    </div>`;
+  modal.style.display = 'block';
+  return modal;
+}
+
+// 開啟測試站借用 Modal
+function openStationBorrowModal(station) {
+  buildStationModal('station-borrow-modal', `
+    <h2 style="color:#667eea;margin-bottom:20px;">💺 借用測試站 ${station}</h2>
+    <form onsubmit="submitStationBorrow(event, '${station}')">
+      <div class="form-group">
+        <label>借用人姓名 *</label>
+        <input type="text" id="station-borrow-name" required placeholder="請輸入您的姓名" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>預計歸還日期時間 *</label>
+        <input type="datetime-local" id="station-borrow-due" step="3600" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div style="text-align:center;margin-top:20px;">
+        <button type="submit" class="btn-primary">✅ 確認借用</button>
+      </div>
+    </form>
+  `);
+}
+
+// 送出測試站借用
+async function submitStationBorrow(e, station) {
+  e.preventDefault();
+  const name = document.getElementById('station-borrow-name').value.trim();
+  const due = document.getElementById('station-borrow-due').value;
+  if (!name || !due) { alert('請填寫姓名與預計歸還時間'); return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
+
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'borrowStation');
+    url.searchParams.append('station', station);
+    url.searchParams.append('borrower', name);
+    url.searchParams.append('dt_due', due);
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const result = await res.json();
+    if (result.success) {
+      const modal = document.getElementById('station-borrow-modal');
+      if (modal) modal.style.display = 'none';
+      loadTestStations();
+    } else {
+      throw new Error(result.error || '借用失敗');
+    }
+  } catch (err) {
+    alert('❌ 借用失敗：' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 確認借用'; }
+  }
+}
+
+// 歸還測試站
+async function returnStationBorrow(station) {
+  if (!confirm(`確定要歸還測試站 ${station} 嗎？`)) return;
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'returnStation');
+    url.searchParams.append('station', station);
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const result = await res.json();
+    if (result.success) {
+      loadTestStations();
+    } else {
+      throw new Error(result.error || '歸還失敗');
+    }
+  } catch (err) {
+    alert('❌ 歸還失敗：' + err.message);
+  }
+}
+
+// 開啟測試站續借 Modal
+function openStationPostponeModal(station, currentDue) {
+  buildStationModal('station-postpone-modal', `
+    <h2 style="color:#667eea;margin-bottom:20px;">⏰ 續借測試站 ${station}</h2>
+    ${currentDue ? `<p style="color:#666;margin-bottom:12px;">目前預計歸還：<strong>${currentDue}</strong></p>` : ''}
+    <form onsubmit="submitStationPostpone(event, '${station}')">
+      <div class="form-group">
+        <label>新的預計歸還日期時間 *</label>
+        <input type="datetime-local" id="station-postpone-due" step="3600" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div style="text-align:center;margin-top:20px;">
+        <button type="submit" class="btn-primary" style="background:#ffc107;color:#495057;">✅ 確認續借</button>
+      </div>
+    </form>
+  `);
+}
+
+// 送出測試站續借
+async function submitStationPostpone(e, station) {
+  e.preventDefault();
+  const newDue = document.getElementById('station-postpone-due').value;
+  if (!newDue) { alert('請選擇新的預計歸還時間'); return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
+
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'postponeStation');
+    url.searchParams.append('station', station);
+    url.searchParams.append('new_due_date', newDue);
+    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const result = await res.json();
+    if (result.success) {
+      const modal = document.getElementById('station-postpone-modal');
+      if (modal) modal.style.display = 'none';
+      loadTestStations();
+    } else {
+      throw new Error(result.error || '續借失敗');
+    }
+  } catch (err) {
+    alert('❌ 續借失敗：' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 確認續借'; }
+  }
+}

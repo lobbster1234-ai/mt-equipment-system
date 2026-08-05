@@ -18,6 +18,8 @@ const HISTORY_SHEET_NAME = '歷史紀錄';
 const AVATAR_SHEET_NAME = '頭像資料';
 const RETURN_TOKEN_SHEET_NAME = '歸還Token';
 const MANUAL_KEEPER_SHEET_NAME = '手動Keeper';  // 手動輸入設備的額外通知 Keeper
+const TEST_STATION_SHEET_NAME = '測試站';        // 測試站（座位）借用狀態
+const TEST_STATIONS = ['A', 'B', 'C', 'D'];      // 預設測試站代號
 
 // 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
 // 建立方式：在 Google Drive 建立一個資料夾，分享為「知道連結的使用者」可檢視，然後複製資料夾網址的最後一段
@@ -305,6 +307,21 @@ function doGet(e) {
       }, e);
     } else if (action === 'getKeeperList') {
       return getKeeperList();
+    } else if (action === 'queryStations') {
+      return queryStations();
+    } else if (action === 'borrowStation') {
+      return borrowStation({
+        station: e.parameter.station,
+        borrower: e.parameter.borrower,
+        dt_due: e.parameter.dt_due
+      });
+    } else if (action === 'returnStation') {
+      return returnStation({ station: e.parameter.station });
+    } else if (action === 'postponeStation') {
+      return postponeStation({
+        station: e.parameter.station,
+        new_due_date: e.parameter.new_due_date
+      });
     } else if (action === 'test') {
       return successResponse({
         status: 'ok',
@@ -312,7 +329,7 @@ function doGet(e) {
         timestamp: new Date().toISOString()
       });
     }
-    
+
     return errorResponse('未知的 action: ' + action);
   } catch (err) {
     return errorResponse(err.message);
@@ -2053,6 +2070,139 @@ function formatDate(dateValue) {
   }
   
   return String(dateValue);
+}
+
+// =============================================
+// 測試站（座位）借用功能
+// 工作表欄位：A=測試站 B=狀態 C=借用人 D=借用時間 E=預計歸還
+// =============================================
+
+/**
+ * 格式化日期時間為 yyyy-MM-dd HH:mm（台北時區）；字串則原樣回傳
+ */
+function formatStationDateTime(value) {
+  if (!value) return '';
+  if (value instanceof Date) {
+    return Utilities.formatDate(value, 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  }
+  // datetime-local 傳來的 'yyyy-MM-ddTHH:mm' → 轉成有空格的格式
+  return String(value).trim().replace('T', ' ');
+}
+
+/**
+ * 確保「測試站」工作表存在，且 A/B/C/D 四個測試站都在
+ */
+function ensureStationSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(TEST_STATION_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(TEST_STATION_SHEET_NAME);
+    sheet.appendRow(['測試站', '狀態', '借用人', '借用時間', '預計歸還']);
+  }
+  const data = sheet.getDataRange().getValues();
+  const existing = data.slice(1).map(r => String(r[0]).trim());
+  TEST_STATIONS.forEach(code => {
+    if (existing.indexOf(code) === -1) {
+      sheet.appendRow([code, 'available', '', '', '']);
+    }
+  });
+  return sheet;
+}
+
+/**
+ * 查詢所有測試站狀態
+ */
+function queryStations() {
+  const sheet = ensureStationSheet();
+  const data = sheet.getDataRange().getValues().slice(1);
+  const result = TEST_STATIONS.map(code => {
+    const row = data.find(r => String(r[0]).trim() === code);
+    if (!row) {
+      return { station: code, status: 'available', borrower: '', dt_borrow: '', dt_due: '' };
+    }
+    return {
+      station: code,
+      status: (String(row[1] || '').trim().toLowerCase()) || 'available',
+      borrower: row[2] || '',
+      dt_borrow: formatStationDateTime(row[3]),
+      dt_due: formatStationDateTime(row[4])
+    };
+  });
+  Logger.log('查詢測試站：共 ' + result.length + ' 站');
+  return successResponse(result);
+}
+
+/**
+ * 借用測試站
+ */
+function borrowStation(params) {
+  const station = String(params.station || '').trim();
+  const borrower = String(params.borrower || '').trim();
+  const dtDue = String(params.dt_due || '').trim();
+
+  if (!station || TEST_STATIONS.indexOf(station) === -1) return errorResponse('無效的測試站代號');
+  if (!borrower) return errorResponse('請填寫借用人姓名');
+
+  const sheet = ensureStationSheet();
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === station) {
+      const status = String(data[i][1] || '').trim().toLowerCase();
+      if (status === 'borrowed') {
+        return errorResponse(`測試站 ${station} 目前已被 ${data[i][2] || '他人'} 借用中`);
+      }
+      const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      // 資料第 i 列（0-based）對應試算表第 i+1 列；從 B 欄開始寫 4 格
+      sheet.getRange(i + 1, 2, 1, 4).setValues([['borrowed', borrower, now, formatStationDateTime(dtDue)]]);
+      Logger.log(`測試站 ${station} 由 ${borrower} 借用`);
+      return successResponse({ message: `測試站 ${station} 借用成功`, station: station });
+    }
+  }
+  return errorResponse('找不到測試站：' + station);
+}
+
+/**
+ * 歸還測試站
+ */
+function returnStation(params) {
+  const station = String(params.station || '').trim();
+  if (!station) return errorResponse('無效的測試站代號');
+
+  const sheet = ensureStationSheet();
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === station) {
+      sheet.getRange(i + 1, 2, 1, 4).setValues([['available', '', '', '']]);
+      Logger.log(`測試站 ${station} 已歸還`);
+      return successResponse({ message: `測試站 ${station} 已歸還`, station: station });
+    }
+  }
+  return errorResponse('找不到測試站：' + station);
+}
+
+/**
+ * 續借測試站（更新預計歸還時間）
+ */
+function postponeStation(params) {
+  const station = String(params.station || '').trim();
+  const newDue = String(params.new_due_date || '').trim();
+  if (!station) return errorResponse('無效的測試站代號');
+  if (!newDue) return errorResponse('請選擇新的預計歸還時間');
+
+  const sheet = ensureStationSheet();
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === station) {
+      const status = String(data[i][1] || '').trim().toLowerCase();
+      if (status !== 'borrowed') {
+        return errorResponse(`測試站 ${station} 目前不是借用中，無法續借`);
+      }
+      sheet.getRange(i + 1, 5).setValue(formatStationDateTime(newDue));
+      Logger.log(`測試站 ${station} 已續借至 ${newDue}`);
+      return successResponse({ message: `測試站 ${station} 已續借`, station: station });
+    }
+  }
+  return errorResponse('找不到測試站：' + station);
 }
 
 /**
