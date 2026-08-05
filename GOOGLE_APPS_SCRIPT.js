@@ -154,6 +154,14 @@ function doGet(e) {
   try {
     const action = e.parameter.action || 'query';
 
+    // 任何會改動資料的動作，先清除設備／測試站查詢快取，確保下次查詢拿到最新資料
+    const READ_ACTIONS = ['query', 'queryStations', 'history', 'getEquipmentInfo', 'getAvatarList',
+      'getKeeperList', 'getDeptBorrowList', 'getBorrowRequest', 'getPostponeRequest',
+      'getTransferRequest', 'validateReturnToken', 'getEmailByName', 'test'];
+    if (READ_ACTIONS.indexOf(action) === -1) {
+      try { CacheService.getScriptCache().removeAll(['equipment_query_all', 'stations_query_all']); } catch (e2) {}
+    }
+
     // 管理員專屬動作：必須帶有效 token，否則拒絕
     if (PROTECTED_ACTIONS.indexOf(action) !== -1 && !validateSession(e.parameter.token)) {
       return errorResponse('未授權：請重新登入後再操作');
@@ -383,8 +391,22 @@ function doPost(e) {
  * 查詢設備
  */
 function queryEquipment(params) {
+  // 快取：無條件的預設查詢才用（最常見、可安全共用）。命中時不必打開試算表，幾乎瞬間回應
+  const kw0 = (params.keyword || '').toString().trim();
+  const st0 = (params.status || '').toString().trim();
+  const dp0 = (params.dept_id || '').toString().trim();
+  const isDefaultQuery = !kw0 && !st0 && !dp0;
+  const cache = CacheService.getScriptCache();
+  const EQUIP_CACHE_KEY = 'equipment_query_all';
+  if (isDefaultQuery) {
+    const cached = cache.get(EQUIP_CACHE_KEY);
+    if (cached) {
+      return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  
+
   // 同時讀取兩個工作表
   const sheet1 = ss.getSheetByName(SHEET_NAME);
   const sheet2 = ss.getSheetByName(SHEET_NAME_WEB);
@@ -464,7 +486,11 @@ function queryEquipment(params) {
   }));
   
   Logger.log('查詢結果：共 ' + result.length + ' 筆設備');
-  return successResponse(result);
+  const output = JSON.stringify({ success: true, data: result });
+  if (isDefaultQuery) {
+    try { cache.put(EQUIP_CACHE_KEY, output, 60); } catch (e) { Logger.log('設備快取寫入失敗: ' + e.message); }
+  }
+  return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
@@ -2113,6 +2139,13 @@ function ensureStationSheet() {
  * 查詢所有測試站狀態
  */
 function queryStations() {
+  const cache = CacheService.getScriptCache();
+  const STATION_CACHE_KEY = 'stations_query_all';
+  const cached = cache.get(STATION_CACHE_KEY);
+  if (cached) {
+    return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
+  }
+
   const sheet = ensureStationSheet();
   const data = sheet.getDataRange().getValues().slice(1);
   const result = TEST_STATIONS.map(code => {
@@ -2129,7 +2162,9 @@ function queryStations() {
     };
   });
   Logger.log('查詢測試站：共 ' + result.length + ' 站');
-  return successResponse(result);
+  const output = JSON.stringify({ success: true, data: result });
+  try { cache.put(STATION_CACHE_KEY, output, 30); } catch (e) {}
+  return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
