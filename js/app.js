@@ -79,9 +79,26 @@ async function searchEquipment() {
   if (department) params.append('dept_id', department);
   if (status) params.append('status', status);
 
+  // 是否為「無條件」的預設查詢（頁面初次載入即為此）
+  const isDefaultQuery = !keyword && !department && !status;
+
   const listEl = document.getElementById('equipment-list');
+  let shownCache = false;
   if (listEl) {
-    listEl.innerHTML = loadingHtml();
+    // 預設查詢且有快取時，先秒顯示上次的資料，背景再抓最新的來更新
+    if (isDefaultQuery) {
+      try {
+        const cached = localStorage.getItem('mt_equipment_cache');
+        if (cached) {
+          const arr = JSON.parse(cached);
+          if (Array.isArray(arr) && arr.length) {
+            renderEquipment(arr);
+            shownCache = true;
+          }
+        }
+      } catch (e) { /* 快取解析失敗就忽略，改用轉圈圈 */ }
+    }
+    if (!shownCache) listEl.innerHTML = loadingHtml();
   }
 
   try {
@@ -122,9 +139,14 @@ async function searchEquipment() {
     const equipment = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
     console.log('設備資料:', equipment.slice(0, 5)); // 顯示前 5 筆
     renderEquipment(equipment);
+    // 快取預設查詢結果，供下次開啟時秒顯示
+    if (isDefaultQuery) {
+      try { localStorage.setItem('mt_equipment_cache', JSON.stringify(equipment)); } catch (e) { /* 空間不足等狀況忽略 */ }
+    }
   } catch (err) {
     console.error('查詢失敗:', err);
-    if (listEl) {
+    // 若已先顯示快取資料，背景更新失敗就保留舊資料，不覆蓋成錯誤畫面
+    if (listEl && !shownCache) {
       // 提供 CORS 錯誤提示
       let msg = err.message;
       if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
