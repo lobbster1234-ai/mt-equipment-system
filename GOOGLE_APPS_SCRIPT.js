@@ -2518,16 +2518,14 @@ function postponeStation(params) {
  */
 // ===== Supabase 歷史紀錄（雙寫）=====
 const SUPABASE_URL_GAS = 'https://ifvebqoielozidojkyjf.supabase.co';
+const SUPABASE_KEY_GAS = 'sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE'; // 公開金鑰（可寫在程式碼；需搭配 history 表的 anon insert 政策）
 
-// 用 service_role 密鑰寫入 Supabase（密鑰存在 Script Properties 的 SUPABASE_SECRET，不寫在程式碼裡）
 function postHistoryToSupabase(rowObj) {
   try {
-    const secret = PropertiesService.getScriptProperties().getProperty('SUPABASE_SECRET');
-    if (!secret) return; // 未設定密鑰就略過，不影響主流程
     UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/history', {
       method: 'post',
       contentType: 'application/json',
-      headers: { apikey: secret, Authorization: 'Bearer ' + secret },
+      headers: { apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS },
       payload: JSON.stringify(rowObj),
       muteHttpExceptions: true
     });
@@ -2543,8 +2541,6 @@ function migrateHistoryToSupabase() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sheet = ss.getSheetByName(HISTORY_SHEET_NAME);
   if (!sheet) { Logger.log('沒有歷史工作表'); return; }
-  const secret = PropertiesService.getScriptProperties().getProperty('SUPABASE_SECRET');
-  if (!secret) { Logger.log('未設定 SUPABASE_SECRET，請先到 專案設定 → Script Properties 新增'); return; }
   const rows = sheet.getDataRange().getValues().slice(1);
   const payload = rows.filter(function (r) { return r[1]; }).map(function (r) {
     return {
@@ -2563,7 +2559,7 @@ function migrateHistoryToSupabase() {
   const res = UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/history', {
     method: 'post',
     contentType: 'application/json',
-    headers: { apikey: secret, Authorization: 'Bearer ' + secret },
+    headers: { apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS },
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   });
