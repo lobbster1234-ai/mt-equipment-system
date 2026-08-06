@@ -2847,30 +2847,19 @@ function buildStationModal(id, innerHtml) {
   return modal;
 }
 
-// 本次登記已選的日期，與該站已被登記的日期（不可選）
-let stationBookDates = [];
-let stationBookBookedSet = {};
-
-// 開啟測試站「登記使用」Modal（可一次選多天）
+// 開啟測試站「登記使用」Modal（選開始～結束日期的連續區間）
 function openStationBookModal(station) {
-  stationBookDates = [];
-  stationBookBookedSet = {};
-  // 從最近一次載入的資料，取得該站已被登記的日期
-  const st = (lastStationsData || []).find(x => x.station === station);
-  if (st && st.bookings) {
-    st.bookings.forEach(b => { stationBookBookedSet[b.date] = b.booker || '已登記'; });
-  }
-
+  const minDate = stationMinDateTime().slice(0, 10);
   buildStationModal('station-book-modal', `
     <h2 style="color:#667eea;margin-bottom:20px;">➕ 登記使用 ${escapeHtml(station)}</h2>
     <form onsubmit="submitStationBook(event, '${station}')">
       <div class="form-group">
-        <label>使用日期 * <span style="font-size:0.85em;color:#888;">(可加入多天；已被登記的日期無法選)</span></label>
-        <div style="display:flex;gap:8px;">
-          <input type="date" id="station-book-date" min="${stationMinDateTime().slice(0, 10)}" style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
-          <button type="button" class="btn-borrow-sm" onclick="addStationBookDate()">➕ 加入</button>
+        <label>使用日期（起訖）* <span style="font-size:0.85em;color:#888;">(只用一天：結束可留空)</span></label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="date" id="station-book-start" min="${minDate}" required style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+          <span style="color:#888;">～</span>
+          <input type="date" id="station-book-end" min="${minDate}" style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
         </div>
-        <div id="station-book-chips" class="book-chips"></div>
       </div>
       <div class="form-group" style="margin-top:12px;">
         <label>登記人姓名 *</label>
@@ -2885,48 +2874,38 @@ function openStationBookModal(station) {
       </div>
     </form>
   `);
-  renderStationBookChips();
 }
 
-// 加入一個日期到本次清單（擋掉已被登記或已加入的）
-function addStationBookDate() {
-  const input = document.getElementById('station-book-date');
-  const date = input ? input.value : '';
-  if (!date) { alert('請先選擇日期'); return; }
-  if (stationBookBookedSet[date]) { alert(`${date} 已被 ${stationBookBookedSet[date]} 登記，無法選取`); return; }
-  if (stationBookDates.indexOf(date) !== -1) { alert(`${date} 已在清單中`); return; }
-  stationBookDates.push(date);
-  stationBookDates.sort();
-  input.value = '';
-  renderStationBookChips();
-}
-
-// 從本次清單移除一個日期
-function removeStationBookDate(date) {
-  stationBookDates = stationBookDates.filter(d => d !== date);
-  renderStationBookChips();
-}
-
-// 更新已選日期的標籤
-function renderStationBookChips() {
-  const el = document.getElementById('station-book-chips');
-  if (!el) return;
-  if (stationBookDates.length === 0) {
-    el.innerHTML = '<span style="color:#aaa;font-size:0.85em;">尚未加入日期</span>';
-    return;
+// 把 start~end（含）展開成 yyyy-MM-dd 陣列
+function expandDateRange(start, end) {
+  const out = [];
+  let d = new Date(start + 'T00:00:00');
+  const endD = new Date(end + 'T00:00:00');
+  while (d <= endD) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    out.push(`${y}-${m}-${day}`);
+    d.setDate(d.getDate() + 1);
   }
-  el.innerHTML = stationBookDates.map(d =>
-    `<span class="book-chip">${d}<button type="button" onclick="removeStationBookDate('${d}')" title="移除">✕</button></span>`
-  ).join('');
+  return out;
 }
 
-// 送出測試站登記（一次多天）
+// 送出測試站登記（開始～結束的連續區間）
 async function submitStationBook(e, station) {
   e.preventDefault();
+  const start = document.getElementById('station-book-start').value;
+  let end = document.getElementById('station-book-end').value;
   const name = document.getElementById('station-book-name').value.trim();
   const purpose = document.getElementById('station-book-purpose').value.trim();
-  if (stationBookDates.length === 0) { alert('請至少加入一個使用日期'); return; }
+
+  if (!start) { alert('請選擇開始日期'); return; }
+  if (!end) end = start; // 結束留空 = 只登記一天
+  if (end < start) { alert('結束日期不能早於開始日期'); return; }
   if (!name) { alert('請填寫登記人姓名'); return; }
+
+  const dates = expandDateRange(start, end);
+  if (dates.length > 90) { alert('一次最多登記 90 天，請縮短區間'); return; }
 
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
@@ -2941,7 +2920,7 @@ async function submitStationBook(e, station) {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'bookStation');
     url.searchParams.append('station', station);
-    url.searchParams.append('dates', stationBookDates.join(','));
+    url.searchParams.append('dates', dates.join(','));
     url.searchParams.append('booker', name);
     url.searchParams.append('purpose', purpose);
     const result = await gasGetJson(url.toString());
