@@ -2790,10 +2790,12 @@ function renderTestStations(stations) {
     return;
   }
 
+  const today = stationMinDateTime().slice(0, 10); // 台北時間今天 yyyy-MM-dd
   let html = '';
   stations.forEach(s => {
     const stationName = escapeHtml(s.station || '');
     const bookings = s.bookings || [];
+    const inUseToday = bookings.some(b => b.date === today);
     let bookingHtml = '';
     if (bookings.length === 0) {
       bookingHtml = '<div class="station-empty">目前無人登記</div>';
@@ -2814,7 +2816,9 @@ function renderTestStations(stations) {
       });
     }
     html += `
-      <div class="station-card">
+      <div class="station-card${inUseToday ? ' in-use' : ''}">
+        <div class="station-avatar">${inUseToday ? '🧑‍💻' : '🖥️'}</div>
+        <div class="station-today ${inUseToday ? 'busy' : 'free'}">${inUseToday ? '今日使用中' : '今日空閒'}</div>
         <div class="station-title">${stationName}</div>
         <div class="booking-list">${bookingHtml}</div>
         <button class="btn-borrow-sm station-book-btn" onclick="openStationBookModal('${s.station}')">➕ 登記使用</button>

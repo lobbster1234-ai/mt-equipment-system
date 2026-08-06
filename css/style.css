@@ -707,7 +707,21 @@ nav {
 .station-avatar {
   font-size: 3em;
   line-height: 1;
-  margin: 6px 0 6px;
+  margin: 6px 0 4px;
+}
+
+.station-today {
+  font-size: 0.85em;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.station-today.busy { color: #e8590c; }
+.station-today.free { color: #2f9e44; }
+
+.station-card.in-use {
+  border-color: #ffd8a8;
+  background: #fff9f0;
 }
 
 .station-name {
