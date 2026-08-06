@@ -2854,16 +2854,16 @@ function openStationBookModal(station) {
     <h2 style="color:#667eea;margin-bottom:20px;">➕ 登記使用 ${escapeHtml(station)}</h2>
     <form onsubmit="submitStationBook(event, '${station}')">
       <div class="form-group">
+        <label>登記人姓名 *</label>
+        <input type="text" id="station-book-name" required placeholder="請輸入您的姓名" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div class="form-group" style="margin-top:12px;">
         <label>使用日期（起訖）* <span style="font-size:0.85em;color:#888;">(只用一天：結束可留空)</span></label>
         <div style="display:flex;gap:8px;align-items:center;">
           <input type="date" id="station-book-start" min="${minDate}" required style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
           <span style="color:#888;">～</span>
           <input type="date" id="station-book-end" min="${minDate}" style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
         </div>
-      </div>
-      <div class="form-group" style="margin-top:12px;">
-        <label>登記人姓名 *</label>
-        <input type="text" id="station-book-name" required placeholder="請輸入您的姓名" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div class="form-group" style="margin-top:12px;">
         <label>用途 / 備註</label>
