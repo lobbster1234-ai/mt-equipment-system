@@ -1762,10 +1762,10 @@ MT 部門設備管理系統 自動通知`.trim();
 function sendReturnEmailToManualKeepers(fixNo, deviceName, borrower, dtReturn) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(MANUAL_KEEPER_SHEET_NAME);
-    
+    const sheet = ss.getSheetByName(KEEPER_SHEET_NAME);
+
     if (!sheet) {
-      Logger.log(`找不到工作表：${MANUAL_KEEPER_SHEET_NAME}，跳過額外通知`);
+      Logger.log(`找不到工作表：${KEEPER_SHEET_NAME}，跳過額外通知`);
       return;
     }
     
@@ -3436,27 +3436,33 @@ function getDeptBorrowList() {
 function getManualKeeperEmails() {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(MANUAL_KEEPER_SHEET_NAME);
-    
+    // 改為讀取「Keeper 聯絡資訊」工作表（不再使用「手動Keeper」）
+    const sheet = ss.getSheetByName(KEEPER_SHEET_NAME);
+
     if (!sheet) {
-      Logger.log(`找不到工作表：${MANUAL_KEEPER_SHEET_NAME}`);
+      Logger.log(`找不到工作表：${KEEPER_SHEET_NAME}`);
       return [];
     }
-    
+
     const data = sheet.getDataRange().getValues();
     const emails = [];
-    
-    // 從第 2 行開始（跳過標題列）
+    const seen = {};
+
+    // 從第 2 行開始（跳過標題列）；A 欄=姓名、B 欄=Email
     for (let i = 1; i < data.length; i++) {
-      const email = data[i][1];
-      if (email && email.includes('@')) {
-        emails.push(email);
+      const email = String(data[i][1] || '').trim();
+      if (email && email.indexOf('@') !== -1) {
+        const key = email.toLowerCase();
+        if (!seen[key]) {   // 去重，避免同一人收到重複通知
+          seen[key] = true;
+          emails.push(email);
+        }
       }
     }
-    
+
     return emails;
   } catch (err) {
-    Logger.log('取得手動 Keeper 郵件失敗:', err);
+    Logger.log('取得 Keeper 郵件失敗:', err);
     return [];
   }
 }
