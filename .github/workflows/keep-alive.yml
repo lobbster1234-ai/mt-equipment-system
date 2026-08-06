@@ -1,0 +1,24 @@
+name: Keep Supabase Awake
+
+# 每 12 小時自動戳一次 Supabase，避免免費專案因 7 天無活動而暫停。
+# 也可在 Actions 頁面手動觸發測試（Run workflow）。
+on:
+  schedule:
+    - cron: '0 */12 * * *'   # UTC 時間每 12 小時一次
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST
+        run: |
+          echo "Pinging Supabase to keep the project active..."
+          code=$(curl -sS -o /dev/null -w "%{http_code}" \
+            "https://ifvebqoielozidojkyjf.supabase.co/rest/v1/station_bookings?select=id&limit=1" \
+            -H "apikey: sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE" \
+            -H "Authorization: Bearer sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE")
+          echo "HTTP status: $code"
+          if [ "$code" != "200" ]; then
+            echo "::warning::Unexpected status $code (Supabase may be paused or unreachable)"
+          fi
