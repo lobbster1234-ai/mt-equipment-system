@@ -2220,6 +2220,24 @@ function formatStationDateTime(value) {
 }
 
 /**
+ * 判斷測試站是否已過預計歸還日（以天為單位）：今天 > 預計歸還日 才算過期。
+ * 例如預計歸還 1/1，到 1/2 才回傳 true（隔天才自動釋放）。
+ */
+function isStationDuePassed(dtDueRaw) {
+  if (!dtDueRaw) return false;
+  let dateStr;
+  if (dtDueRaw instanceof Date) {
+    dateStr = Utilities.formatDate(dtDueRaw, 'Asia/Taipei', 'yyyy-MM-dd');
+  } else {
+    const m = String(dtDueRaw).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+    if (!m) return false;
+    dateStr = m[1];
+  }
+  const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  return today > dateStr; // yyyy-MM-dd 字串可正確排序比較
+}
+
+/**
  * 確保「測試站」工作表存在，且清單內的測試站都在（並移除清單外的舊測試站）
  */
 function ensureStationSheet() {
@@ -2264,21 +2282,41 @@ function queryStations() {
   }
 
   const sheet = ensureStationSheet();
-  const data = sheet.getDataRange().getValues().slice(1);
+  const values = sheet.getDataRange().getValues(); // 含標題列
+  const expiredRows = []; // 待清空的試算表列號（1-based）
+
   const result = TEST_STATIONS.map(code => {
-    const row = data.find(r => String(r[0]).trim() === code);
-    if (!row) {
+    let rowIndex = -1;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0]).trim() === code) { rowIndex = i; break; }
+    }
+    if (rowIndex === -1) {
       return { station: code, status: 'available', borrower: '', dt_borrow: '', dt_due: '' };
     }
+    const row = values[rowIndex];
+    const status = (String(row[1] || '').trim().toLowerCase()) || 'available';
+
+    // 到期自動釋放：借用中且已過預計歸還日（今天 > 歸還日）→ 清空該列並視為可借用
+    if (status === 'borrowed' && isStationDuePassed(row[4])) {
+      expiredRows.push(rowIndex + 1);
+      return { station: code, status: 'available', borrower: '', dt_borrow: '', dt_due: '' };
+    }
+
     return {
       station: code,
-      status: (String(row[1] || '').trim().toLowerCase()) || 'available',
+      status: status,
       borrower: row[2] || '',
       dt_borrow: formatStationDateTime(row[3]),
       dt_due: formatStationDateTime(row[4])
     };
   });
-  Logger.log('查詢測試站：共 ' + result.length + ' 站');
+
+  // 清空過期的列（通常沒有，多數呼叫不會寫入）
+  expiredRows.forEach(r => {
+    sheet.getRange(r, 2, 1, 4).setValues([['available', '', '', '']]);
+  });
+
+  Logger.log('查詢測試站：共 ' + result.length + ' 站' + (expiredRows.length ? '，自動釋放 ' + expiredRows.length + ' 站' : ''));
   const output = JSON.stringify({ success: true, data: result });
   try { cache.put(STATION_CACHE_KEY, output, 30); } catch (e) {}
   return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JSON);
@@ -2300,7 +2338,8 @@ function borrowStation(params) {
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][0]).trim() === station) {
       const status = String(data[i][1] || '').trim().toLowerCase();
-      if (status === 'borrowed') {
+      // 借用中且「尚未過期」才需檢查衝突；已過預計歸還日的視為可借用，直接覆蓋
+      if (status === 'borrowed' && !isStationDuePassed(data[i][4])) {
         const existingBorrower = (data[i][2] || '').toString().trim();
         // 同一人重複送出（常見於網路不穩重試）→ 視為成功，僅更新預計歸還時間
         if (existingBorrower && existingBorrower === borrower) {
