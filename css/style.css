@@ -545,9 +545,18 @@ nav {
 }
 
 /* 預約登記清單 */
+.booking-header {
+  text-align: left;
+  font-size: 0.82em;
+  font-weight: bold;
+  color: #868e96;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
 .booking-list {
   text-align: left;
-  margin: 8px 0 12px;
+  margin: 6px 0 12px;
 }
 
 .station-empty {

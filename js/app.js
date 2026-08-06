@@ -2820,6 +2820,7 @@ function renderTestStations(stations) {
         <div class="station-avatar">${inUseToday ? '🧑‍💻' : '🖥️'}</div>
         <div class="station-today ${inUseToday ? 'busy' : 'free'}">${inUseToday ? '今日使用中' : '今日空閒'}</div>
         <div class="station-title">${stationName}</div>
+        <div class="booking-header">📌 已被預約日期${bookings.length ? `（${bookings.length}）` : ''}</div>
         <div class="booking-list">${bookingHtml}</div>
         <button class="btn-borrow-sm station-book-btn" onclick="openStationBookModal('${s.station}')">➕ 登記使用</button>
       </div>`;
