@@ -1304,24 +1304,28 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================================
 
 // 搜尋歷史紀錄
-// 歷史日期顯示用：各種格式統一轉成 yyyy-MM-dd（比照原本 GAS forceFormatDate）
+// 歷史日期顯示用：各種格式統一轉成 yyyy-MM-dd（不依賴 new Date，避免瀏覽器解析不了 GAS 的日期字串）
 function fmtHistDate(value) {
   if (!value) return '';
   const s = value.toString().trim();
   if (!s) return '';
-  // 已是 yyyy-MM-dd 直接用
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  // yyyy-MM-dd 後面接時間 → 取日期部分
-  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T]/);
-  if (m) return m[1];
-  // 其他（含 "Mon Jun 29 2026 ... GMT+0800" 之類）→ 解析後轉台北時間的 yyyy-MM-dd
+  // 已是 yyyy-MM-dd（或後面接時間）→ 取日期部分
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  // GAS Date.toString() 格式："Mon Jun 29 2026 00:00:00 GMT+0800 (...)"
+  // 字串本身已是台北時間，直接抓「月 日 年」即可，不用轉時區
+  const MONTHS = { Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06', Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12' };
+  const m = s.match(/([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})/);
+  if (m && MONTHS[m[1]]) {
+    return `${m[3]}-${MONTHS[m[1]]}-${String(m[2]).padStart(2, '0')}`;
+  }
+  // 最後才試 new Date（少數瀏覽器能解析的格式）
   const d = new Date(s);
-  if (isNaN(d.getTime())) return s;
-  const taipei = new Date(d.getTime() + (8 * 60 + d.getTimezoneOffset()) * 60000);
-  const y = taipei.getFullYear();
-  const mo = String(taipei.getMonth() + 1).padStart(2, '0');
-  const da = String(taipei.getDate()).padStart(2, '0');
-  return `${y}-${mo}-${da}`;
+  if (!isNaN(d.getTime())) {
+    const taipei = new Date(d.getTime() + (8 * 60 + d.getTimezoneOffset()) * 60000);
+    return `${taipei.getFullYear()}-${String(taipei.getMonth() + 1).padStart(2, '0')}-${String(taipei.getDate()).padStart(2, '0')}`;
+  }
+  return s;
 }
 
 async function searchHistory() {
