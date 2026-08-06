@@ -18,8 +18,8 @@ const HISTORY_SHEET_NAME = '歷史紀錄';
 const AVATAR_SHEET_NAME = '頭像資料';
 const RETURN_TOKEN_SHEET_NAME = '歸還Token';
 const MANUAL_KEEPER_SHEET_NAME = '手動Keeper';  // 手動輸入設備的額外通知 Keeper
-const TEST_STATION_SHEET_NAME = '測試站';        // 測試站（座位）借用狀態
-const TEST_STATIONS = ['A', 'B', 'C', 'D'];      // 預設測試站代號
+const TEST_STATION_SHEET_NAME = '測試站';        // 測試站借用狀態
+const TEST_STATIONS = ['Wifi throughput', '5GNR'];  // 測試站名稱（各 1 套）
 
 // 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
 // 建立方式：在 Google Drive 建立一個資料夾，分享為「知道連結的使用者」可檢視，然後複製資料夾網址的最後一段
@@ -2220,7 +2220,7 @@ function formatStationDateTime(value) {
 }
 
 /**
- * 確保「測試站」工作表存在，且 A/B/C/D 四個測試站都在
+ * 確保「測試站」工作表存在，且清單內的測試站都在（並移除清單外的舊測試站）
  */
 function ensureStationSheet() {
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -2229,7 +2229,20 @@ function ensureStationSheet() {
     sheet = ss.insertSheet(TEST_STATION_SHEET_NAME);
     sheet.appendRow(['測試站', '狀態', '借用人', '借用時間', '預計歸還']);
   }
-  const data = sheet.getDataRange().getValues();
+  let data = sheet.getDataRange().getValues();
+
+  // 移除不在清單內的舊測試站（例如舊的 A/B/C/D）—— 由下往上刪避免索引位移
+  let deleted = false;
+  for (let i = data.length - 1; i >= 1; i--) {
+    const code = String(data[i][0]).trim();
+    if (code && TEST_STATIONS.indexOf(code) === -1) {
+      sheet.deleteRow(i + 1);
+      deleted = true;
+    }
+  }
+  if (deleted) data = sheet.getDataRange().getValues();
+
+  // 補上清單內缺少的測試站
   const existing = data.slice(1).map(r => String(r[0]).trim());
   TEST_STATIONS.forEach(code => {
     if (existing.indexOf(code) === -1) {

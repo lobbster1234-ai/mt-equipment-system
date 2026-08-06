@@ -2752,14 +2752,15 @@ function renderTestStations(stations) {
   let html = '';
   stations.forEach(s => {
     const borrowed = String(s.status || '').toLowerCase() === 'borrowed';
+    const stationName = escapeHtml(s.station || '');
     if (borrowed) {
       const dueSafe = (s.dt_due || '').replace(/'/g, '');
       const overdue = isStationOverdue(s.dt_due);
       html += `
         <div class="station-card borrowed${overdue ? ' overdue' : ''}">
-          <div class="station-badge">${s.station}</div>
+          <div class="station-title">${stationName}</div>
           <div class="station-avatar">${overdue ? '⏰' : '🧑‍💻'}</div>
-          <div class="station-name" title="${s.borrower || ''}">${s.borrower || '使用中'}</div>
+          <div class="station-name" title="${s.borrower || ''}">${escapeHtml(s.borrower || '使用中')}</div>
           <div class="station-status ${overdue ? 'overdue' : 'busy'}">${overdue ? '⚠️ 已逾期' : '使用中'}</div>
           <div class="station-due">⏰ ${s.dt_due || '未設定'}</div>
           <div class="station-actions">
@@ -2770,10 +2771,10 @@ function renderTestStations(stations) {
     } else {
       html += `
         <div class="station-card available">
-          <div class="station-badge">${s.station}</div>
-          <div class="station-avatar">💺</div>
-          <div class="station-name">空位</div>
-          <div class="station-status free">可借用</div>
+          <div class="station-title">${stationName}</div>
+          <div class="station-avatar">🖥️</div>
+          <div class="station-name">可借用</div>
+          <div class="station-status free">空閒中</div>
           <div class="station-due">&nbsp;</div>
           <div class="station-actions">
             <button class="btn-borrow-sm" onclick="openStationBorrowModal('${s.station}')">📤 借用</button>
@@ -2806,7 +2807,7 @@ function buildStationModal(id, innerHtml) {
 // 開啟測試站借用 Modal
 function openStationBorrowModal(station) {
   buildStationModal('station-borrow-modal', `
-    <h2 style="color:#667eea;margin-bottom:20px;">💺 借用測試站 ${station}</h2>
+    <h2 style="color:#667eea;margin-bottom:20px;">🖥️ 借用測試站 ${station}</h2>
     <form onsubmit="submitStationBorrow(event, '${station}')">
       <div class="form-group">
         <label>借用人姓名 *</label>

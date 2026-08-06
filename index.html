@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>MT 部門儀器借用系統</title>
-  <link rel="stylesheet" href="css/style.css?v=20260805-14">
+  <link rel="stylesheet" href="css/style.css?v=20260806-2">
   <script>
     // 檢查登入狀態：如果沒有登入過，自動以訪客身份進入
     let user = JSON.parse(localStorage.getItem('mt_user'));
@@ -103,7 +103,7 @@
       <h1>🦐 MT 部門儀器借用系統</h1>
       <nav>
         <button class="nav-btn active" data-tab="equipment">📦 設備列表</button>
-        <button class="nav-btn" data-tab="test-station">💺 測試站列表</button>
+        <button class="nav-btn" data-tab="test-station">🖥️ 測試站列表</button>
         <button class="nav-btn" data-tab="history">📜 歷史紀錄</button>
         <button class="nav-btn" data-tab="department-borrow">🏢 手動輸入設備</button>
         <button class="nav-btn" data-tab="register">➕ 設備登記</button>
@@ -134,8 +134,8 @@
 
     <!-- 測試站列表 -->
     <section id="test-station-tab" class="tab-content">
-      <h2 style="margin-bottom:8px;">💺 測試站列表</h2>
-      <p style="color:#666;font-size:0.9em;margin-bottom:20px;">實驗室座位借用，點「借用」填寫姓名與預計歸還時間即可登記。</p>
+      <h2 style="margin-bottom:8px;">🖥️ 測試站列表</h2>
+      <p style="color:#666;font-size:0.9em;margin-bottom:20px;">測試資源借用，點「借用」填寫姓名與預計歸還時間即可登記（以天為單位，可續借）。</p>
       <div id="test-station-list" class="station-grid">
         <div class="loading-box"><div class="spinner"></div><span>載入中...</span></div>
       </div>
@@ -375,6 +375,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=20260806-1"></script>
+  <script src="js/app.js?v=20260806-2"></script>
 </body>
 </html>
