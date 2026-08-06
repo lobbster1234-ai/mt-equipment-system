@@ -2724,48 +2724,46 @@ function snapToHour(input) {
   input.value = `${newDatePart}T${hStr}:00`;
 }
 
-// 載入測試站列表（讀取為冪等操作，遇到 GAS 轉址不穩回傳 HTML 時自動重試）
+// =============================================
+// 測試站已搬遷到 Supabase（前端直接讀寫，不經 GAS）
+// =============================================
+const SUPABASE_URL = 'https://ifvebqoielozidojkyjf.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE';
+const TEST_STATIONS_FE = ['Wifi throughput', '5GNR'];
+function sbHeaders(extra) {
+  return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {});
+}
+
+// 載入測試站預約（從 Supabase 讀「今天(含)以後」的預約，依測試站分組）
 async function loadTestStations() {
   const list = document.getElementById('test-station-list');
-  // 已經有卡片時（例如背景預載完成後再切換進來）就靜默更新，不再閃轉圈圈
   const hasContent = list && list.querySelector('.station-card');
   if (list && !hasContent) list.innerHTML = loadingHtml();
 
-  const maxTries = 3;
-  let lastErr = '載入失敗';
+  const today = stationMinDateTime().slice(0, 10);
+  try {
+    const url = SUPABASE_URL + '/rest/v1/station_bookings'
+      + '?select=id,station,booking_date,booker,purpose'
+      + '&booking_date=gte.' + today
+      + '&order=booking_date.asc';
+    const res = await fetch(url, { headers: sbHeaders() });
+    const rows = await res.json();
+    if (!Array.isArray(rows)) throw new Error(rows.message || rows.hint || '載入失敗');
 
-  for (let attempt = 1; attempt <= maxTries; attempt++) {
-    try {
-      const url = new URL(GAS_URL);
-      url.searchParams.append('action', 'queryStations');
-      const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-      const text = await res.text();
-
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (parseErr) {
-        // GAS 偶爾轉址不穩回傳 HTML（暫時性）→ 稍等後重試
-        lastErr = '伺服器忙碌，請稍後再試';
-        if (attempt < maxTries) { await new Promise(r => setTimeout(r, 1200)); continue; }
-        break;
-      }
-
-      if (data.error) { lastErr = data.error; break; }
-      const stations = Array.isArray(data) ? data : (data.data || []);
-      renderTestStations(stations);
-      return; // 成功
-    } catch (err) {
-      // 網路層錯誤也重試
-      lastErr = err.message || '載入失敗';
-      if (attempt < maxTries) { await new Promise(r => setTimeout(r, 1200)); continue; }
+    const byStation = {};
+    TEST_STATIONS_FE.forEach(s => { byStation[s] = []; });
+    rows.forEach(r => {
+      if (!byStation[r.station]) byStation[r.station] = [];
+      byStation[r.station].push({ id: r.id, date: r.booking_date, booker: r.booker, purpose: r.purpose || '' });
+    });
+    const stations = TEST_STATIONS_FE.map(s => ({ station: s, bookings: byStation[s] || [] }));
+    renderTestStations(stations);
+  } catch (err) {
+    console.error('載入測試站失敗:', err);
+    if (list && !hasContent) {
+      list.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${err.message}<br>
+        <button onclick="loadTestStations()" style="margin-top:12px;padding:8px 18px;border:none;border-radius:6px;background:#667eea;color:#fff;cursor:pointer;">🔄 重新載入</button></p>`;
     }
-  }
-
-  console.error('載入測試站失敗:', lastErr);
-  if (list) {
-    list.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 載入失敗：${lastErr}<br>
-      <button onclick="loadTestStations()" style="margin-top:12px;padding:8px 18px;border:none;border-radius:6px;background:#667eea;color:#fff;cursor:pointer;">🔄 重新載入</button></p>`;
   }
 }
 
@@ -2985,53 +2983,44 @@ async function submitStationBook(e, station) {
   };
 
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'bookStation');
-    url.searchParams.append('station', station);
-    url.searchParams.append('dates', dates.join(','));
-    url.searchParams.append('booker', name);
-    url.searchParams.append('purpose', purpose);
-    // bookStation 是冪等的（同人同日重送不會重複），故遇 GAS 抽風可安全自動重試
-    const result = await gasGetJson(url.toString(), { retries: 3 });
-    if (result.success) {
-      const okCount = (result.booked && result.booked.length) || 0;
-      if (result.conflicts && result.conflicts.length) {
-        const c = result.conflicts.map(x => `${x.date}（已被 ${x.by}）`).join('\n');
-        alert(`✅ 已登記 ${okCount} 天。\n\n以下日期已被登記、未成功：\n${c}`);
-      } else {
-        alert(`✅ 登記成功！${okCount ? '（共 ' + okCount + ' 天）' : ''}`);
-      }
-      closeAndRefresh();
+    // 一次寫入多天；on_conflict + ignore-duplicates：已被登記的日期會被略過（不覆蓋），回傳實際新增的列
+    const rowsToInsert = dates.map(d => ({ station: station, booking_date: d, booker: name, purpose: purpose }));
+    const url = SUPABASE_URL + '/rest/v1/station_bookings?on_conflict=station,booking_date';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: sbHeaders({ 'Content-Type': 'application/json', 'Prefer': 'return=representation,resolution=ignore-duplicates' }),
+      body: JSON.stringify(rowsToInsert)
+    });
+    const inserted = await res.json();
+    if (!res.ok || !Array.isArray(inserted)) {
+      throw new Error((inserted && (inserted.message || inserted.hint)) || '登記失敗');
+    }
+    const okDates = inserted.map(r => r.booking_date);
+    const conflicts = dates.filter(d => okDates.indexOf(d) === -1);
+    if (conflicts.length) {
+      alert(`✅ 已登記 ${okDates.length} 天。\n\n以下日期剛好已被登記、未成功：\n${conflicts.join('\n')}`);
     } else {
-      throw new Error(result.error || '登記失敗');
+      alert(`✅ 登記成功！（共 ${okDates.length} 天）`);
     }
+    closeAndRefresh();
   } catch (err) {
-    if (err.isGasGlitch) {
-      alert('✅ 已送出。\n\n伺服器回應不穩定、未能確認結果；若清單已顯示你的登記即為成功，未顯示請稍後重新整理。');
-      closeAndRefresh();
-      return;
-    }
     alert('❌ 登記失敗：' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = '✅ 確認登記'; }
   }
 }
 
-// 取消一筆測試站登記
+// 取消一筆測試站登記（Supabase 刪除）
 async function cancelStationBooking(id, date) {
   if (!confirm(`確定要取消 ${date} 的登記嗎？`)) return;
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'cancelStationBooking');
-    url.searchParams.append('id', id);
-    const result = await gasGetJson(url.toString());
-    // 成功，或該筆已不存在（找不到／已被取消）→ 結果一樣是「已取消」，都視為完成
-    if (result.success || (result.error && (result.error.indexOf('找不到') !== -1 || result.error.indexOf('已被取消') !== -1))) {
-      loadTestStations();
-    } else {
-      throw new Error(result.error || '取消失敗');
+    const url = SUPABASE_URL + '/rest/v1/station_bookings?id=eq.' + encodeURIComponent(id);
+    const res = await fetch(url, { method: 'DELETE', headers: sbHeaders() });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.message || e.hint || '取消失敗');
     }
+    loadTestStations();
   } catch (err) {
-    if (err.isGasGlitch) { loadTestStations(); return; }
     alert('❌ 取消失敗：' + err.message);
   }
 }
