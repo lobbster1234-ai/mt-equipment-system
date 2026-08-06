@@ -2775,10 +2775,15 @@ function isStationOverdue(dtDue) {
   return Date.now() > due.getTime();
 }
 
+// 最近一次載入的測試站資料（供登記視窗判斷哪些日期已被登記）
+let lastStationsData = [];
+
 // 渲染測試站卡片
 function renderTestStations(stations) {
   const list = document.getElementById('test-station-list');
   if (!list) return;
+
+  lastStationsData = stations || [];
 
   if (!stations || stations.length === 0) {
     list.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">目前沒有測試站</p>';
@@ -2837,14 +2842,30 @@ function buildStationModal(id, innerHtml) {
   return modal;
 }
 
-// 開啟測試站「登記使用」Modal
+// 本次登記已選的日期，與該站已被登記的日期（不可選）
+let stationBookDates = [];
+let stationBookBookedSet = {};
+
+// 開啟測試站「登記使用」Modal（可一次選多天）
 function openStationBookModal(station) {
+  stationBookDates = [];
+  stationBookBookedSet = {};
+  // 從最近一次載入的資料，取得該站已被登記的日期
+  const st = (lastStationsData || []).find(x => x.station === station);
+  if (st && st.bookings) {
+    st.bookings.forEach(b => { stationBookBookedSet[b.date] = b.booker || '已登記'; });
+  }
+
   buildStationModal('station-book-modal', `
     <h2 style="color:#667eea;margin-bottom:20px;">➕ 登記使用 ${escapeHtml(station)}</h2>
     <form onsubmit="submitStationBook(event, '${station}')">
       <div class="form-group">
-        <label>使用日期 * <span style="font-size:0.85em;color:#888;">(以天為單位，一天一人)</span></label>
-        <input type="date" id="station-book-date" min="${stationMinDateTime().slice(0, 10)}" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+        <label>使用日期 * <span style="font-size:0.85em;color:#888;">(可加入多天；已被登記的日期無法選)</span></label>
+        <div style="display:flex;gap:8px;">
+          <input type="date" id="station-book-date" min="${stationMinDateTime().slice(0, 10)}" style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+          <button type="button" class="btn-borrow-sm" onclick="addStationBookDate()">➕ 加入</button>
+        </div>
+        <div id="station-book-chips" class="book-chips"></div>
       </div>
       <div class="form-group" style="margin-top:12px;">
         <label>登記人姓名 *</label>
@@ -2859,15 +2880,48 @@ function openStationBookModal(station) {
       </div>
     </form>
   `);
+  renderStationBookChips();
 }
 
-// 送出測試站登記
+// 加入一個日期到本次清單（擋掉已被登記或已加入的）
+function addStationBookDate() {
+  const input = document.getElementById('station-book-date');
+  const date = input ? input.value : '';
+  if (!date) { alert('請先選擇日期'); return; }
+  if (stationBookBookedSet[date]) { alert(`${date} 已被 ${stationBookBookedSet[date]} 登記，無法選取`); return; }
+  if (stationBookDates.indexOf(date) !== -1) { alert(`${date} 已在清單中`); return; }
+  stationBookDates.push(date);
+  stationBookDates.sort();
+  input.value = '';
+  renderStationBookChips();
+}
+
+// 從本次清單移除一個日期
+function removeStationBookDate(date) {
+  stationBookDates = stationBookDates.filter(d => d !== date);
+  renderStationBookChips();
+}
+
+// 更新已選日期的標籤
+function renderStationBookChips() {
+  const el = document.getElementById('station-book-chips');
+  if (!el) return;
+  if (stationBookDates.length === 0) {
+    el.innerHTML = '<span style="color:#aaa;font-size:0.85em;">尚未加入日期</span>';
+    return;
+  }
+  el.innerHTML = stationBookDates.map(d =>
+    `<span class="book-chip">${d}<button type="button" onclick="removeStationBookDate('${d}')" title="移除">✕</button></span>`
+  ).join('');
+}
+
+// 送出測試站登記（一次多天）
 async function submitStationBook(e, station) {
   e.preventDefault();
-  const date = document.getElementById('station-book-date').value;
   const name = document.getElementById('station-book-name').value.trim();
   const purpose = document.getElementById('station-book-purpose').value.trim();
-  if (!date || !name) { alert('請填寫使用日期與登記人姓名'); return; }
+  if (stationBookDates.length === 0) { alert('請至少加入一個使用日期'); return; }
+  if (!name) { alert('請填寫登記人姓名'); return; }
 
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
@@ -2882,14 +2936,15 @@ async function submitStationBook(e, station) {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'bookStation');
     url.searchParams.append('station', station);
-    url.searchParams.append('date', date);
+    url.searchParams.append('dates', stationBookDates.join(','));
     url.searchParams.append('booker', name);
     url.searchParams.append('purpose', purpose);
     const result = await gasGetJson(url.toString());
     if (result.success) {
-      closeAndRefresh();
-    } else if (result.error && result.error.indexOf(name) !== -1 && result.error.indexOf('已被') !== -1) {
-      // 這天其實是自己登記的 → 視為成功
+      if (result.conflicts && result.conflicts.length) {
+        const c = result.conflicts.map(x => `${x.date}（已被 ${x.by}）`).join('\n');
+        alert(`以下日期已被登記、未成功：\n${c}\n\n其餘日期已登記完成。`);
+      }
       closeAndRefresh();
     } else {
       throw new Error(result.error || '登記失敗');

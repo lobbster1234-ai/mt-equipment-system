@@ -2355,36 +2355,61 @@ function queryStations() {
  */
 function bookStation(params) {
   const station = String(params.station || '').trim();
-  const date = String(params.date || '').trim();
   const booker = String(params.booker || '').trim();
   const purpose = String(params.purpose || '').trim();
 
   if (!station || TEST_STATIONS.indexOf(station) === -1) return errorResponse('無效的測試站');
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return errorResponse('請選擇使用日期');
   if (!booker) return errorResponse('請填寫登記人姓名');
+
+  // 支援多日：dates 以逗號分隔；相容舊的單一 date
+  let dateList = [];
+  if (params.dates) {
+    dateList = String(params.dates).split(',').map(function (d) { return d.trim(); }).filter(Boolean);
+  } else if (params.date) {
+    dateList = [String(params.date).trim()];
+  }
+  if (dateList.length === 0) return errorResponse('請選擇至少一個使用日期');
+  for (let k = 0; k < dateList.length; k++) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateList[k])) return errorResponse('日期格式錯誤：' + dateList[k]);
+  }
 
   const sheet = ensureBookingSheet();
   const values = sheet.getDataRange().getValues();
 
-  // 檢查同站同日是否已被登記
+  // 現有 (站|日期) → 登記人 對照
+  const existing = {};
   for (let i = 1; i < values.length; i++) {
     const s = String(values[i][1] || '').trim();
     const d = normalizeDateStr(values[i][2]);
-    if (s === station && d === date) {
-      const existing = String(values[i][3] || '').trim();
-      // 同一人重複送出（網路不穩重試）→ 視為成功
-      if (existing && existing === booker) {
-        return successResponse({ message: '登記成功', station: station, date: date });
-      }
-      return errorResponse(date + ' 這天已被 ' + (existing || '他人') + ' 登記');
-    }
+    if (s && d) existing[s + '|' + d] = String(values[i][3] || '').trim();
   }
 
-  const id = 'BK' + Utilities.getUuid();
   const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
-  sheet.appendRow([id, station, date, booker, purpose, now]);
-  Logger.log('測試站登記：' + station + ' ' + date + ' by ' + booker);
-  return successResponse({ message: '登記成功', station: station, date: date, id: id });
+  const rowsToAppend = [];
+  const booked = [];
+  const conflicts = [];
+
+  dateList.forEach(function (date) {
+    const key = station + '|' + date;
+    const who = existing[key];
+    if (who) {
+      if (who === booker) { booked.push(date); }        // 已是自己登記，視為成功
+      else { conflicts.push({ date: date, by: who }); } // 被別人登記
+      return;
+    }
+    const id = 'BK' + Utilities.getUuid();
+    rowsToAppend.push([id, station, date, booker, purpose, now]);
+    existing[key] = booker; // 避免同一次請求內重複
+    booked.push(date);
+  });
+
+  // 批次寫入（一次寫多列，較快）
+  if (rowsToAppend.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, 6).setValues(rowsToAppend);
+  }
+
+  Logger.log('測試站登記：' + station + ' by ' + booker + '，成功 ' + rowsToAppend.length + ' 天，衝突 ' + conflicts.length + ' 天');
+  return successResponse({ message: '登記完成', station: station, booked: booked, conflicts: conflicts });
 }
 
 /**

@@ -619,6 +619,40 @@ nav {
   margin-top: 4px;
 }
 
+/* 登記視窗：已選日期標籤 */
+.book-chips {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.book-chip {
+  background: #eef0ff;
+  color: #667eea;
+  border-radius: 14px;
+  padding: 4px 8px 4px 10px;
+  font-size: 0.85em;
+  font-weight: bold;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.book-chip button {
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.book-chip button:hover {
+  color: #e03131;
+}
+
 .station-card.overdue .station-title { color: #e03131; }
 
 .station-card {
