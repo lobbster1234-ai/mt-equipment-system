@@ -2936,16 +2936,23 @@ async function submitStationBook(e, station) {
     // bookStation 是冪等的（同人同日重送不會重複），故遇 GAS 抽風可安全自動重試
     const result = await gasGetJson(url.toString(), { retries: 3 });
     if (result.success) {
+      const okCount = (result.booked && result.booked.length) || 0;
       if (result.conflicts && result.conflicts.length) {
         const c = result.conflicts.map(x => `${x.date}（已被 ${x.by}）`).join('\n');
-        alert(`以下日期已被登記、未成功：\n${c}\n\n其餘日期已登記完成。`);
+        alert(`✅ 已登記 ${okCount} 天。\n\n以下日期已被登記、未成功：\n${c}`);
+      } else {
+        alert(`✅ 登記成功！${okCount ? '（共 ' + okCount + ' 天）' : ''}`);
       }
       closeAndRefresh();
     } else {
       throw new Error(result.error || '登記失敗');
     }
   } catch (err) {
-    if (err.isGasGlitch) { closeAndRefresh(); return; }
+    if (err.isGasGlitch) {
+      alert('✅ 已送出。\n\n伺服器回應不穩定、未能確認結果；若清單已顯示你的登記即為成功，未顯示請稍後重新整理。');
+      closeAndRefresh();
+      return;
+    }
     alert('❌ 登記失敗：' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = '✅ 確認登記'; }
   }
@@ -2959,7 +2966,8 @@ async function cancelStationBooking(id, date) {
     url.searchParams.append('action', 'cancelStationBooking');
     url.searchParams.append('id', id);
     const result = await gasGetJson(url.toString());
-    if (result.success) {
+    // 成功，或該筆已不存在（找不到／已被取消）→ 結果一樣是「已取消」，都視為完成
+    if (result.success || (result.error && (result.error.indexOf('找不到') !== -1 || result.error.indexOf('已被取消') !== -1))) {
       loadTestStations();
     } else {
       throw new Error(result.error || '取消失敗');
