@@ -2923,7 +2923,8 @@ async function submitStationBook(e, station) {
     url.searchParams.append('dates', dates.join(','));
     url.searchParams.append('booker', name);
     url.searchParams.append('purpose', purpose);
-    const result = await gasGetJson(url.toString());
+    // bookStation 是冪等的（同人同日重送不會重複），故遇 GAS 抽風可安全自動重試
+    const result = await gasGetJson(url.toString(), { retries: 3 });
     if (result.success) {
       if (result.conflicts && result.conflicts.length) {
         const c = result.conflicts.map(x => `${x.date}（已被 ${x.by}）`).join('\n');
