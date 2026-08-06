@@ -1286,9 +1286,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // 頁面載入時：先從伺服器抓最新頭像快取，讓列表第一次渲染就帶頭像；
   // 即使抓頭像失敗也照常查詢設備
   preloadAvatars().finally(() => {
+    // 進站只載入預設的「設備列表」分頁；其他分頁改為點進去時才第一次載入（且只載一次）
     searchEquipment();
-    // 設備列表顯示後，於背景預先載入其他分頁，讓切換時能立即顯示
-    setTimeout(preloadOtherTabs, 400);
   });
   
   // Modal 點擊外部關閉
@@ -1623,6 +1622,8 @@ if (historyInput) {
 let historyTabLoaded = false;
 let myEquipTabLoaded = false;
 let settingsTabLoaded = false;
+let testStationTabLoaded = false;
+let deptBorrowTabLoaded = false;
 
 // 綁定分頁切換
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1661,9 +1662,19 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
         myEquipTabLoaded = true;
       }
     }
-    // 如果切換到測試站列表分頁，每次切換都重新載入以取得最新狀態
+    // 如果切換到測試站列表分頁，只在第一次切換時載入；之後切回來不重抓
     if (tab === 'test-station') {
-      loadTestStations();
+      if (!testStationTabLoaded) {
+        loadTestStations();
+        testStationTabLoaded = true;
+      }
+    }
+    // 如果切換到手動輸入設備分頁，只在第一次切換時載入清單
+    if (tab === 'department-borrow') {
+      if (!deptBorrowTabLoaded) {
+        loadDeptBorrowList();
+        deptBorrowTabLoaded = true;
+      }
     }
     // 如果切換到個人設定分頁，載入頭像列表
     if (tab === 'settings') {
@@ -2666,8 +2677,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
   
-  // 載入列表（只在頁面切換時載入）
-  loadDeptBorrowList();
+  // 手動輸入設備清單改為切換到該分頁時才第一次載入（不在進站時載入）
 });
 
 // =============================================
