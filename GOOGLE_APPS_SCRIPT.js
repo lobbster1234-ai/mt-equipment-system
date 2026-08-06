@@ -327,6 +327,7 @@ function doGet(e) {
     } else if (action === 'bookStation') {
       return bookStation({
         station: e.parameter.station,
+        dates: e.parameter.dates,
         date: e.parameter.date,
         booker: e.parameter.booker,
         purpose: e.parameter.purpose
