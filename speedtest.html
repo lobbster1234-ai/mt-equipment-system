@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>速度比較：GAS vs Supabase</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+      background: #0f141c; color: #e6edf2; line-height: 1.6;
+      min-height: 100vh; padding: 32px 18px;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 24px; margin-bottom: 6px; }
+    .sub { color: #93a2af; font-size: 14px; margin-bottom: 24px; }
+    .btn {
+      background: #3bb4bf; color: #06222a; border: none; font-weight: 700;
+      padding: 13px 26px; border-radius: 10px; font-size: 16px; cursor: pointer;
+    }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 26px 0; }
+    @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+    .card {
+      border: 1px solid #26313a; border-radius: 14px; padding: 20px; background: #161f28;
+    }
+    .card h2 { font-size: 15px; letter-spacing: .04em; text-transform: uppercase; color: #93a2af; margin-bottom: 4px; }
+    .card .who { font-size: 13px; color: #6b7a88; margin-bottom: 14px; }
+    .big { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .big small { font-size: 18px; font-weight: 600; color: #93a2af; }
+    .gas .big { color: #e07065; }
+    .sb .big { color: #57d0a0; }
+    .rounds { margin-top: 12px; font-size: 13px; color: #93a2af; font-variant-numeric: tabular-nums; }
+    .rounds div { display: flex; justify-content: space-between; padding: 2px 0; border-top: 1px solid #26313a; }
+    .verdict {
+      margin-top: 8px; border: 1px solid #26313a; border-radius: 14px; padding: 18px 20px;
+      background: #10333a; font-size: 15px;
+    }
+    .verdict b { color: #7fd6de; }
+    .status { color: #93a2af; font-size: 14px; margin-top: 14px; min-height: 20px; }
+    .err { color: #e07065; }
+    code { background: #26313a; padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>⚡ 速度比較：舊後端 vs 新後端</h1>
+    <p class="sub">同一台裝置、連續各測 3 次，看回應快多少。GAS = 現在的 Google Apps Script；Supabase = 要評估的新後端。</p>
+
+    <button class="btn" id="run" onclick="runTest()">▶ 開始測試</button>
+    <div class="status" id="status"></div>
+
+    <div class="cards">
+      <div class="card gas">
+        <h2>🐌 GAS（現況）</h2>
+        <div class="who">Google Apps Script + Sheet</div>
+        <div class="big" id="gas-avg">—</div>
+        <div class="rounds" id="gas-rounds"></div>
+      </div>
+      <div class="card sb">
+        <h2>⚡ Supabase（新）</h2>
+        <div class="who">Postgres REST API</div>
+        <div class="big" id="sb-avg">—</div>
+        <div class="rounds" id="sb-rounds"></div>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict" style="display:none;"></div>
+  </div>
+
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
+    const SUPABASE_URL = 'https://ifvebqoielozidojkyjf.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE';
+    const ROUNDS = 3;
+
+    function fmt(ms) { return (ms / 1000).toFixed(2); }
+
+    async function testGas() {
+      const t0 = performance.now();
+      const res = await fetch(GAS_URL + '?action=query', { method: 'GET', redirect: 'follow' });
+      const text = await res.text();
+      const t1 = performance.now();
+      let count = 0;
+      try { const d = JSON.parse(text); count = (d.data || d || []).length || 0; } catch (e) {}
+      return { ms: t1 - t0, count };
+    }
+
+    async function testSupabase() {
+      const t0 = performance.now();
+      const res = await fetch(SUPABASE_URL + '/rest/v1/poc_test?select=*', {
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }
+      });
+      const data = await res.json();
+      const t1 = performance.now();
+      if (!Array.isArray(data)) {
+        throw new Error(data.message || data.hint || '查詢失敗（是否已在 SQL Editor 建立 poc_test 表？）');
+      }
+      return { ms: t1 - t0, count: data.length };
+    }
+
+    async function runRounds(fn, roundsEl) {
+      const times = [];
+      roundsEl.innerHTML = '';
+      for (let i = 1; i <= ROUNDS; i++) {
+        try {
+          const r = await fn();
+          times.push(r.ms);
+          const row = document.createElement('div');
+          row.innerHTML = `<span>第 ${i} 次</span><span>${fmt(r.ms)} 秒　(${r.count} 筆)</span>`;
+          roundsEl.appendChild(row);
+        } catch (err) {
+          const row = document.createElement('div');
+          row.innerHTML = `<span>第 ${i} 次</span><span class="err">✗ ${err.message}</span>`;
+          roundsEl.appendChild(row);
+          throw err;
+        }
+      }
+      return times.reduce((a, b) => a + b, 0) / times.length;
+    }
+
+    async function runTest() {
+      const btn = document.getElementById('run');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      document.getElementById('verdict').style.display = 'none';
+      document.getElementById('gas-avg').textContent = '…';
+      document.getElementById('sb-avg').textContent = '…';
+
+      let gasAvg = null, sbAvg = null;
+
+      status.textContent = '測試 GAS 中…（可能要等幾秒到幾十秒）';
+      try {
+        gasAvg = await runRounds(testGas, document.getElementById('gas-rounds'));
+        document.getElementById('gas-avg').innerHTML = fmt(gasAvg) + ' <small>秒</small>';
+      } catch (e) {
+        document.getElementById('gas-avg').innerHTML = '<small class="err">失敗</small>';
+      }
+
+      status.textContent = '測試 Supabase 中…';
+      try {
+        sbAvg = await runRounds(testSupabase, document.getElementById('sb-rounds'));
+        document.getElementById('sb-avg').innerHTML = fmt(sbAvg) + ' <small>秒</small>';
+      } catch (e) {
+        document.getElementById('sb-avg').innerHTML = '<small class="err">失敗</small>';
+        status.innerHTML = '<span class="err">Supabase 測試失敗：' + e.message + '</span>';
+      }
+
+      if (gasAvg && sbAvg) {
+        const x = (gasAvg / sbAvg);
+        const v = document.getElementById('verdict');
+        v.style.display = 'block';
+        v.innerHTML = `平均：GAS <b>${fmt(gasAvg)} 秒</b>　vs　Supabase <b>${fmt(sbAvg)} 秒</b><br>` +
+          `Supabase 大約快了 <b>${x.toFixed(0)} 倍</b>。`;
+        status.textContent = '完成 ✅';
+      } else if (sbAvg) {
+        status.textContent = '完成（GAS 這次沒測到，可能又在抽風）';
+      }
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
