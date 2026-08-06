@@ -1721,6 +1721,9 @@ function preloadOtherTabs() {
     historyTabLoaded = true;
   }
 
+  // 測試站列表（所有使用者皆可見）—— 進站即背景預載，切換時可立即顯示
+  loadTestStations();
+
   // 我的設備、個人設定（管理員專屬分頁）
   if (user.role === 'admin') {
     if (!myEquipTabLoaded) {
@@ -2685,7 +2688,9 @@ function snapToHour(input) {
 // 載入測試站列表（讀取為冪等操作，遇到 GAS 轉址不穩回傳 HTML 時自動重試）
 async function loadTestStations() {
   const list = document.getElementById('test-station-list');
-  if (list) list.innerHTML = loadingHtml();
+  // 已經有卡片時（例如背景預載完成後再切換進來）就靜默更新，不再閃轉圈圈
+  const hasContent = list && list.querySelector('.station-card');
+  if (list && !hasContent) list.innerHTML = loadingHtml();
 
   const maxTries = 3;
   let lastErr = '載入失敗';
