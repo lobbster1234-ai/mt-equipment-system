@@ -2787,36 +2787,33 @@ function renderTestStations(stations) {
 
   let html = '';
   stations.forEach(s => {
-    const borrowed = String(s.status || '').toLowerCase() === 'borrowed';
     const stationName = escapeHtml(s.station || '');
-    if (borrowed) {
-      const dueSafe = (s.dt_due || '').replace(/'/g, '');
-      const overdue = isStationOverdue(s.dt_due);
-      html += `
-        <div class="station-card borrowed${overdue ? ' overdue' : ''}">
-          <div class="station-title">${stationName}</div>
-          <div class="station-avatar">${overdue ? '⏰' : '🧑‍💻'}</div>
-          <div class="station-name" title="${s.borrower || ''}">${escapeHtml(s.borrower || '使用中')}</div>
-          <div class="station-status ${overdue ? 'overdue' : 'busy'}">${overdue ? '⚠️ 已逾期' : '使用中'}</div>
-          <div class="station-due">⏰ ${s.dt_due || '未設定'}</div>
-          <div class="station-actions">
-            <button class="btn-return-sm" onclick="returnStationBorrow('${s.station}')">📥 歸還</button>
-            <button class="btn-postpone-sm" onclick="openStationPostponeModal('${s.station}', '${dueSafe}')">⏰ 續借</button>
-          </div>
-        </div>`;
+    const bookings = s.bookings || [];
+    let bookingHtml = '';
+    if (bookings.length === 0) {
+      bookingHtml = '<div class="station-empty">目前無人登記</div>';
     } else {
-      html += `
-        <div class="station-card available">
-          <div class="station-title">${stationName}</div>
-          <div class="station-avatar">🖥️</div>
-          <div class="station-name">可借用</div>
-          <div class="station-status free">空閒中</div>
-          <div class="station-due">&nbsp;</div>
-          <div class="station-actions">
-            <button class="btn-borrow-sm" onclick="openStationBorrowModal('${s.station}')">📤 借用</button>
-          </div>
-        </div>`;
+      bookings.forEach(b => {
+        const purposeHtml = b.purpose
+          ? `<div class="booking-purpose">📝 ${escapeHtml(b.purpose)}</div>`
+          : '';
+        bookingHtml += `
+          <div class="booking-row">
+            <button class="booking-cancel" onclick="cancelStationBooking('${b.id}', '${b.date}')" title="取消這筆登記">✕</button>
+            <div class="booking-main">
+              <span class="booking-date">📅 ${escapeHtml(b.date)}</span>
+              <span class="booking-name">${escapeHtml(b.booker || '')}</span>
+            </div>
+            ${purposeHtml}
+          </div>`;
+      });
     }
+    html += `
+      <div class="station-card">
+        <div class="station-title">${stationName}</div>
+        <div class="booking-list">${bookingHtml}</div>
+        <button class="btn-borrow-sm station-book-btn" onclick="openStationBookModal('${s.station}')">➕ 登記使用</button>
+      </div>`;
   });
   list.innerHTML = html;
 }
@@ -2838,6 +2835,89 @@ function buildStationModal(id, innerHtml) {
     </div>`;
   modal.style.display = 'block';
   return modal;
+}
+
+// 開啟測試站「登記使用」Modal
+function openStationBookModal(station) {
+  buildStationModal('station-book-modal', `
+    <h2 style="color:#667eea;margin-bottom:20px;">➕ 登記使用 ${escapeHtml(station)}</h2>
+    <form onsubmit="submitStationBook(event, '${station}')">
+      <div class="form-group">
+        <label>使用日期 * <span style="font-size:0.85em;color:#888;">(以天為單位，一天一人)</span></label>
+        <input type="date" id="station-book-date" min="${stationMinDateTime().slice(0, 10)}" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>登記人姓名 *</label>
+        <input type="text" id="station-book-name" required placeholder="請輸入您的姓名" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>用途 / 備註</label>
+        <input type="text" id="station-book-purpose" placeholder="選填，例如：EE check、FT test" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+      </div>
+      <div style="text-align:center;margin-top:20px;">
+        <button type="submit" class="btn-primary">✅ 確認登記</button>
+      </div>
+    </form>
+  `);
+}
+
+// 送出測試站登記
+async function submitStationBook(e, station) {
+  e.preventDefault();
+  const date = document.getElementById('station-book-date').value;
+  const name = document.getElementById('station-book-name').value.trim();
+  const purpose = document.getElementById('station-book-purpose').value.trim();
+  if (!date || !name) { alert('請填寫使用日期與登記人姓名'); return; }
+
+  const btn = e.target.querySelector('button[type="submit"]');
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
+
+  const closeAndRefresh = () => {
+    const modal = document.getElementById('station-book-modal');
+    if (modal) modal.style.display = 'none';
+    loadTestStations();
+  };
+
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'bookStation');
+    url.searchParams.append('station', station);
+    url.searchParams.append('date', date);
+    url.searchParams.append('booker', name);
+    url.searchParams.append('purpose', purpose);
+    const result = await gasGetJson(url.toString());
+    if (result.success) {
+      closeAndRefresh();
+    } else if (result.error && result.error.indexOf(name) !== -1 && result.error.indexOf('已被') !== -1) {
+      // 這天其實是自己登記的 → 視為成功
+      closeAndRefresh();
+    } else {
+      throw new Error(result.error || '登記失敗');
+    }
+  } catch (err) {
+    if (err.isGasGlitch) { closeAndRefresh(); return; }
+    alert('❌ 登記失敗：' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✅ 確認登記'; }
+  }
+}
+
+// 取消一筆測試站登記
+async function cancelStationBooking(id, date) {
+  if (!confirm(`確定要取消 ${date} 的登記嗎？`)) return;
+  try {
+    const url = new URL(GAS_URL);
+    url.searchParams.append('action', 'cancelStationBooking');
+    url.searchParams.append('id', id);
+    const result = await gasGetJson(url.toString());
+    if (result.success) {
+      loadTestStations();
+    } else {
+      throw new Error(result.error || '取消失敗');
+    }
+  } catch (err) {
+    if (err.isGasGlitch) { loadTestStations(); return; }
+    alert('❌ 取消失敗：' + err.message);
+  }
 }
 
 // 開啟測試站借用 Modal

@@ -544,6 +544,81 @@ nav {
   word-break: break-word;
 }
 
+/* 預約登記清單 */
+.booking-list {
+  text-align: left;
+  margin: 8px 0 12px;
+}
+
+.station-empty {
+  color: #aaa;
+  font-size: 0.85em;
+  text-align: center;
+  padding: 14px 0;
+}
+
+.booking-row {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 8px 28px 8px 10px;
+  margin-bottom: 6px;
+  position: relative;
+}
+
+.booking-main {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.booking-date {
+  font-weight: bold;
+  color: #667eea;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.booking-name {
+  font-weight: bold;
+  color: #333;
+  word-break: break-word;
+}
+
+.booking-purpose {
+  color: #666;
+  font-size: 0.8em;
+  margin-top: 3px;
+  word-break: break-word;
+}
+
+.booking-cancel {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  line-height: 18px;
+  text-align: center;
+  background: none;
+  border: none;
+  color: #c0c4cc;
+  font-size: 0.95em;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.booking-cancel:hover {
+  background: #ffe3e3;
+  color: #e03131;
+}
+
+.station-book-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
 .station-card.overdue .station-title { color: #e03131; }
 
 .station-card {

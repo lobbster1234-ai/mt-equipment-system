@@ -18,7 +18,8 @@ const HISTORY_SHEET_NAME = '歷史紀錄';
 const AVATAR_SHEET_NAME = '頭像資料';
 const RETURN_TOKEN_SHEET_NAME = '歸還Token';
 const MANUAL_KEEPER_SHEET_NAME = '手動Keeper';  // 手動輸入設備的額外通知 Keeper
-const TEST_STATION_SHEET_NAME = '測試站';        // 測試站借用狀態
+const TEST_STATION_SHEET_NAME = '測試站';        // （舊）測試站借用狀態，已改為預約制不再使用
+const STATION_BOOKING_SHEET_NAME = '測試站預約';  // 測試站預約登記（單日、一人獨佔）
 const TEST_STATIONS = ['Wifi throughput', '5GNR'];  // 測試站名稱（各 1 套）
 
 // 頭像資料夾 ID（請替換成你的 Google Drive 頭像資料夾 ID）
@@ -323,6 +324,15 @@ function doGet(e) {
       return getKeeperList();
     } else if (action === 'queryStations') {
       return queryStations();
+    } else if (action === 'bookStation') {
+      return bookStation({
+        station: e.parameter.station,
+        date: e.parameter.date,
+        booker: e.parameter.booker,
+        purpose: e.parameter.purpose
+      });
+    } else if (action === 'cancelStationBooking') {
+      return cancelStationBooking({ id: e.parameter.id });
     } else if (action === 'borrowStation') {
       return borrowStation({
         station: e.parameter.station,
@@ -2273,6 +2283,30 @@ function ensureStationSheet() {
 /**
  * 查詢所有測試站狀態
  */
+// 確保「測試站預約」工作表存在
+function ensureBookingSheet() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(STATION_BOOKING_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(STATION_BOOKING_SHEET_NAME);
+    sheet.getRange(1, 1, 1, 6).setValues([['id', '測試站', '使用日期', '登記人', '用途', '登記時間']]);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// 把儲存格值統一成 yyyy-MM-dd 字串（可能是 Date 物件或字串）
+function normalizeDateStr(v) {
+  if (!v) return '';
+  if (v instanceof Date) return Utilities.formatDate(v, 'Asia/Taipei', 'yyyy-MM-dd');
+  const m = String(v).trim().match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : String(v).trim();
+}
+
+/**
+ * 查詢所有測試站的預約清單（只回未來/當天，過期自動清除）
+ * 回傳：[{ station, bookings: [{ id, date, booker, purpose }] }]
+ */
 function queryStations() {
   const cache = CacheService.getScriptCache();
   const STATION_CACHE_KEY = 'stations_query_all';
@@ -2281,45 +2315,95 @@ function queryStations() {
     return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
   }
 
-  const sheet = ensureStationSheet();
+  const sheet = ensureBookingSheet();
   const values = sheet.getDataRange().getValues(); // 含標題列
-  const expiredRows = []; // 待清空的試算表列號（1-based）
+  const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
 
-  const result = TEST_STATIONS.map(code => {
-    let rowIndex = -1;
-    for (let i = 1; i < values.length; i++) {
-      if (String(values[i][0]).trim() === code) { rowIndex = i; break; }
-    }
-    if (rowIndex === -1) {
-      return { station: code, status: 'available', borrower: '', dt_borrow: '', dt_due: '' };
-    }
-    const row = values[rowIndex];
-    const status = (String(row[1] || '').trim().toLowerCase()) || 'available';
+  const byStation = {};
+  TEST_STATIONS.forEach(s => { byStation[s] = []; });
+  const pastRows = []; // 過期預約的列號（1-based），待清除
 
-    // 到期自動釋放：借用中且已過預計歸還日（今天 > 歸還日）→ 清空該列並視為可借用
-    if (status === 'borrowed' && isStationDuePassed(row[4])) {
-      expiredRows.push(rowIndex + 1);
-      return { station: code, status: 'available', borrower: '', dt_borrow: '', dt_due: '' };
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    const id = row[0];
+    const station = String(row[1] || '').trim();
+    const date = normalizeDateStr(row[2]);
+    if (!id || !station || !date) continue;
+    if (date < today) { pastRows.push(i + 1); continue; } // 過期（昨天以前）→ 清除
+    if (byStation[station]) {
+      byStation[station].push({ id: id, date: date, booker: row[3] || '', purpose: row[4] || '' });
     }
+  }
 
-    return {
-      station: code,
-      status: status,
-      borrower: row[2] || '',
-      dt_borrow: formatStationDateTime(row[3]),
-      dt_due: formatStationDateTime(row[4])
-    };
+  // 清除過期預約（由下往上刪避免索引位移）
+  pastRows.sort(function (a, b) { return b - a; }).forEach(function (r) { sheet.deleteRow(r); });
+
+  const result = TEST_STATIONS.map(function (s) {
+    const list = byStation[s] || [];
+    list.sort(function (a, b) { return a.date < b.date ? -1 : (a.date > b.date ? 1 : 0); });
+    return { station: s, bookings: list };
   });
 
-  // 清空過期的列（通常沒有，多數呼叫不會寫入）
-  expiredRows.forEach(r => {
-    sheet.getRange(r, 2, 1, 4).setValues([['available', '', '', '']]);
-  });
-
-  Logger.log('查詢測試站：共 ' + result.length + ' 站' + (expiredRows.length ? '，自動釋放 ' + expiredRows.length + ' 站' : ''));
+  Logger.log('查詢測試站預約：' + result.map(function (r) { return r.station + '=' + r.bookings.length; }).join(', '));
   const output = JSON.stringify({ success: true, data: result });
   try { cache.put(STATION_CACHE_KEY, output, 30); } catch (e) {}
   return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * 登記使用測試站（單日、一人獨佔；同站同日已被登記則拒絕）
+ */
+function bookStation(params) {
+  const station = String(params.station || '').trim();
+  const date = String(params.date || '').trim();
+  const booker = String(params.booker || '').trim();
+  const purpose = String(params.purpose || '').trim();
+
+  if (!station || TEST_STATIONS.indexOf(station) === -1) return errorResponse('無效的測試站');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return errorResponse('請選擇使用日期');
+  if (!booker) return errorResponse('請填寫登記人姓名');
+
+  const sheet = ensureBookingSheet();
+  const values = sheet.getDataRange().getValues();
+
+  // 檢查同站同日是否已被登記
+  for (let i = 1; i < values.length; i++) {
+    const s = String(values[i][1] || '').trim();
+    const d = normalizeDateStr(values[i][2]);
+    if (s === station && d === date) {
+      const existing = String(values[i][3] || '').trim();
+      // 同一人重複送出（網路不穩重試）→ 視為成功
+      if (existing && existing === booker) {
+        return successResponse({ message: '登記成功', station: station, date: date });
+      }
+      return errorResponse(date + ' 這天已被 ' + (existing || '他人') + ' 登記');
+    }
+  }
+
+  const id = 'BK' + Utilities.getUuid();
+  const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  sheet.appendRow([id, station, date, booker, purpose, now]);
+  Logger.log('測試站登記：' + station + ' ' + date + ' by ' + booker);
+  return successResponse({ message: '登記成功', station: station, date: date, id: id });
+}
+
+/**
+ * 取消一筆測試站預約
+ */
+function cancelStationBooking(params) {
+  const id = String(params.id || '').trim();
+  if (!id) return errorResponse('缺少登記 id');
+
+  const sheet = ensureBookingSheet();
+  const values = sheet.getDataRange().getValues();
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][0]).trim() === id) {
+      sheet.deleteRow(i + 1);
+      Logger.log('取消測試站登記：' + id);
+      return successResponse({ message: '已取消登記', id: id });
+    }
+  }
+  return errorResponse('找不到該筆登記（可能已被取消）');
 }
 
 /**
