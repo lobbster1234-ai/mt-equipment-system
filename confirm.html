@@ -102,6 +102,22 @@
     // GAS 網址
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
 
+    // 統一請求：處理 GAS 轉址不穩回傳 HTML。讀取類可重試；仍失敗丟出 isGasGlitch 錯誤。
+    async function fetchJsonRetry(url, retries) {
+      retries = retries || 0;
+      for (let attempt = 0; ; attempt++) {
+        const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+        const text = await res.text();
+        try { return JSON.parse(text); }
+        catch (e) {
+          if (attempt < retries) { await new Promise(r => setTimeout(r, 1200)); continue; }
+          const err = new Error('伺服器回應不穩定，請稍後再試');
+          err.isGasGlitch = true;
+          throw err;
+        }
+      }
+    }
+
     // 從 URL 參數獲取 token
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
@@ -146,14 +162,11 @@
         url.searchParams.append('action', 'validateReturnToken');
         url.searchParams.append('token', token);
 
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
-
-        const data = await res.json();
+        const data = await fetchJsonRetry(url.toString(), 2);
         return data.valid === true;
       } catch (err) {
+        // 伺服器不穩無法確認時，先當作有效放行（實際送出時後端仍會驗證 token）
+        if (err.isGasGlitch) return true;
         return false;
       }
     }
@@ -164,11 +177,7 @@
       url.searchParams.append('action', 'getEquipmentInfo');
       url.searchParams.append('fix_no', fixNo);
 
-      const res = await fetch(url.toString(), {
-        method: 'GET',
-        redirect: 'follow'
-      });
-      return await res.json();
+      return await fetchJsonRetry(url.toString(), 2);
     }
 
     // 顯示確認表單
@@ -206,12 +215,7 @@
         url.searchParams.append('keeper_email', keeperEmail);
         url.searchParams.append('token', token); // 傳送一次性 token
 
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
-
-        const data = await res.json();
+        const data = await fetchJsonRetry(url.toString(), 0);
 
         // 檢查是否是連結無效或已過期的錯誤
         if (data.error && (data.error.includes('無效') || data.error.includes('過期') || data.error.includes('失效'))) {
@@ -249,6 +253,11 @@
           throw new Error(data.error || '確認失敗');
         }
       } catch (err) {
+        if (err.isGasGlitch) {
+          document.getElementById('title').textContent = '📨 已送出';
+          contentDiv.innerHTML = '<p style="font-size:1.1em;padding:20px;color:#666;">伺服器回應不穩定，未能確認結果。<br>此操作可能已成功，請稍後回設備系統查看該設備狀態。</p>';
+          return;
+        }
         contentDiv.innerHTML = `
           <p class="error" style="font-size: 1.2em; margin: 20px 0;">
             ❌ 確認失敗
@@ -277,12 +286,7 @@
         url.searchParams.append('keeper_email', keeperEmail);
         url.searchParams.append('token', token);
 
-        const res = await fetch(url.toString(), {
-          method: 'GET',
-          redirect: 'follow'
-        });
-
-        const data = await res.json();
+        const data = await fetchJsonRetry(url.toString(), 0);
 
         if (data.error && (data.error.includes('無效') || data.error.includes('過期') || data.error.includes('失效'))) {
           contentDiv.innerHTML = `
@@ -311,6 +315,11 @@
           throw new Error(data.error || '處理失敗');
         }
       } catch (err) {
+        if (err.isGasGlitch) {
+          document.getElementById('title').textContent = '📨 已送出';
+          contentDiv.innerHTML = '<p style="font-size:1.1em;padding:20px;color:#666;">伺服器回應不穩定，未能確認結果。<br>此操作可能已成功，請稍後回設備系統查看該設備狀態。</p>';
+          return;
+        }
         contentDiv.innerHTML = `
           <p class="error" style="font-size: 1.2em; margin: 20px 0;">❌ 處理失敗</p>
           <p style="color: #666;">${err.message}</p>

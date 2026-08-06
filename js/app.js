@@ -9,6 +9,28 @@ function loadingHtml() {
   return '<div class="loading-box"><div class="spinner"></div><span>載入中...</span></div>';
 }
 
+// 統一的 GAS GET 請求，處理「GAS 轉址不穩、回傳 HTML 而非 JSON」的情況。
+// - 解析成功 → 回傳 JSON 物件
+// - 讀取類（傳 { retries: N }）→ 收到 HTML 時自動重試（讀取為冪等，重試安全）
+// - 仍失敗 → 丟出帶 isGasGlitch=true 的錯誤，讓呼叫端顯示友善提示而非 Unexpected token 錯誤
+async function gasGetJson(url, opts) {
+  opts = opts || {};
+  const retries = opts.retries || 0;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+    const text = await res.text();
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      if (attempt < retries) { await new Promise(r => setTimeout(r, 1200)); continue; }
+      console.warn('GAS 回應非 JSON（轉址不穩）:', text.slice(0, 120));
+      const err = new Error('伺服器回應不穩定，請稍後再試');
+      err.isGasGlitch = true;
+      throw err;
+    }
+  }
+}
+
 /**
  * 格式化日期時間為 yyyy-MM-dd HH:mm:ss（處理各種輸入格式）
  */
@@ -858,14 +880,9 @@ async function handlePostponeSubmit(e) {
     
     console.log('延後申請 URL:', url.toString());
     
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const result = await res.json();
+    const result = await gasGetJson(url.toString());
     console.log('延後申請結果:', result);
-    
+
     if (result.success) {
       alert('✅ 續借申請已送出！\n\n系統已寄信通知 Keeper 審核\n請留意您的電子郵件以接收審核結果。');
       closePostponeModal();
@@ -873,6 +890,11 @@ async function handlePostponeSubmit(e) {
       throw new Error(result.error || '申請失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      alert('✅ 續借申請已送出，但伺服器回應不穩定、未能確認。\n請留意 Keeper 是否收到審核信；若沒有，稍後再送一次即可。');
+      closePostponeModal();
+      return;
+    }
     console.error('延後申請失敗:', err);
     alert('❌ 續借申請失敗：' + err.message);
     if (submitBtn) {
@@ -896,12 +918,7 @@ async function submitBorrow(formData) {
 
     console.log('借用請求網址:', url.toString());
 
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    const result = await res.json();
+    const result = await gasGetJson(url.toString());
 
     if (result.success || result.status === 'success' || (!result.error && result.message)) {
       return { success: true, message: '✅ 借用成功！已通知保管人' };
@@ -909,6 +926,9 @@ async function submitBorrow(formData) {
       throw new Error(result.error || '借用失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      return { success: true, message: '✅ 借用已送出，但伺服器回應不穩定、未能確認結果。\n若列表未更新，請稍後重新整理。' };
+    }
     console.error('借用失敗:', err);
     return { success: false, message: `❌ ${err.message}` };
   }
@@ -927,12 +947,7 @@ async function requestBorrow(formData) {
 
     console.log('借用請求網址:', url.toString());
 
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    const result = await res.json();
+    const result = await gasGetJson(url.toString());
 
     if (result.success || result.status === 'success' || (!result.error && result.message)) {
       return { success: true, message: '📧 借用申請已送出！\n\n系統已寄信通知保管人（Keeper）審核\n請留意您的電子郵件以接收審核結果。' };
@@ -940,6 +955,9 @@ async function requestBorrow(formData) {
       throw new Error(result.error || '借用請求失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      return { success: true, message: '📧 借用申請已送出，但伺服器回應不穩定、未能確認。\n請留意 Keeper 是否收到審核信；若沒有，稍後再送一次即可。' };
+    }
     console.error('借用請求失敗:', err);
     return { success: false, message: `❌ ${err.message}` };
   }
@@ -1003,12 +1021,7 @@ async function confirmReturn(fixNo, deviceName, keeper) {
 
     console.log('確認歸還請求網址:', url.toString());
 
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    const result = await res.json();
+    const result = await gasGetJson(url.toString());
 
     if (result.success || result.status === 'success' || (!result.error && result.message)) {
       alert('✅ 歸還已確認！設備狀態已更新。');
@@ -1017,6 +1030,11 @@ async function confirmReturn(fixNo, deviceName, keeper) {
       throw new Error(result.error || '確認失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      alert('✅ 已送出，但伺服器回應不穩定、未能確認結果。\n請稍後重新整理查看狀態。');
+      searchEquipment();
+      return;
+    }
     console.error('確認歸還失敗:', err);
     alert(`❌ 確認失敗：${err.message}`);
   }
@@ -2552,13 +2570,8 @@ async function handleDeptReturn(id, deviceName, borrower) {
     url.searchParams.append('action', 'deptReturn');
     url.searchParams.append('id', id);
     
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const data = await res.json();
-    
+    const data = await gasGetJson(url.toString());
+
     if (data.success) {
       alert('✅ 歸還成功！已通知管理員');
       loadDeptBorrowList();
@@ -2566,6 +2579,11 @@ async function handleDeptReturn(id, deviceName, borrower) {
       alert('❌ 歸還失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      alert('✅ 歸還已送出，但伺服器回應不穩定、未能確認。\n請稍後重新整理查看狀態；若仍在借用中，再按一次即可。');
+      loadDeptBorrowList();
+      return;
+    }
     console.error('歸還失敗:', err);
     alert('❌ 歸還失敗：' + err.message);
   }
@@ -2941,8 +2959,7 @@ async function submitStationPostpone(e, station) {
     url.searchParams.append('action', 'postponeStation');
     url.searchParams.append('station', station);
     url.searchParams.append('new_due_date', newDue);
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const result = await res.json();
+    const result = await gasGetJson(url.toString());
     if (result.success) {
       const modal = document.getElementById('station-postpone-modal');
       if (modal) modal.style.display = 'none';
@@ -2951,6 +2968,12 @@ async function submitStationPostpone(e, station) {
       throw new Error(result.error || '續借失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      const modal = document.getElementById('station-postpone-modal');
+      if (modal) modal.style.display = 'none';
+      loadTestStations();
+      return;
+    }
     alert('❌ 續借失敗：' + err.message);
     if (btn) { btn.disabled = false; btn.textContent = '✅ 確認續借'; }
   }
