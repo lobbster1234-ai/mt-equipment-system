@@ -2857,65 +2857,123 @@ function buildStationModal(id, innerHtml) {
   return modal;
 }
 
-// 開啟測試站「登記使用」Modal（選開始～結束日期的連續區間）
+// 日曆狀態
+let calStation = '';
+let calYear = 0, calMonth = 0;   // calMonth: 0~11
+let calBooked = {};              // 'yyyy-MM-dd' -> 預約人
+let calSelected = new Set();     // 已選日期
+let calMinStr = '';              // 今天 yyyy-MM-dd
+
+// 開啟測試站「登記使用」Modal（用日曆選日期，已被預約顯示 ❌）
 function openStationBookModal(station) {
-  const minDate = stationMinDateTime().slice(0, 10);
+  calStation = station;
+  calSelected = new Set();
+  calBooked = {};
+  const st = (lastStationsData || []).find(x => x.station === station);
+  if (st && st.bookings) {
+    st.bookings.forEach(b => { calBooked[b.date] = b.booker || '已預約'; });
+  }
+  calMinStr = stationMinDateTime().slice(0, 10);
+  const t = new Date(calMinStr + 'T00:00:00');
+  calYear = t.getFullYear();
+  calMonth = t.getMonth();
+
   buildStationModal('station-book-modal', `
-    <h2 style="color:#667eea;margin-bottom:20px;">➕ 登記使用 ${escapeHtml(station)}</h2>
+    <h2 style="color:#667eea;margin-bottom:16px;">➕ 登記使用 ${escapeHtml(station)}</h2>
     <form onsubmit="submitStationBook(event, '${station}')">
       <div class="form-group">
         <label>登記人姓名 *</label>
         <input type="text" id="station-book-name" required placeholder="請輸入您的姓名" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div class="form-group" style="margin-top:12px;">
-        <label>使用日期（起訖）* <span style="font-size:0.85em;color:#888;">(只用一天：結束可留空)</span></label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input type="date" id="station-book-start" min="${minDate}" required style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
-          <span style="color:#888;">～</span>
-          <input type="date" id="station-book-end" min="${minDate}" style="flex:1;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
-        </div>
+        <label>選擇使用日期 * <span style="font-size:0.85em;color:#888;">(可點多天；❌ 為已被預約)</span></label>
+        <div id="station-cal" class="cal"></div>
+        <div id="station-cal-summary" class="cal-summary"></div>
       </div>
       <div class="form-group" style="margin-top:12px;">
         <label>用途 / 備註</label>
         <input type="text" id="station-book-purpose" placeholder="選填，例如：EE check、FT test" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
-      <div style="text-align:center;margin-top:20px;">
+      <div style="text-align:center;margin-top:18px;">
         <button type="submit" class="btn-primary">✅ 確認登記</button>
       </div>
     </form>
   `);
+  renderStationCalendar();
 }
 
-// 把 start~end（含）展開成 yyyy-MM-dd 陣列
-function expandDateRange(start, end) {
-  const out = [];
-  let d = new Date(start + 'T00:00:00');
-  const endD = new Date(end + 'T00:00:00');
-  while (d <= endD) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    out.push(`${y}-${m}-${day}`);
-    d.setDate(d.getDate() + 1);
+// 繪製日曆
+function renderStationCalendar() {
+  const el = document.getElementById('station-cal');
+  if (!el) return;
+  const monthNames = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  const dow = ['日', '一', '二', '三', '四', '五', '六'];
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  const today = new Date(calMinStr + 'T00:00:00');
+  const canPrev = (calYear > today.getFullYear()) || (calYear === today.getFullYear() && calMonth > today.getMonth());
+
+  let html = `
+    <div class="cal-head">
+      <button type="button" class="cal-nav" ${canPrev ? '' : 'disabled'} onclick="calNav(-1)">‹</button>
+      <span class="cal-title">${calYear} 年 ${monthNames[calMonth]}</span>
+      <button type="button" class="cal-nav" onclick="calNav(1)">›</button>
+    </div>
+    <div class="cal-grid">`;
+  dow.forEach(d => { html += `<div class="cal-dow">${d}</div>`; });
+  for (let i = 0; i < firstDay; i++) html += `<div class="cal-empty"></div>`;
+  for (let day = 1; day <= daysInMonth; day++) {
+    const mm = String(calMonth + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    const dateStr = `${calYear}-${mm}-${dd}`;
+    const bookedBy = calBooked[dateStr];
+    if (bookedBy) {
+      html += `<div class="cal-day booked" title="已被 ${escapeHtml(bookedBy)} 預約"><span class="cal-d">${day}</span><span class="cal-x">✕</span></div>`;
+    } else if (dateStr < calMinStr) {
+      html += `<div class="cal-day past">${day}</div>`;
+    } else {
+      const sel = calSelected.has(dateStr) ? ' selected' : '';
+      html += `<div class="cal-day${sel}" onclick="toggleCalDate('${dateStr}')">${day}</div>`;
+    }
   }
-  return out;
+  html += `</div>`;
+  el.innerHTML = html;
+
+  const sum = document.getElementById('station-cal-summary');
+  if (sum) {
+    const arr = Array.from(calSelected).sort();
+    sum.innerHTML = arr.length
+      ? `已選 ${arr.length} 天：` + arr.map(d => `<span class="cal-chip">${d.slice(5)}</span>`).join('')
+      : '<span style="color:#aaa;">尚未選擇日期</span>';
+  }
 }
 
-// 送出測試站登記（開始～結束的連續區間）
+// 點日期：加入/移除
+function toggleCalDate(dateStr) {
+  if (calSelected.has(dateStr)) calSelected.delete(dateStr);
+  else calSelected.add(dateStr);
+  renderStationCalendar();
+}
+
+// 上/下個月
+function calNav(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  else if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderStationCalendar();
+}
+
+// 送出測試站登記（日曆選的多個日期）
 async function submitStationBook(e, station) {
   e.preventDefault();
-  const start = document.getElementById('station-book-start').value;
-  let end = document.getElementById('station-book-end').value;
   const name = document.getElementById('station-book-name').value.trim();
   const purpose = document.getElementById('station-book-purpose').value.trim();
+  const dates = Array.from(calSelected).sort();
 
-  if (!start) { alert('請選擇開始日期'); return; }
-  if (!end) end = start; // 結束留空 = 只登記一天
-  if (end < start) { alert('結束日期不能早於開始日期'); return; }
   if (!name) { alert('請填寫登記人姓名'); return; }
-
-  const dates = expandDateRange(start, end);
-  if (dates.length > 90) { alert('一次最多登記 90 天，請縮短區間'); return; }
+  if (dates.length === 0) { alert('請在日曆上至少選一個使用日期'); return; }
+  if (dates.length > 90) { alert('一次最多登記 90 天，請減少選取'); return; }
 
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
