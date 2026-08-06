@@ -2432,9 +2432,20 @@ async function handleDeptBorrowSubmit() {
       redirect: 'follow'
     });
     
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      // GAS 轉址不穩回傳 HTML，但伺服器通常已借用成功（借用人會收到確認信）
+      console.warn('部門儀器借用回應非 JSON（GAS 不穩），視為已送出:', text.slice(0, 120));
+      alert('✅ 借用已送出！\n\n伺服器回應不穩定，若您已收到確認信即代表借用成功。\n若下方列表未更新，請稍後重新整理。');
+      document.getElementById('dept-borrow-form').reset();
+      loadDeptBorrowList();
+      return;
+    }
     console.log('部門儀器借用回應:', data);
-    
+
     if (data.success) {
       alert('✅ 借用成功！確認郵件已寄出');
       // 清空表單
