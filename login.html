@@ -196,8 +196,19 @@
         url.searchParams.append('password', password);
         
         const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-        const data = await res.json();
-        
+        const text = await res.text();
+
+        let data;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          // GAS 偶爾轉址不穩回傳 HTML（非帳號密碼問題）。不自動重試以免累積登入失敗次數被鎖定，
+          // 改由使用者稍後手動再登入一次。
+          console.warn('登入回應非 JSON（GAS 不穩）:', text.slice(0, 120));
+          showError('伺服器忙碌，回應異常，請稍等幾秒再登入一次（這不是帳號或密碼錯誤）');
+          return;
+        }
+
         if (data.success) {
           if (data.needSetupPassword) {
             sessionStorage.setItem('mt_setup_password', JSON.stringify({
