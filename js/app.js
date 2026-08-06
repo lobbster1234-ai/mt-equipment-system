@@ -2733,8 +2733,15 @@ async function loadTestStations() {
 // 判斷測試站是否已逾期（現在時間超過預計歸還時間）
 function isStationOverdue(dtDue) {
   if (!dtDue) return false;
-  // dt_due 格式為 "yyyy-MM-dd HH:mm"，轉成 ISO 讓瀏覽器以本地時間解析
-  const due = new Date(dtDue.trim().replace(' ', 'T'));
+  const s = dtDue.trim();
+  // 純日期（以天為單位）→ 當天結束前都算有效，超過當天才算逾期
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const due = new Date(s + 'T23:59:59');
+    if (isNaN(due.getTime())) return false;
+    return Date.now() > due.getTime();
+  }
+  // 相容舊的「日期＋時間」資料
+  const due = new Date(s.replace(' ', 'T'));
   if (isNaN(due.getTime())) return false;
   return Date.now() > due.getTime();
 }
@@ -2814,8 +2821,8 @@ function openStationBorrowModal(station) {
         <input type="text" id="station-borrow-name" required placeholder="請輸入您的姓名" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div class="form-group" style="margin-top:12px;">
-        <label>預計歸還日期時間 *</label>
-        <input type="datetime-local" id="station-borrow-due" step="3600" min="${stationMinDateTime()}" onchange="snapToHour(this)" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+        <label>預計歸還日期 * <span style="font-size:0.85em;color:#888;">(以天為單位)</span></label>
+        <input type="date" id="station-borrow-due" min="${stationMinDateTime().slice(0, 10)}" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div style="text-align:center;margin-top:20px;">
         <button type="submit" class="btn-primary">✅ 確認借用</button>
@@ -2829,7 +2836,7 @@ async function submitStationBorrow(e, station) {
   e.preventDefault();
   const name = document.getElementById('station-borrow-name').value.trim();
   const due = document.getElementById('station-borrow-due').value;
-  if (!name || !due) { alert('請填寫姓名與預計歸還時間'); return; }
+  if (!name || !due) { alert('請填寫姓名與預計歸還日期'); return; }
 
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
@@ -2899,8 +2906,8 @@ function openStationPostponeModal(station, currentDue) {
     ${currentDue ? `<p style="color:#666;margin-bottom:12px;">目前預計歸還：<strong>${currentDue}</strong></p>` : ''}
     <form onsubmit="submitStationPostpone(event, '${station}')">
       <div class="form-group">
-        <label>新的預計歸還日期時間 *</label>
-        <input type="datetime-local" id="station-postpone-due" step="3600" min="${stationMinDateTime()}" onchange="snapToHour(this)" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
+        <label>新的預計歸還日期 * <span style="font-size:0.85em;color:#888;">(以天為單位)</span></label>
+        <input type="date" id="station-postpone-due" min="${stationMinDateTime().slice(0, 10)}" required style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div style="text-align:center;margin-top:20px;">
         <button type="submit" class="btn-primary" style="background:#ffc107;color:#495057;">✅ 確認續借</button>
@@ -2913,7 +2920,7 @@ function openStationPostponeModal(station, currentDue) {
 async function submitStationPostpone(e, station) {
   e.preventDefault();
   const newDue = document.getElementById('station-postpone-due').value;
-  if (!newDue) { alert('請選擇新的預計歸還時間'); return; }
+  if (!newDue) { alert('請選擇新的預計歸還日期'); return; }
 
   const btn = e.target.querySelector('button[type="submit"]');
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
