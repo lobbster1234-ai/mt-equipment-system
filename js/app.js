@@ -1304,38 +1304,60 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================================
 
 // 搜尋歷史紀錄
+// 歷史日期顯示用：把 ISO 的 T 換成空格
+function fmtHistDate(v) {
+  if (!v) return '';
+  return v.toString().replace('T', ' ');
+}
+
 async function searchHistory() {
-  const keyword = document.getElementById('history-keyword')?.value.trim() || '';
+  const keyword = (document.getElementById('history-keyword')?.value.trim() || '').toLowerCase();
   const actionFilter = document.getElementById('history-action')?.value || '';
-  const sortOrder = document.getElementById('history-sort')?.value || 'newest';  // 預設由新到舊
+  const sortOrder = document.getElementById('history-sort')?.value || 'newest';
 
   const listEl = document.getElementById('history-list');
-  if (listEl) {
-    listEl.innerHTML = loadingHtml();
-  }
+  if (listEl) listEl.innerHTML = loadingHtml();
 
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'history');
-    if (keyword) url.searchParams.append('keyword', keyword);
-    if (actionFilter) url.searchParams.append('actionType', actionFilter);  // 修正：使用 actionType 避免衝突
+    // 已搬到 Supabase（讀取公開）
+    const url = SUPABASE_URL + '/rest/v1/history?select=*&order=ts.desc';
+    const res = await fetch(url, { headers: sbHeaders() });
+    const rows = await res.json();
+    if (!Array.isArray(rows)) throw new Error(rows.message || rows.hint || '查詢失敗');
 
-    console.log('歷史紀錄請求網址:', url.toString());
-
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
+    // 依動作對應成前端要的欄位（比照原本 GAS queryHistory 的邏輯）
+    let history = rows.map(r => {
+      const action = r.action || '';
+      let dt_borrow = '', dt_due = '', dt_return = '', return_confirmed = false;
+      if (action === 'borrow') {
+        dt_borrow = fmtHistDate(r.dt_action); dt_due = fmtHistDate(r.dt_due);
+      } else if (action === 'return') {
+        dt_borrow = fmtHistDate(r.dt_action); dt_due = fmtHistDate(r.dt_due); dt_return = fmtHistDate(r.dt_confirmed);
+      } else if (action === 'confirm') {
+        dt_borrow = fmtHistDate(r.dt_action); dt_due = fmtHistDate(r.dt_due); dt_return = fmtHistDate(r.dt_confirmed); return_confirmed = true;
+      } else if (action === 'postpone' || action === 'postpone_approved') {
+        dt_borrow = fmtHistDate(r.dt_action); dt_due = fmtHistDate(r.dt_due);
+      } else {
+        dt_borrow = fmtHistDate(r.dt_action); dt_due = fmtHistDate(r.dt_due); dt_return = fmtHistDate(r.dt_confirmed);
+      }
+      return {
+        timestamp: r.ts || '', action: action, fix_no: r.fix_no || '',
+        device_name: r.device_name || '', borrower: r.borrower || '', keeper: r.keeper || '',
+        dt_borrow: dt_borrow, dt_due: dt_due, dt_return: dt_return, return_confirmed: return_confirmed
+      };
     });
 
-    const data = await res.json();
-    console.log('歷史紀錄回應:', data);
-
-    if (data.error) {
-      throw new Error(data.error);
+    // 關鍵字 + 動作篩選（比照原本）
+    if (keyword) {
+      history = history.filter(h =>
+        (h.fix_no || '').toLowerCase().includes(keyword) ||
+        (h.device_name || '').toLowerCase().includes(keyword) ||
+        (h.borrower || '').toLowerCase().includes(keyword) ||
+        (h.keeper || '').toLowerCase().includes(keyword));
     }
+    if (actionFilter) history = history.filter(h => h.action === actionFilter);
 
-    const history = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
-    renderHistory(history, sortOrder);  // 傳遞排序參數
+    renderHistory(history, sortOrder);
   } catch (err) {
     console.error('查詢歷史紀錄失敗:', err);
     if (listEl) {

@@ -2516,6 +2516,60 @@ function postponeStation(params) {
 /**
  * 記錄歷史紀錄
  */
+// ===== Supabase 歷史紀錄（雙寫）=====
+const SUPABASE_URL_GAS = 'https://ifvebqoielozidojkyjf.supabase.co';
+
+// 用 service_role 密鑰寫入 Supabase（密鑰存在 Script Properties 的 SUPABASE_SECRET，不寫在程式碼裡）
+function postHistoryToSupabase(rowObj) {
+  try {
+    const secret = PropertiesService.getScriptProperties().getProperty('SUPABASE_SECRET');
+    if (!secret) return; // 未設定密鑰就略過，不影響主流程
+    UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/history', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { apikey: secret, Authorization: 'Bearer ' + secret },
+      payload: JSON.stringify(rowObj),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    Logger.log('寫入 Supabase 歷史失敗（不影響主流程）: ' + e.message);
+  }
+}
+
+/**
+ * 一次性：把現有「歷史紀錄」工作表匯入 Supabase（在編輯器手動執行一次即可）
+ */
+function migrateHistoryToSupabase() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(HISTORY_SHEET_NAME);
+  if (!sheet) { Logger.log('沒有歷史工作表'); return; }
+  const secret = PropertiesService.getScriptProperties().getProperty('SUPABASE_SECRET');
+  if (!secret) { Logger.log('未設定 SUPABASE_SECRET，請先到 專案設定 → Script Properties 新增'); return; }
+  const rows = sheet.getDataRange().getValues().slice(1);
+  const payload = rows.filter(function (r) { return r[1]; }).map(function (r) {
+    return {
+      ts: (r[0] instanceof Date) ? Utilities.formatDate(r[0], 'Asia/Taipei', 'yyyy-MM-dd HH:mm:ss') : (r[0] || '').toString(),
+      action: (r[1] || '').toString(),
+      fix_no: (r[2] || '').toString(),
+      device_name: (r[3] || '').toString(),
+      borrower: (r[4] || '').toString(),
+      keeper: (r[5] || '').toString(),
+      dt_action: (r[6] || '').toString(),
+      dt_due: (r[7] || '').toString(),
+      dt_confirmed: (r[8] || '').toString()
+    };
+  });
+  if (payload.length === 0) { Logger.log('沒有可匯入的歷史'); return; }
+  const res = UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/history', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { apikey: secret, Authorization: 'Bearer ' + secret },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  Logger.log('匯入歷史 ' + payload.length + ' 筆，HTTP ' + res.getResponseCode() + '：' + res.getContentText().slice(0, 200));
+}
+
 function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue, dtConfirmed) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -2541,7 +2595,14 @@ function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue
       dtDue || '',
       dtConfirmed || ''
     ]);
-    
+
+    // 同步寫一份到 Supabase（歷史頁改讀 Supabase；失敗也不影響主流程）
+    postHistoryToSupabase({
+      ts: now, action: action, fix_no: fixNo, device_name: deviceName,
+      borrower: borrower || '', keeper: keeper || '',
+      dt_action: dtAction || '', dt_due: dtDue || '', dt_confirmed: dtConfirmed || ''
+    });
+
     Logger.log(`已記錄歷史紀錄：${action} - ${fixNo}`);
   } catch (err) {
     Logger.error('記錄歷史紀錄失敗:', err);
