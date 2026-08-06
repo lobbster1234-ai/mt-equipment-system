@@ -666,8 +666,11 @@ nav {
 .cal {
   border: 1px solid #e0e0e0;
   border-radius: 10px;
-  padding: 10px;
+  padding: 8px;
   margin-top: 6px;
+  max-width: 288px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .cal-head {
@@ -712,13 +715,15 @@ nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: 0.82em;
   border: 1px solid transparent;
   user-select: none;
   transition: background 0.15s;
 }
+
+.cal-summary { text-align: center; }
 
 .cal-day:hover:not(.past):not(.booked):not(.selected) { background: #eef0ff; }
 
