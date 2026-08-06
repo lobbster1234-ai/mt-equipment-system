@@ -1304,10 +1304,24 @@ document.addEventListener('DOMContentLoaded', () => {
 // =============================================
 
 // 搜尋歷史紀錄
-// 歷史日期顯示用：把 ISO 的 T 換成空格
-function fmtHistDate(v) {
-  if (!v) return '';
-  return v.toString().replace('T', ' ');
+// 歷史日期顯示用：各種格式統一轉成 yyyy-MM-dd（比照原本 GAS forceFormatDate）
+function fmtHistDate(value) {
+  if (!value) return '';
+  const s = value.toString().trim();
+  if (!s) return '';
+  // 已是 yyyy-MM-dd 直接用
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  // yyyy-MM-dd 後面接時間 → 取日期部分
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T]/);
+  if (m) return m[1];
+  // 其他（含 "Mon Jun 29 2026 ... GMT+0800" 之類）→ 解析後轉台北時間的 yyyy-MM-dd
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  const taipei = new Date(d.getTime() + (8 * 60 + d.getTimezoneOffset()) * 60000);
+  const y = taipei.getFullYear();
+  const mo = String(taipei.getMonth() + 1).padStart(2, '0');
+  const da = String(taipei.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
 }
 
 async function searchHistory() {
