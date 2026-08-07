@@ -529,7 +529,7 @@ nav {
 /* ===== 測試站（座位）卡片 ===== */
 .station-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 18px;
   margin-top: 10px;
 }
@@ -641,7 +641,14 @@ nav {
   color: #adb5bd;
   font-size: 0.7em;
   line-height: 1.4;
+  flex-shrink: 0;
   transition: color 0.15s;
+}
+
+/* 日期範圍比單一日期長，卡片窄時允許在「~」處換行，不要溢出去撞到 ✕ */
+.booking-group .booking-date {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .booking-group-head:hover .booking-arrow {

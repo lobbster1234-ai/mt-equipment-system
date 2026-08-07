@@ -2858,14 +2858,22 @@ function isConsecutiveDates(dates) {
   return true;
 }
 
-// 收合列要顯示的日期文字：「2026-08-10 ~ 08-19」
+// 卡片上顯示的日期：今年的省略年份（08-10），跨年的才顯示完整（2027-01-05）
+// 卡片很窄，年份幾乎都是今年，省掉才塞得下
+function fmtStationDate(d) {
+  if (!d) return '';
+  return d.slice(0, 4) === String(new Date().getFullYear()) ? d.slice(5) : d;
+}
+
+// 收合列要顯示的日期文字：「08-10 ~ 08-31」
 // 中間有跳過的日子（例如跳週末）就加上 ⋯，提示展開才看得到完整日期
-function stationRangeLabel(dates) {
+// short=false 用於取消確認視窗，那裡空間夠、顯示完整年月日比較不會按錯
+function stationRangeLabel(dates, short) {
+  const fmt = short ? fmtStationDate : (d => d);
   const first = dates[0];
   const last = dates[dates.length - 1];
-  if (dates.length === 1) return first;
-  const short = first.slice(0, 4) === last.slice(0, 4) ? last.slice(5) : last;
-  return first + ' ~ ' + short + (isConsecutiveDates(dates) ? '' : ' ⋯');
+  if (dates.length === 1) return fmt(first);
+  return fmt(first) + ' ~ ' + fmt(last) + (isConsecutiveDates(dates) ? '' : ' ⋯');
 }
 
 // 展開／收合一筆多天預約
@@ -2937,7 +2945,7 @@ function renderTestStations(stations) {
             <div class="booking-row">
               <button class="booking-cancel" onclick="cancelStationBooking('${b.id}', '${b.date}')" title="取消這筆登記">✕</button>
               <div class="booking-main">
-                <span class="booking-date">📅 ${escapeHtml(b.date)}</span>
+                <span class="booking-date">📅 ${escapeHtml(fmtStationDate(b.date))}</span>
                 <span class="booking-name">${escapeHtml(g.booker)}</span>
               </div>
               ${purposeHtml}
@@ -2949,10 +2957,10 @@ function renderTestStations(stations) {
         const gid = 'g' + (gidSeq++);
         stationGroupCache[gid] = g;
         const dates = g.items.map(x => x.date);
-        const rangeLabel = stationRangeLabel(dates);
+        const rangeLabel = stationRangeLabel(dates, true);
         const dayRows = g.items.map(b => `
           <div class="booking-day-row">
-            <span class="booking-day-date">📅 ${escapeHtml(b.date)}</span>
+            <span class="booking-day-date">📅 ${escapeHtml(fmtStationDate(b.date))}</span>
             <button class="booking-cancel booking-day-cancel" onclick="cancelStationBooking('${b.id}', '${b.date}')" title="只取消這一天">✕</button>
           </div>`).join('');
         bookingHtml += `
