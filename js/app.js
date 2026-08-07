@@ -2971,8 +2971,8 @@ function renderTestStations(stations) {
                 <span class="booking-arrow">▶</span>
                 <span class="booking-date">📅 ${escapeHtml(rangeLabel)}</span>
                 <span class="booking-days">${g.items.length} 天</span>
+                <span class="booking-name">${escapeHtml(g.booker)}</span>
               </div>
-              <div class="booking-name">${escapeHtml(g.booker)}</div>
               ${purposeHtml}
             </div>
             <div class="booking-days-list" style="display:none;">${dayRows}</div>

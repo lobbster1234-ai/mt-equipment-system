@@ -527,9 +527,12 @@ nav {
 }
 
 /* ===== 測試站（座位）卡片 ===== */
+/* 測試站只有兩台，卡片放寬到 440px 讓預約內容一行放得下；
+   窄螢幕自動降成單欄滿寬 */
 .station-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 440px));
+  justify-content: center;
   gap: 18px;
   margin-top: 10px;
 }
