@@ -2783,7 +2783,7 @@ async function loadTestStations() {
   const today = stationMinDateTime().slice(0, 10);
   try {
     const url = SUPABASE_URL + '/rest/v1/station_bookings'
-      + '?select=id,station,booking_date,booker,purpose'
+      + '?select=id,station,booking_date,booker,purpose,created_at'
       + '&booking_date=gte.' + today
       + '&order=booking_date.asc';
     const res = await fetch(url, { headers: sbHeaders() });
@@ -2794,7 +2794,7 @@ async function loadTestStations() {
     TEST_STATIONS_FE.forEach(s => { byStation[s] = []; });
     rows.forEach(r => {
       if (!byStation[r.station]) byStation[r.station] = [];
-      byStation[r.station].push({ id: r.id, date: r.booking_date, booker: r.booker, purpose: r.purpose || '' });
+      byStation[r.station].push({ id: r.id, date: r.booking_date, booker: r.booker, purpose: r.purpose || '', created_at: r.created_at || '' });
     });
     const stations = TEST_STATIONS_FE.map(s => ({ station: s, bookings: byStation[s] || [] }));
     renderTestStations(stations);
@@ -2826,6 +2826,80 @@ function isStationOverdue(dtDue) {
 // 最近一次載入的測試站資料（供登記視窗判斷哪些日期已被登記）
 let lastStationsData = [];
 
+// 分組後的預約（key = gid），供收合列的取消按鈕查回整組資料
+let stationGroupCache = {};
+
+// 把「同一次送出」的多天登記併成一筆預約
+// 同一批 insert 的 created_at 完全相同，再加上登記人＋用途當保險
+function groupStationBookings(bookings) {
+  const groups = [];
+  const map = {};
+  (bookings || []).forEach(b => {
+    const key = (b.booker || '') + '|' + (b.purpose || '') + '|' + (b.created_at || b.id);
+    if (!map[key]) {
+      map[key] = { booker: b.booker || '', purpose: b.purpose || '', items: [] };
+      groups.push(map[key]);
+    }
+    map[key].items.push(b);
+  });
+  groups.forEach(g => g.items.sort((a, b) => (a.date < b.date ? -1 : (a.date > b.date ? 1 : 0))));
+  // 依每組最早的日期排序，維持原本「由近到遠」的順序
+  groups.sort((a, b) => (a.items[0].date < b.items[0].date ? -1 : (a.items[0].date > b.items[0].date ? 1 : 0)));
+  return groups;
+}
+
+// 日期陣列是否為連續的每一天
+function isConsecutiveDates(dates) {
+  for (let i = 1; i < dates.length; i++) {
+    const prev = new Date(dates[i - 1] + 'T00:00:00');
+    const cur = new Date(dates[i] + 'T00:00:00');
+    if (Math.round((cur - prev) / 86400000) !== 1) return false;
+  }
+  return true;
+}
+
+// 收合列要顯示的日期文字：「2026-08-10 ~ 08-19」
+// 中間有跳過的日子（例如跳週末）就加上 ⋯，提示展開才看得到完整日期
+function stationRangeLabel(dates) {
+  const first = dates[0];
+  const last = dates[dates.length - 1];
+  if (dates.length === 1) return first;
+  const short = first.slice(0, 4) === last.slice(0, 4) ? last.slice(5) : last;
+  return first + ' ~ ' + short + (isConsecutiveDates(dates) ? '' : ' ⋯');
+}
+
+// 展開／收合一筆多天預約
+function toggleBookingGroup(headEl) {
+  const group = headEl.closest('.booking-group');
+  if (!group) return;
+  const daysList = group.querySelector('.booking-days-list');
+  const arrow = group.querySelector('.booking-arrow');
+  const opened = daysList.style.display !== 'none';
+  daysList.style.display = opened ? 'none' : 'block';
+  if (arrow) arrow.textContent = opened ? '▶' : '▼';
+  group.classList.toggle('open', !opened);
+}
+
+// 取消整筆預約（一次刪掉該批的所有日期）
+async function cancelBookingGroup(gid) {
+  const g = stationGroupCache[gid];
+  if (!g) return;
+  const dates = g.items.map(x => x.date);
+  if (!confirm(`確定要取消 ${g.booker} 的這筆登記嗎？\n\n${stationRangeLabel(dates)}（共 ${dates.length} 天）`)) return;
+  try {
+    const ids = g.items.map(x => '"' + x.id + '"').join(',');
+    const url = SUPABASE_URL + '/rest/v1/station_bookings?id=in.(' + encodeURIComponent(ids) + ')';
+    const res = await fetch(url, { method: 'DELETE', headers: sbHeaders() });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.message || e.hint || '取消失敗');
+    }
+    loadTestStations();
+  } catch (err) {
+    alert('❌ 取消失敗：' + err.message);
+  }
+}
+
 // 渲染測試站卡片
 function renderTestStations(stations) {
   const list = document.getElementById('test-station-list');
@@ -2839,27 +2913,61 @@ function renderTestStations(stations) {
   }
 
   const today = stationMinDateTime().slice(0, 10); // 台北時間今天 yyyy-MM-dd
+  stationGroupCache = {};
+  let gidSeq = 0;
   let html = '';
   stations.forEach(s => {
     const stationName = escapeHtml(s.station || '');
     const bookings = s.bookings || [];
     const inUseToday = bookings.some(b => b.date === today);
     let bookingHtml = '';
+    const groups = groupStationBookings(bookings);
     if (bookings.length === 0) {
       bookingHtml = '<div class="station-empty">目前無人登記</div>';
     } else {
-      bookings.forEach(b => {
-        const purposeHtml = b.purpose
-          ? `<div class="booking-purpose">📝 ${escapeHtml(b.purpose)}</div>`
+      groups.forEach(g => {
+        const purposeHtml = g.purpose
+          ? `<div class="booking-purpose">📝 ${escapeHtml(g.purpose)}</div>`
           : '';
+
+        // 只登記一天 → 維持原本單列樣式，不需要收合
+        if (g.items.length === 1) {
+          const b = g.items[0];
+          bookingHtml += `
+            <div class="booking-row">
+              <button class="booking-cancel" onclick="cancelStationBooking('${b.id}', '${b.date}')" title="取消這筆登記">✕</button>
+              <div class="booking-main">
+                <span class="booking-date">📅 ${escapeHtml(b.date)}</span>
+                <span class="booking-name">${escapeHtml(g.booker)}</span>
+              </div>
+              ${purposeHtml}
+            </div>`;
+          return;
+        }
+
+        // 多天 → 收合成一筆，點標題展開看每一天
+        const gid = 'g' + (gidSeq++);
+        stationGroupCache[gid] = g;
+        const dates = g.items.map(x => x.date);
+        const rangeLabel = stationRangeLabel(dates);
+        const dayRows = g.items.map(b => `
+          <div class="booking-day-row">
+            <span class="booking-day-date">📅 ${escapeHtml(b.date)}</span>
+            <button class="booking-cancel booking-day-cancel" onclick="cancelStationBooking('${b.id}', '${b.date}')" title="只取消這一天">✕</button>
+          </div>`).join('');
         bookingHtml += `
-          <div class="booking-row">
-            <button class="booking-cancel" onclick="cancelStationBooking('${b.id}', '${b.date}')" title="取消這筆登記">✕</button>
-            <div class="booking-main">
-              <span class="booking-date">📅 ${escapeHtml(b.date)}</span>
-              <span class="booking-name">${escapeHtml(b.booker || '')}</span>
+          <div class="booking-row booking-group">
+            <button class="booking-cancel" onclick="cancelBookingGroup('${gid}')" title="取消整筆登記（${g.items.length} 天）">✕</button>
+            <div class="booking-group-head" onclick="toggleBookingGroup(this)" title="點一下展開／收合每一天（⋯ 代表中間有跳過的日子）">
+              <div class="booking-main">
+                <span class="booking-arrow">▶</span>
+                <span class="booking-date">📅 ${escapeHtml(rangeLabel)}</span>
+                <span class="booking-days">${g.items.length} 天</span>
+              </div>
+              <div class="booking-name">${escapeHtml(g.booker)}</div>
+              ${purposeHtml}
             </div>
-            ${purposeHtml}
+            <div class="booking-days-list" style="display:none;">${dayRows}</div>
           </div>`;
       });
     }
@@ -2868,7 +2976,7 @@ function renderTestStations(stations) {
         <div class="station-avatar">${inUseToday ? '🧑‍💻' : '🖥️'}</div>
         <div class="station-today ${inUseToday ? 'busy' : 'free'}">${inUseToday ? '今日使用中' : '今日空閒'}</div>
         <div class="station-title">${stationName}</div>
-        <div class="booking-header">📌 已被預約日期${bookings.length ? `（${bookings.length}）` : ''}</div>
+        <div class="booking-header">📌 已被預約${bookings.length ? `（${groups.length} 筆／共 ${bookings.length} 天）` : '日期'}</div>
         <div class="booking-list">${bookingHtml}</div>
         <button class="btn-borrow-sm station-book-btn" onclick="openStationBookModal('${s.station}')">➕ 登記使用</button>
       </div>`;

@@ -623,6 +623,65 @@ nav {
   color: #e03131;
 }
 
+/* 多天預約：收合成一筆，點標題展開 */
+.booking-group {
+  padding-bottom: 8px;
+}
+
+.booking-group-head {
+  cursor: pointer;
+  user-select: none;
+}
+
+.booking-group.open {
+  background: #eef0fb;
+}
+
+.booking-arrow {
+  color: #adb5bd;
+  font-size: 0.7em;
+  line-height: 1.4;
+  transition: color 0.15s;
+}
+
+.booking-group-head:hover .booking-arrow {
+  color: #667eea;
+}
+
+.booking-days {
+  font-size: 0.75em;
+  color: #fff;
+  background: #a5aecf;
+  border-radius: 10px;
+  padding: 1px 7px;
+  white-space: nowrap;
+}
+
+.booking-days-list {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px dashed #d5d9e6;
+}
+
+.booking-day-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 3px 0 3px 14px;
+}
+
+.booking-day-date {
+  font-size: 0.82em;
+  color: #555;
+  white-space: nowrap;
+}
+
+.booking-day-cancel {
+  position: static;
+  flex-shrink: 0;
+}
+
 .station-book-btn {
   width: 100%;
   margin-top: 4px;
