@@ -21,19 +21,11 @@ function patchEquipmentCache(fixNo, changes) {
     const arr = JSON.parse(cached);
     if (!Array.isArray(arr)) return;
 
-    // 用寬鬆比對：快取裡的 fix_no 有可能是數字或前後帶空白
-    const key = String(fixNo == null ? '' : fixNo).trim();
-    const row = arr.find(eq => eq && String(eq.fix_no == null ? '' : eq.fix_no).trim() === key);
-
-    if (!row) {
-      console.warn('[快取] 找不到設備', JSON.stringify(key),
-        '｜快取前三筆:', arr.slice(0, 3).map(e => JSON.stringify(e && e.fix_no)).join(', '));
-      return;
-    }
+    const row = arr.find(eq => eq && eq.fix_no === fixNo);
+    if (!row) return;
 
     Object.assign(row, changes);
     localStorage.setItem('mt_equipment_cache', JSON.stringify(arr));
-    console.log('[快取] 已更新', key, '→', JSON.stringify(changes));
   } catch (e) {
     // 快取更新失敗不影響主流程，背景那次跟 GAS 要資料還是會修正畫面
     console.warn('更新設備快取失敗:', e);
@@ -1150,6 +1142,99 @@ document.addEventListener('DOMContentLoaded', () => {
     searchInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
+        searchEquipment();
+      }
+    });
+  }
+
+  // 綁定借用表單
+  const borrowForm = document.getElementById('borrow-form');
+  console.log('borrow-form 元素:', borrowForm);
+  
+  if (borrowForm) {
+    borrowForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      alert('表單提交了！');
+      
+      console.log('=== 借用表單提交 ===');
+      console.log('借用人姓名:', document.getElementById('borrow-name')?.value);
+      console.log('借用人email:', document.getElementById('borrow-email')?.value);
+      console.log('預計歸還:', document.getElementById('borrow-due-date')?.value);
+
+      const fixNo = document.getElementById('borrow-fix-no').value;
+      const borrower = document.getElementById('borrow-name').value;
+      const dtDue = document.getElementById('borrow-due-date').value;
+      const borrowerEmailInput = document.getElementById('borrow-email');
+      const borrowerEmail = borrowerEmailInput?.value?.trim() || '';
+      
+      // 檢查必填欄位
+      console.log('檢查必填欄位 - borrower:', borrower, 'dtDue:', dtDue);
+      if (!borrower) {
+        console.log('借用人姓名為空，顯示警告');
+        alert('請填寫借用人姓名');
+        return;
+      }
+      if (!dtDue) {
+        console.log('預計歸還日期為空，顯示警告');
+        alert('請選擇預計歸還日期');
+        return;
+      }
+      
+      // 管理員借用時，如果沒有填 email，使用登入時的 email
+      let finalEmail = borrowerEmail;
+      if (!isGuest && !borrowerEmail && user.email) {
+        finalEmail = user.email;
+        console.log('管理員借用，使用登入 email:', finalEmail);
+      }
+      // 今天日期時間（台北時間），強制整點
+      const now = new Date();
+      const taipeiTime = new Date(now.getTime() + (8 * 60 * 60 * 1000));
+      taipeiTime.setMinutes(0, 0, 0); // 強制整點
+      const dtBorrow = taipeiTime.toISOString().slice(0, 16); // yyyy-MM-ddTHH:mm
+      
+      // 檢查是否為訪客（需要借用審核）
+      const user = JSON.parse(localStorage.getItem('mt_user') || '{}');
+      const isGuest = user.role !== 'admin';
+
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = '🔄 處理中...';
+      }
+
+      let result;
+      if (isGuest) {
+        // 訪客需要發送借用請求，等待 Keeper 審核
+        result = await requestBorrow({ 
+          fix_no: fixNo, 
+          borrower: borrower, 
+          borrower_email: finalEmail,
+          dt_borrow: dtBorrow, 
+          dt_due: dtDue 
+        });
+      } else {
+        // 管理員直接借用（也需要借用人 email）
+        result = await submitBorrow({ 
+          fix_no: fixNo, 
+          borrower: borrower, 
+          borrower_email: finalEmail,
+          dt_borrow: dtBorrow, 
+          dt_due: dtDue 
+        });
+      }
+
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '確認借用';
+      }
+
+      alert(result.message);
+
+      if (result.success) {
+        patchEquipmentCache(fixNo, isGuest
+          ? { status: 'borrow_pending' }
+          : { status: 'borrowed', borrower: borrower, dt_borrow: dtBorrow, dt_due: dtDue });
+        closeBorrowModal();
         searchEquipment();
       }
     });
