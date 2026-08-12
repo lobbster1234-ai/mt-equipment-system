@@ -21,11 +21,19 @@ function patchEquipmentCache(fixNo, changes) {
     const arr = JSON.parse(cached);
     if (!Array.isArray(arr)) return;
 
-    const row = arr.find(eq => eq && eq.fix_no === fixNo);
-    if (!row) return;
+    // 用寬鬆比對：快取裡的 fix_no 有可能是數字或前後帶空白
+    const key = String(fixNo == null ? '' : fixNo).trim();
+    const row = arr.find(eq => eq && String(eq.fix_no == null ? '' : eq.fix_no).trim() === key);
+
+    if (!row) {
+      console.warn('[快取] 找不到設備', JSON.stringify(key),
+        '｜快取前三筆:', arr.slice(0, 3).map(e => JSON.stringify(e && e.fix_no)).join(', '));
+      return;
+    }
 
     Object.assign(row, changes);
     localStorage.setItem('mt_equipment_cache', JSON.stringify(arr));
+    console.log('[快取] 已更新', key, '→', JSON.stringify(changes));
   } catch (e) {
     // 快取更新失敗不影響主流程，背景那次跟 GAS 要資料還是會修正畫面
     console.warn('更新設備快取失敗:', e);
