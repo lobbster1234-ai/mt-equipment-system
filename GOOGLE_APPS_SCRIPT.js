@@ -151,37 +151,14 @@ function validatePasswordStrength(pw) {
 /**
  * GET 請求處理
  */
-// 只讀取、不改資料的動作
-const READ_ACTIONS = ['query', 'queryStations', 'history', 'getEquipmentInfo', 'getAvatarList',
-  'getKeeperList', 'getDeptBorrowList', 'getBorrowRequest', 'getPostponeRequest',
-  'getTransferRequest', 'validateReturnToken', 'getEmailByName', 'test'];
-
-// 這些寫入類動作不會動到設備清單，做完不用同步 Supabase
-const NON_EQUIPMENT_WRITES = ['uploadAvatar', 'loginAdmin', 'setupPassword',
-  'bookStation', 'cancelStationBooking', 'borrowStation', 'returnStation', 'postponeStation'];
-
 function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || 'query';
-  const result = handleRequest(e);
-
-  // 前端的設備清單／我的設備已改讀 Supabase，所以任何動到 Sheet 的動作做完都要同步過去。
-  // 包在最外層而不是散在各個 handler 裡，才不會日後新增動作時漏掉。
-  if (READ_ACTIONS.indexOf(action) === -1 && NON_EQUIPMENT_WRITES.indexOf(action) === -1) {
-    try {
-      syncAllEquipmentToSupabase();
-    } catch (err) {
-      Logger.log('設備同步 Supabase 失敗（不影響主流程）: ' + err.message);
-    }
-  }
-
-  return result;
-}
-
-function handleRequest(e) {
   try {
     const action = e.parameter.action || 'query';
 
     // 任何會改動資料的動作，先清除設備／測試站查詢快取，確保下次查詢拿到最新資料
+    const READ_ACTIONS = ['query', 'queryStations', 'history', 'getEquipmentInfo', 'getAvatarList',
+      'getKeeperList', 'getDeptBorrowList', 'getBorrowRequest', 'getPostponeRequest',
+      'getTransferRequest', 'validateReturnToken', 'getEmailByName', 'test'];
     if (READ_ACTIONS.indexOf(action) === -1) {
       try { CacheService.getScriptCache().removeAll(['equipment_query_all', 'stations_query_all']); } catch (e2) {}
     }
@@ -2555,91 +2532,6 @@ function postHistoryToSupabase(rowObj) {
   } catch (e) {
     Logger.log('寫入 Supabase 歷史失敗（不影響主流程）: ' + e.message);
   }
-}
-
-// ===== Supabase 設備清單（前端已改讀 Supabase，這裡負責把 Sheet 同步過去）=====
-
-/**
- * 把兩張設備工作表整份同步到 Supabase equipment 表。
- * - 以 fix_no 為主鍵 upsert（新增或覆蓋）
- * - Supabase 上有、但 Sheet 已經沒有的設備會被刪掉（對應網站的「刪除設備」與助理年度更新）
- * 只有一百多筆，整份同步比逐筆追蹤可靠得多，也不會漏掉任何寫入路徑。
- */
-function syncAllEquipmentToSupabase() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const sheets = [
-    { sheet: ss.getSheetByName(SHEET_NAME), source: 'sheet1' },
-    { sheet: ss.getSheetByName(SHEET_NAME_WEB), source: 'web' }
-  ];
-
-  const payload = [];
-  const seen = {};
-  sheets.forEach(function (entry) {
-    if (!entry.sheet) return;
-    const rows = entry.sheet.getDataRange().getValues().slice(1);  // 跳過標題列
-    rows.forEach(function (row) {
-      const fixNo = (row[COLS.fix_no] || '').toString().trim();
-      if (!fixNo || seen[fixNo]) return;  // 沒編號的空列、或兩張表重複的編號都跳過
-      seen[fixNo] = true;
-      payload.push({
-        fix_no: fixNo,
-        fix_type: (row[COLS.fix_type] || '').toString(),
-        device_name: (row[COLS.device_name] || '').toString(),
-        qty_asset: (row[COLS.qty_asset] || '1').toString(),
-        keeper: (row[COLS.keeper] || '').toString(),
-        status: (row[COLS.status] || 'available').toString(),
-        borrower: (row[COLS.borrower] || '').toString(),
-        dt_borrow: formatDate(row[COLS.dt_borrow]),
-        dt_due: formatDate(row[COLS.dt_due]),
-        dt_return: formatDate(row[COLS.dt_return]),
-        return_confirmed: row[COLS.return_confirmed] === true || row[COLS.return_confirmed] === 'TRUE',
-        source: entry.source,
-        updated_at: new Date().toISOString()
-      });
-    });
-  });
-
-  if (payload.length === 0) {
-    Logger.log('設備同步：Sheet 沒有資料，為避免誤刪而中止');
-    return;
-  }
-
-  const headers = { apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS };
-
-  const upsert = UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/equipment?on_conflict=fix_no', {
-    method: 'post',
-    contentType: 'application/json',
-    headers: Object.assign({ Prefer: 'resolution=merge-duplicates,return=minimal' }, headers),
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  });
-  if (upsert.getResponseCode() >= 300) {
-    Logger.log('設備 upsert 失敗 ' + upsert.getResponseCode() + ': ' + upsert.getContentText());
-    return;  // upsert 沒成功就不要往下刪，免得刪錯
-  }
-
-  // 清掉 Sheet 上已經不存在的設備
-  const listRes = UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/equipment?select=fix_no', {
-    method: 'get', headers: headers, muteHttpExceptions: true
-  });
-  if (listRes.getResponseCode() >= 300) {
-    Logger.log('設備同步：讀取現有清單失敗，略過刪除步驟');
-    return;
-  }
-  const stale = JSON.parse(listRes.getContentText())
-    .map(function (r) { return r.fix_no; })
-    .filter(function (no) { return !seen[no]; });
-
-  if (stale.length > 0) {
-    const quoted = stale.map(function (no) { return '"' + no.replace(/"/g, '') + '"'; }).join(',');
-    const delRes = UrlFetchApp.fetch(
-      SUPABASE_URL_GAS + '/rest/v1/equipment?fix_no=in.(' + encodeURIComponent(quoted) + ')',
-      { method: 'delete', headers: headers, muteHttpExceptions: true }
-    );
-    Logger.log('設備同步：刪除 ' + stale.length + ' 筆已不存在的設備，回應 ' + delRes.getResponseCode());
-  }
-
-  Logger.log('設備同步完成：' + payload.length + ' 筆');
 }
 
 /**
