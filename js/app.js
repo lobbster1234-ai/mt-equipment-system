@@ -4,6 +4,56 @@
 
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
 
+// =============================================
+// Supabase：已搬遷的資料（測試站預約、歷史紀錄、設備清單讀取）
+// 設備的寫入仍走 GAS（要寄通知信），GAS 寫完 Sheet 後會同步回這裡
+// =============================================
+const SUPABASE_URL = 'https://ifvebqoielozidojkyjf.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE';
+function sbHeaders(extra) {
+  return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {});
+}
+
+// 從 Supabase 讀設備清單，回傳格式與原本 GAS action=query 完全一致，
+// 這樣 renderEquipment、我的設備等既有邏輯都不用動。
+async function fetchEquipmentFromSupabase() {
+  const url = SUPABASE_URL + '/rest/v1/equipment'
+    + '?select=fix_type,fix_no,device_name,qty_asset,keeper,status,borrower,dt_borrow,dt_due,dt_return,return_confirmed'
+    + '&order=fix_no.asc';
+  const res = await fetch(url, { headers: sbHeaders() });
+  const rows = await res.json();
+  if (!Array.isArray(rows)) throw new Error(rows.message || rows.hint || '查詢失敗');
+  return rows;
+}
+
+// 前端篩選，比照原本 GAS 的比對規則（狀態欄有中英文混用的舊資料）
+function filterEquipment(rows, keyword, status) {
+  const kw = (keyword || '').toLowerCase();
+  const st = (status || '').toString().trim().toLowerCase();
+  return rows.filter(eq => {
+    if (!eq.fix_no && !eq.device_name) return false;
+
+    if (kw) {
+      const hay = [eq.fix_no, eq.device_name, eq.keeper, eq.borrower]
+        .map(v => (v || '').toString().toLowerCase());
+      if (!hay.some(v => v.includes(kw))) return false;
+    }
+
+    if (st) {
+      const rowStatus = (eq.status || '').toString().trim().toLowerCase();
+      if (st === 'available') {
+        if (rowStatus !== 'available' && rowStatus !== '可借用' && rowStatus !== '') return false;
+      } else if (st === 'borrowed') {
+        if (rowStatus !== 'borrowed' && rowStatus !== '已借出') return false;
+      } else if (rowStatus !== st) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
 // 載入中動畫（旋轉圈圈 + 文字）
 function loadingHtml() {
   return '<div class="loading-box"><div class="spinner"></div><span>載入中...</span></div>';
@@ -96,11 +146,6 @@ async function searchEquipment() {
   const department = document.getElementById('search-department')?.value || '';
   const status = document.getElementById('search-status')?.value || '';
 
-  const params = new URLSearchParams({ action: 'query' });
-  if (keyword) params.append('keyword', keyword);
-  if (department) params.append('dept_id', department);
-  if (status) params.append('status', status);
-
   // 是否為「無條件」的預設查詢（頁面初次載入即為此）
   const isDefaultQuery = !keyword && !department && !status;
 
@@ -124,42 +169,11 @@ async function searchEquipment() {
   }
 
   try {
-    // 使用 GET 請求 + redirect=follow 避免 CORS 問題
-    // GAS 會 302 重定向，follow 會自動跟隨
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'query');
-    if (keyword) url.searchParams.append('keyword', keyword);
-    if (department) url.searchParams.append('dept_id', department);
-    if (status) url.searchParams.append('status', status);
-
-    console.log('GAS 請求網址:', url.toString());
-
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    console.log('GAS 回應狀態:', res.status, res.ok);
-
-  if (!res.ok) {
-      const errorText = await res.text();
-      console.error('GAS 錯誤回應:', errorText);
-      let message = `HTTP ${res.status}: ${res.statusText}.`;
-      // 由於您提到系統在 GitHub 部署，請確認 GAS_URL 是否已更新為您新的 API 端點。
-      message += `如果 API 網址錯誤，請檢查 URL。原始錯誤: ${res.statusText}`;
-      throw new Error(message);
-  }
-
-    const data = await res.json();
-    console.log('GAS 回應資料:', data);
-
-    if (data.error) {
-      throw new Error(data.error);
-    }
-
-    // 處理陣列或物件格式
-    const equipment = Array.isArray(data) ? data : (data.data || data.result || data.items || []);
-    console.log('設備資料:', equipment.slice(0, 5)); // 顯示前 5 筆
+    // 已搬到 Supabase（原本走 GAS action=query，常卡 30 秒以上或回 404）
+    // 篩選改在前端做：資料量只有百來筆，且 GAS 原本也是整份撈回來再過濾
+    const all = await fetchEquipmentFromSupabase();
+    const equipment = filterEquipment(all, keyword, status);
+    console.log('設備資料:', equipment.length, '筆（總共', all.length, '筆）');
     renderEquipment(equipment);
     // 快取預設查詢結果，供下次開啟時秒顯示
     if (isDefaultQuery) {
@@ -169,10 +183,9 @@ async function searchEquipment() {
     console.error('查詢失敗:', err);
     // 若已先顯示快取資料，背景更新失敗就保留舊資料，不覆蓋成錯誤畫面
     if (listEl && !shownCache) {
-      // 提供 CORS 錯誤提示
       let msg = err.message;
       if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-        msg = 'CORS 錯誤 - 請確認 GAS 部署設定為「誰有權存取：任何人」';
+        msg = '連不上資料庫，請檢查網路連線後重新整理';
       }
       listEl.innerHTML = `<p style="text-align:center;color:#c00;padding:40px;">❌ 查詢失敗：${msg}</p>`;
     }
@@ -2070,29 +2083,11 @@ async function loadMyEquipment() {
   listEl.innerHTML = loadingHtml();
   
   try {
-    // 查詢所有設備（從兩個工作表）
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'query');
-    console.log('查詢 URL:', url.toString());
-    
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    console.log('GAS 回應狀態:', res.status);
-    
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status);
-    }
-    
-    const data = await res.json();
-    console.log('GAS 回應資料:', data);
-    
-    if (data.error) {
-      throw new Error(data.error);
-    }
-    
-    const allEquipment = Array.isArray(data) ? data : (data.data || []);
+    // 已搬到 Supabase（原本走 GAS action=query，常卡 30 秒以上或回 404）
+    const allEquipment = await fetchEquipmentFromSupabase();
     console.log('總設備數量:', allEquipment.length);
     console.log('登入者姓名:', user.name);
-    
+
     // 只顯示 keeper = 登入者的設備
     const myEquipment = allEquipment.filter(eq => eq.keeper === user.name);
     console.log('我的設備數量:', myEquipment.length);
@@ -2766,13 +2761,9 @@ function snapToHour(input) {
 
 // =============================================
 // 測試站已搬遷到 Supabase（前端直接讀寫，不經 GAS）
+// SUPABASE_URL / SUPABASE_KEY / sbHeaders 已移到檔案最上方共用
 // =============================================
-const SUPABASE_URL = 'https://ifvebqoielozidojkyjf.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_uyz-GFmyqL2_6zDZnHcoQw_wHb7JvSE';
 const TEST_STATIONS_FE = ['Wifi throughput', '5GNR'];
-function sbHeaders(extra) {
-  return Object.assign({ apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY }, extra || {});
-}
 
 // 載入測試站預約（從 Supabase 讀「今天(含)以後」的預約，依測試站分組）
 async function loadTestStations() {
