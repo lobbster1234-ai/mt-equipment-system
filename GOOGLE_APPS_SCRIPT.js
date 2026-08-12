@@ -505,9 +505,31 @@ function queryEquipment(params) {
   Logger.log('查詢結果：共 ' + result.length + ' 筆設備');
   const output = JSON.stringify({ success: true, data: result });
   if (isDefaultQuery) {
-    try { cache.put(EQUIP_CACHE_KEY, output, 60); } catch (e) { Logger.log('設備快取寫入失敗: ' + e.message); }
+    // 10 分鐘。搭配每 5 分鐘的 warmEquipmentCache 觸發器，快取幾乎不會過期，
+    // 使用者的查詢就不用等「打開試算表讀整份資料」那 30 秒。
+    // 時間拉長的風險由「寫入時清除快取」擋住（見 doGet 開頭）。
+    try { cache.put(EQUIP_CACHE_KEY, output, 600); } catch (e) { Logger.log('設備快取寫入失敗: ' + e.message); }
   }
   return ContentService.createTextOutput(output).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * 在背景把設備查詢的結果重新算好放進快取。
+ * 【請設定成每 5 分鐘執行一次的觸發器】
+ *
+ * 重點是「讀整份試算表」這件慢事改由觸發器在背景做，沒有人在等它。
+ * doGet 只要命中快取就能在一秒內回應，執行時間短，
+ * 就不會撞到 GAS 轉址後那把一次性鑰匙過期而回 404 的問題。
+ */
+function warmEquipmentCache() {
+  try {
+    // 先清掉，否則 queryEquipment 會直接回傳舊快取而不重算
+    CacheService.getScriptCache().remove('equipment_query_all');
+    queryEquipment({});   // 重讀試算表，並把結果寫回快取
+    Logger.log('設備快取預熱完成');
+  } catch (e) {
+    Logger.log('設備快取預熱失敗: ' + e.message);
+  }
 }
 
 /**
