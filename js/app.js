@@ -9,6 +9,29 @@ function loadingHtml() {
   return '<div class="loading-box"><div class="spinner"></div><span>載入中...</span></div>';
 }
 
+// 借用／歸還成功後，同步更新 localStorage 裡那份設備快取。
+//
+// 設備列表會先秒顯示這份快取再背景跟 GAS 要最新的，但 GAS 常常要 30 秒、
+// 甚至回 404（失敗時會刻意保留舊資料不報錯）。不更新快取的話，
+// 使用者借用完回到列表，看到的還是「可借用」，會以為根本沒借成功。
+function patchEquipmentCache(fixNo, changes) {
+  try {
+    const cached = localStorage.getItem('mt_equipment_cache');
+    if (!cached) return;
+    const arr = JSON.parse(cached);
+    if (!Array.isArray(arr)) return;
+
+    const row = arr.find(eq => eq && eq.fix_no === fixNo);
+    if (!row) return;
+
+    Object.assign(row, changes);
+    localStorage.setItem('mt_equipment_cache', JSON.stringify(arr));
+  } catch (e) {
+    // 快取更新失敗不影響主流程，背景那次跟 GAS 要資料還是會修正畫面
+    console.warn('更新設備快取失敗:', e);
+  }
+}
+
 // 統一的 GAS GET 請求，處理「GAS 轉址不穩、回傳 HTML 而非 JSON」的情況。
 // - 解析成功 → 回傳 JSON 物件
 // - 讀取類（傳 { retries: N }）→ 收到 HTML 時自動重試（讀取為冪等，重試安全）
@@ -457,8 +480,12 @@ async function handleBorrowSubmit() {
   }
   
   alert(result.message);
-  
+
   if (result.success) {
+    // 訪客只是送出申請，要等 Keeper 審核；管理員是直接借走
+    patchEquipmentCache(fixNo, isGuest
+      ? { status: 'borrow_pending' }
+      : { status: 'borrowed', borrower: borrower, dt_borrow: dtBorrow, dt_due: dtDue });
     closeBorrowModal();
     searchEquipment();
   }
@@ -1025,6 +1052,7 @@ async function confirmReturn(fixNo, deviceName, keeper) {
 
     if (result.success || result.status === 'success' || (!result.error && result.message)) {
       alert('✅ 歸還已確認！設備狀態已更新。');
+      patchEquipmentCache(fixNo, { status: 'available', borrower: '', return_confirmed: true });
       searchEquipment();  // 重新整理列表
     } else {
       throw new Error(result.error || '確認失敗');
@@ -1203,6 +1231,9 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(result.message);
 
       if (result.success) {
+        patchEquipmentCache(fixNo, isGuest
+          ? { status: 'borrow_pending' }
+          : { status: 'borrowed', borrower: borrower, dt_borrow: dtBorrow, dt_due: dtDue });
         closeBorrowModal();
         searchEquipment();
       }
@@ -1234,6 +1265,8 @@ document.addEventListener('DOMContentLoaded', () => {
       alert(result.message);
 
       if (result.success) {
+        // 歸還後要等保管人確認收到，狀態先進入「歸還中」
+        patchEquipmentCache(fixNo, { status: 'return_pending', dt_return: dtReturn });
         closeReturnModal();
         searchEquipment();
       }
