@@ -407,7 +407,7 @@ function doPost(e) {
 /**
  * 查詢設備
  */
-function queryEquipment(params) {
+function queryEquipment(params, forceRefresh) {
   // 快取：無條件的預設查詢才用（最常見、可安全共用）。命中時不必打開試算表，幾乎瞬間回應
   const kw0 = (params.keyword || '').toString().trim();
   const st0 = (params.status || '').toString().trim();
@@ -415,7 +415,7 @@ function queryEquipment(params) {
   const isDefaultQuery = !kw0 && !st0 && !dp0;
   const cache = CacheService.getScriptCache();
   const EQUIP_CACHE_KEY = 'equipment_query_all';
-  if (isDefaultQuery) {
+  if (isDefaultQuery && !forceRefresh) {
     const cached = cache.get(EQUIP_CACHE_KEY);
     if (cached) {
       return ContentService.createTextOutput(cached).setMimeType(ContentService.MimeType.JSON);
@@ -523,9 +523,10 @@ function queryEquipment(params) {
  */
 function warmEquipmentCache() {
   try {
-    // 先清掉，否則 queryEquipment 會直接回傳舊快取而不重算
-    CacheService.getScriptCache().remove('equipment_query_all');
-    queryEquipment({});   // 重讀試算表，並把結果寫回快取
+    // 用 forceRefresh 直接重算並覆蓋，中途「不要」清空快取。
+    // 讀整份試算表要 30~55 秒，先清空的話這段期間查詢會全部落空、
+    // 又得自己去讀試算表，等於每 5 分鐘挖一個 30 秒的坑。
+    queryEquipment({}, true);
     Logger.log('設備快取預熱完成');
   } catch (e) {
     Logger.log('設備快取預熱失敗: ' + e.message);
