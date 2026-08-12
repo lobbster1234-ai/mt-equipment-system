@@ -156,25 +156,12 @@ const READ_ACTIONS = ['query', 'queryStations', 'history', 'getEquipmentInfo', '
   'getKeeperList', 'getDeptBorrowList', 'getBorrowRequest', 'getPostponeRequest',
   'getTransferRequest', 'validateReturnToken', 'getEmailByName', 'test'];
 
-// 這些寫入類動作不會動到設備清單，做完不用同步 Supabase
-const NON_EQUIPMENT_WRITES = ['uploadAvatar', 'loginAdmin', 'setupPassword',
-  'bookStation', 'cancelStationBooking', 'borrowStation', 'returnStation', 'postponeStation'];
-
 function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || 'query';
-  const result = handleRequest(e);
-
-  // 前端的設備清單／我的設備已改讀 Supabase，所以任何動到 Sheet 的動作做完都要同步過去。
-  // 包在最外層而不是散在各個 handler 裡，才不會日後新增動作時漏掉。
-  if (READ_ACTIONS.indexOf(action) === -1 && NON_EQUIPMENT_WRITES.indexOf(action) === -1) {
-    try {
-      syncAllEquipmentToSupabase();
-    } catch (err) {
-      Logger.log('設備同步 Supabase 失敗（不影響主流程）: ' + err.message);
-    }
-  }
-
-  return result;
+  // ⚠️ 這裡絕對不要做慢的事（例如同步整份設備清單到 Supabase）。
+  // GAS 的 /exec 會 302 轉到 script.googleusercontent.com 領結果，
+  // 執行時間一長，那把一次性鑰匙就過期，前端會收到 404、寫入也跟著消失。
+  // 需要背景處理的工作一律做成定時觸發器（見 syncEquipmentTrigger / processMailQueue）。
+  return handleRequest(e);
 }
 
 function handleRequest(e) {
@@ -2674,6 +2661,263 @@ function migrateHistoryToSupabase() {
   Logger.log('匯入歷史 ' + payload.length + ' 筆，HTTP ' + res.getResponseCode() + '：' + res.getContentText().slice(0, 200));
 }
 
+// =============================================
+// 「🏢 手動輸入設備」已搬到 Supabase
+//
+// 前端直接讀寫 dept_equipment，完全不經過 doGet
+// （doGet 的 302 轉址在執行超過約 20 秒後會 404，是這個系統最不穩的一環）。
+// GAS 在這條路上只剩兩個角色，而且都跑在「定時觸發器」上：
+//   1. processMailQueue     — 把前端排進 mail_queue 的信寄出去
+//   2. syncKeepersToSupabase — 把 Sheet 的 Keeper 名單同步過去
+// 另外三個到期／逾期提醒也改成讀 Supabase。
+//
+// 需要在 Apps Script「觸發條件」手動新增（見檔案最下方 setupMigrationTriggers 說明）
+// =============================================
+
+// ---- Supabase 小工具（GAS 端）----
+
+function sbGetJson_(path) {
+  const res = UrlFetchApp.fetch(SUPABASE_URL_GAS + path, {
+    method: 'get',
+    headers: { apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS },
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() >= 300) {
+    throw new Error('Supabase GET ' + path + ' 失敗 ' + res.getResponseCode() + '：' + res.getContentText().slice(0, 200));
+  }
+  return JSON.parse(res.getContentText());
+}
+
+function sbPatch_(path, body) {
+  const res = UrlFetchApp.fetch(SUPABASE_URL_GAS + path, {
+    method: 'patch',
+    contentType: 'application/json',
+    headers: { apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS, Prefer: 'return=minimal' },
+    payload: JSON.stringify(body),
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() >= 300) {
+    Logger.log('Supabase PATCH ' + path + ' 失敗 ' + res.getResponseCode() + '：' + res.getContentText().slice(0, 200));
+  }
+  return res.getResponseCode();
+}
+
+// ---- 1. 寄信佇列 ----
+
+const MAIL_QUEUE_MAX_ATTEMPTS = 5;
+
+/**
+ * 撈出待寄的信並寄出。【請設定成每 5 分鐘執行一次的觸發器】
+ *
+ * 前端只寫「事件類型 + 資料」，信件內容一律在這裡用範本組出來。
+ * 若讓前端直接指定收件人和內文，這張表就等於一個公開的轉信站，
+ * 任何人都能用這個 Google 帳號寄任意內容給任意人。
+ */
+function processMailQueue() {
+  let rows;
+  try {
+    rows = sbGetJson_('/rest/v1/mail_queue?status=eq.pending&order=created_at.asc&limit=20');
+  } catch (err) {
+    Logger.log('讀取寄信佇列失敗：' + err.message);
+    return;
+  }
+
+  let sent = 0;
+  rows.forEach(function (row) {
+    const p = row.payload || {};
+    try {
+      let mail;
+      if (row.mail_type === 'dept_borrow') {
+        mail = buildDeptBorrowMail_(p.borrower, p.device_name, p.dt_borrow, p.dt_due);
+        if (!p.borrower_email || p.borrower_email.indexOf('@') === -1) {
+          throw new Error('借用人 email 無效：' + p.borrower_email);
+        }
+        MailApp.sendEmail(p.borrower_email, mail.subject, mail.body);
+
+      } else if (row.mail_type === 'dept_return') {
+        const to = getManualKeeperEmails();
+        if (to.length === 0) throw new Error('找不到任何 Keeper email');
+        mail = buildDeptReturnMail_(p.device_name, p.borrower, p.dt_borrow, p.dt_return);
+        MailApp.sendEmail(to.join(','), mail.subject, mail.body);
+
+      } else {
+        throw new Error('未知的信件類型：' + row.mail_type);
+      }
+
+      sbPatch_('/rest/v1/mail_queue?id=eq.' + row.id, {
+        status: 'sent', attempts: row.attempts + 1, sent_at: new Date().toISOString()
+      });
+      sent++;
+
+    } catch (err) {
+      const attempts = row.attempts + 1;
+      // 重試到上限就標記 failed，避免一封壞信卡住整個佇列反覆重寄
+      sbPatch_('/rest/v1/mail_queue?id=eq.' + row.id, {
+        status: attempts >= MAIL_QUEUE_MAX_ATTEMPTS ? 'failed' : 'pending',
+        attempts: attempts,
+        last_error: String(err.message).slice(0, 500)
+      });
+      Logger.log('寄信失敗（第 ' + attempts + ' 次）id=' + row.id + '：' + err.message);
+    }
+  });
+
+  if (rows.length > 0) Logger.log('寄信佇列處理完畢：成功 ' + sent + ' / 共 ' + rows.length + ' 封');
+}
+
+// 借用確認信範本（寄給借用人）
+function buildDeptBorrowMail_(borrower, deviceName, dtBorrow, dtDue) {
+  const t = function (dt) { return dt ? String(dt).replace('T', ' ') : ''; };
+  return {
+    subject: EMAIL_CONFIG.subject_prefix + ' 借用成功確認',
+    body: ('親愛的 ' + borrower + ' 您好：\n\n'
+      + '您已成功借用部門儀器：\n\n'
+      + '📦 設備名稱：' + deviceName + '\n'
+      + '📅 借用日期：' + t(dtBorrow) + '\n'
+      + '📅 預計歸還：' + t(dtDue) + '\n\n'
+      + '⚠️ 注意事項：\n'
+      + '1. 請於 ' + t(dtDue) + ' 前歸還設備\n'
+      + '2. 歸還前會收到提醒郵件\n'
+      + '3. 如逾期歸還，系統將每天發送提醒通知\n\n'
+      + '感謝您的配合！\n\n'
+      + '---\nMT 部門設備管理系統 自動通知').trim()
+  };
+}
+
+// 歸還通知信範本（寄給全體 Keeper）
+function buildDeptReturnMail_(deviceName, borrower, dtBorrow, dtReturn) {
+  const t = function (dt) { return dt ? String(dt).replace('T', ' ') : ''; };
+  return {
+    subject: EMAIL_CONFIG.subject_prefix + ' 部門儀器歸還通知',
+    body: ('管理員您好：\n\n'
+      + '以下部門儀器已歸還：\n\n'
+      + '📦 設備名稱：' + deviceName + '\n'
+      + '👤 借用人：' + borrower + '\n'
+      + '📅 借用日期：' + t(dtBorrow) + '\n'
+      + '📅 歸還日期：' + t(dtReturn) + '\n\n'
+      + '---\nMT 部門設備管理系統 自動通知').trim()
+  };
+}
+
+// ---- 2. Keeper 名單同步 ----
+
+/**
+ * 把「Keeper 聯絡資訊」工作表同步到 Supabase keepers 表。
+ * 【請設定成每天執行一次的觸發器，第一次也請在編輯器手動執行一次做初始匯入】
+ *
+ * Sheet 仍然是正本（還有 8 個 GAS 功能在讀它），這裡只是給前端用的副本。
+ */
+function syncKeepersToSupabase() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(KEEPER_SHEET_NAME);
+  if (!sheet) { Logger.log('找不到工作表：' + KEEPER_SHEET_NAME); return; }
+
+  const data = sheet.getDataRange().getValues();
+  const payload = [];
+  const seen = {};
+  for (let i = 1; i < data.length; i++) {   // A 欄=姓名、B 欄=Email
+    const name = String(data[i][0] || '').trim();
+    const email = String(data[i][1] || '').trim();
+    if (!name || seen[name]) continue;
+    seen[name] = true;
+    payload.push({ name: name, email: email, updated_at: new Date().toISOString() });
+  }
+  if (payload.length === 0) { Logger.log('Keeper 同步：Sheet 沒有資料，中止以免誤清空'); return; }
+
+  const headers = { apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS };
+  const res = UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/keepers?on_conflict=name', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: Object.assign({ Prefer: 'resolution=merge-duplicates,return=minimal' }, headers),
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() >= 300) {
+    Logger.log('Keeper 同步失敗 ' + res.getResponseCode() + '：' + res.getContentText().slice(0, 300));
+    return;
+  }
+
+  // 清掉 Sheet 上已經移除的 Keeper
+  try {
+    const stale = sbGetJson_('/rest/v1/keepers?select=name')
+      .map(function (r) { return r.name; })
+      .filter(function (n) { return !seen[n]; });
+    if (stale.length > 0) {
+      const quoted = stale.map(function (n) { return '"' + n.replace(/"/g, '') + '"'; }).join(',');
+      UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/keepers?name=in.(' + encodeURIComponent(quoted) + ')',
+        { method: 'delete', headers: headers, muteHttpExceptions: true });
+      Logger.log('Keeper 同步：刪除 ' + stale.length + ' 位已移除的 Keeper');
+    }
+  } catch (err) {
+    Logger.log('Keeper 同步：清理舊資料失敗（不影響主流程）：' + err.message);
+  }
+
+  Logger.log('Keeper 同步完成：' + payload.length + ' 位');
+}
+
+// ---- 3. 給三個到期提醒用的資料來源 ----
+
+/**
+ * 從 Supabase 讀部門儀器，轉成跟 sheet.getDataRange().getValues() 一樣的形狀
+ * （第 0 列是標題列佔位，欄位順序 ID/設備名稱/借用人/郵件/借用日期/預計歸還/實際歸還/狀態）。
+ * 這樣三個提醒函式原本的逐列判斷邏輯完全不用改。
+ */
+function getDeptRowsAsSheetShape_() {
+  const rows = sbGetJson_('/rest/v1/dept_equipment?select=*&order=created_at.asc');
+  const out = [['ID', '設備名稱', '借用人', '借用人郵件', '借用日期', '預計歸還', '實際歸還', '狀態']];
+  rows.forEach(function (r) {
+    out.push([r.id, r.device_name, r.borrower, r.borrower_email,
+      r.dt_borrow, r.dt_due, r.dt_return, r.status]);
+  });
+  return out;
+}
+
+/**
+ * 一次性：把舊的「MT部門儀器」工作表匯入 Supabase（在編輯器手動執行一次即可）
+ */
+function migrateDeptEquipmentToSupabase() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName('MT部門儀器');
+  if (!sheet) { Logger.log('找不到 MT部門儀器 工作表'); return; }
+
+  const data = sheet.getDataRange().getValues();
+  const payload = [];
+  for (let i = 1; i < data.length; i++) {
+    const id = String(data[i][0] || '').trim();
+    if (!id) continue;
+    payload.push({
+      id: id,
+      device_name: String(data[i][1] || ''),
+      borrower: String(data[i][2] || ''),
+      borrower_email: String(data[i][3] || ''),
+      dt_borrow: formatDate(data[i][4]),
+      dt_due: formatDate(data[i][5]),
+      dt_return: formatDate(data[i][6]),
+      status: String(data[i][7] || '借用中')
+    });
+  }
+  if (payload.length === 0) { Logger.log('沒有可匯入的部門儀器資料'); return; }
+
+  const res = UrlFetchApp.fetch(SUPABASE_URL_GAS + '/rest/v1/dept_equipment?on_conflict=id', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      apikey: SUPABASE_KEY_GAS, Authorization: 'Bearer ' + SUPABASE_KEY_GAS,
+      Prefer: 'resolution=merge-duplicates,return=minimal'
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+  Logger.log('匯入部門儀器 ' + payload.length + ' 筆，HTTP ' + res.getResponseCode() + '：' + res.getContentText().slice(0, 200));
+}
+
+/**
+ * 設備清單同步（原本掛在 doGet 裡，會把執行時間拉長導致 302 轉址後 404）
+ * 【請設定成每小時執行一次的觸發器】
+ */
+function syncEquipmentTrigger() {
+  syncAllEquipmentToSupabase();
+}
+
 function logHistory(action, fixNo, deviceName, borrower, keeper, dtAction, dtDue, dtConfirmed) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
@@ -3559,7 +3803,14 @@ MT 部門設備管理系統 自動通知`.trim();
  * @param {string} data.dt_borrow - 借用日期
  * @param {string} data.dt_due - 預計歸還日期
  */
+// ⚠️ 已停用：「手動輸入設備」已搬到 Supabase dept_equipment，前端直接讀寫、不再呼叫這裡。
+// 保留程式碼只為留存原始邏輯；若再被呼叫會寫進舊的「MT部門儀器」工作表，
+// 造成資料分岔（網站看不到），所以直接擋掉。
 function deptBorrow(data) {
+  return errorResponse('此功能已搬遷，請重新整理頁面後再試');
+}
+
+function deptBorrow_DEPRECATED(data) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName('MT部門儀器');
@@ -3607,7 +3858,12 @@ function deptBorrow(data) {
  * @param {Object} data - 歸還資料
  * @param {string} data.id - 借用記錄 ID
  */
+// ⚠️ 已停用，理由同 deptBorrow
 function deptReturn(data) {
+  return errorResponse('此功能已搬遷，請重新整理頁面後再試');
+}
+
+function deptReturn_DEPRECATED(data) {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName('MT部門儀器');
@@ -3667,7 +3923,12 @@ function deptReturn(data) {
 /**
  * 取得部門儀器借用列表
  */
+// ⚠️ 已停用：前端改直接讀 Supabase dept_equipment
 function getDeptBorrowList() {
+  return errorResponse('此功能已搬遷，請重新整理頁面後再試');
+}
+
+function getDeptBorrowList_DEPRECATED() {
   try {
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName('MT部門儀器');
@@ -3845,16 +4106,8 @@ MT 部門設備管理系統 自動通知`.trim();
  */
 function sendDeptOverdueReminder() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName('MT部門儀器');
-    
-    if (!sheet) {
-      Logger.log('找不到 MT部門儀器 工作表');
-      return;
-    }
-    
     const now = new Date();
-    const allData = sheet.getDataRange().getValues();
+    const allData = getDeptRowsAsSheetShape_();   // 已搬到 Supabase
     let sentCount = 0;
     
     for (let i = 1; i < allData.length; i++) {
@@ -3921,22 +4174,14 @@ MT 部門設備管理系統 自動提醒`.trim();
  */
 function sendDeptDueSoonReminder() {
   try {
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = ss.getSheetByName('MT部門儀器');
-    
-    if (!sheet) {
-      Logger.log('找不到 MT部門儀器 工作表');
-      return;
-    }
-    
     const now = new Date();
-    
+
     // 強制 now 為整點
     now.setMinutes(0, 0, 0);
-    
+
     const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
-    
-    const allData = sheet.getDataRange().getValues();
+
+    const allData = getDeptRowsAsSheetShape_();   // 已搬到 Supabase
     let sentCount = 0;
     
     for (let i = 1; i < allData.length; i++) {

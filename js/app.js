@@ -26,6 +26,37 @@ async function fetchEquipmentFromSupabase() {
   return rows;
 }
 
+// 把一封信排進 mail_queue，交給 GAS 的定時觸發器寄出（每 5 分鐘一次）。
+//
+// 這裡刻意只送「事件類型 + 資料」，收件人與信件內容一律由 GAS 端套範本決定。
+// 若讓前端自由指定收件人和內文，這張表就成了公開的轉信站，
+// 任何人都能用系統的 Google 帳號寄任意內容給任意人。
+//
+// 回傳 true/false 而不丟例外：信排不進去不該讓已經成功的借用/歸還看起來像失敗。
+async function queueMail(mailType, payload) {
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/mail_queue', {
+      method: 'POST',
+      headers: sbHeaders({ 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }),
+      body: JSON.stringify({ mail_type: mailType, payload: payload })
+    });
+    if (!res.ok) {
+      console.error('排入寄信佇列失敗:', res.status, (await res.text()).slice(0, 200));
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error('排入寄信佇列失敗:', err);
+    return false;
+  }
+}
+
+// 產生 8 碼借用編號，沿用原本 GAS 的格式（Utilities.getUuid().substring(0,8)）
+function deptBorrowId() {
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID().slice(0, 8);
+  return Math.random().toString(16).slice(2, 10);
+}
+
 // 前端篩選，比照原本 GAS 的比對規則（狀態欄有中英文混用的舊資料）
 function filterEquipment(rows, keyword, status) {
   const kw = (keyword || '').toLowerCase();
@@ -2481,44 +2512,45 @@ async function handleDeptBorrowSubmit() {
   }
   
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'deptBorrow');
-    url.searchParams.append('device_name', deviceName);
-    url.searchParams.append('borrower', borrower);
-    url.searchParams.append('borrower_email', borrowerEmail);
-    url.searchParams.append('dt_borrow', dtBorrow);
-    url.searchParams.append('dt_due', dtDue);
-    
-    console.log('部門儀器借用 URL:', url.toString());
-    
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const text = await res.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (parseErr) {
-      // GAS 轉址不穩回傳 HTML，但伺服器通常已借用成功（借用人會收到確認信）
-      console.warn('部門儀器借用回應非 JSON（GAS 不穩），視為已送出:', text.slice(0, 120));
-      alert('✅ 借用已送出！\n\n伺服器回應不穩定，若您已收到確認信即代表借用成功。\n若下方列表未更新，請稍後重新整理。');
-      document.getElementById('dept-borrow-form').reset();
-      loadDeptBorrowList();
-      return;
-    }
-    console.log('部門儀器借用回應:', data);
+    // 已搬到 Supabase：直接寫資料庫，不經過 GAS
+    const id = deptBorrowId();
+    const row = {
+      id: id,
+      device_name: deviceName,
+      borrower: borrower,
+      borrower_email: borrowerEmail,
+      dt_borrow: dtBorrow,
+      dt_due: dtDue,
+      dt_return: '',
+      status: '借用中'
+    };
 
-    if (data.success) {
-      alert('✅ 借用成功！確認郵件已寄出');
-      // 清空表單
-      document.getElementById('dept-borrow-form').reset();
-      // 重新載入列表
-      loadDeptBorrowList();
-    } else {
-      alert('❌ 借用失敗：' + (data.error || '未知錯誤'));
+    const res = await fetch(SUPABASE_URL + '/rest/v1/dept_equipment', {
+      method: 'POST',
+      headers: sbHeaders({ 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }),
+      body: JSON.stringify(row)
+    });
+    if (!res.ok) {
+      const detail = await res.text();
+      throw new Error(detail.slice(0, 200) || ('HTTP ' + res.status));
     }
+
+    // 確認信排進佇列，由 GAS 定時觸發器寄出。
+    // 借用本身已經成功，所以排信失敗不擋流程，只提醒信可能沒寄出。
+    const queued = await queueMail('dept_borrow', {
+      borrower: borrower,
+      borrower_email: borrowerEmail,
+      device_name: deviceName,
+      dt_borrow: dtBorrow,
+      dt_due: dtDue
+    });
+
+    alert(queued
+      ? '✅ 借用成功！確認郵件將於數分鐘內寄出'
+      : '✅ 借用成功！\n\n（確認信排程失敗，請自行記下歸還日期：' + dtDue + '）');
+
+    document.getElementById('dept-borrow-form').reset();
+    loadDeptBorrowList();
   } catch (err) {
     console.error('部門儀器借用錯誤:', err);
     alert('❌ 借用失敗：' + err.message);
@@ -2540,24 +2572,22 @@ async function loadDeptBorrowList() {
   listEl.innerHTML = loadingHtml();
   
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'getDeptBorrowList');
-    
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const data = await res.json();
-    console.log('部門儀器列表:', data);
-    
-    if (!data.success || !data.items || data.items.length === 0) {
+    // 已搬到 Supabase
+    const url = SUPABASE_URL + '/rest/v1/dept_equipment'
+      + '?select=id,device_name,borrower,borrower_email,dt_borrow,dt_due,dt_return,status'
+      + '&order=created_at.asc';
+    const res = await fetch(url, { headers: sbHeaders() });
+    const items = await res.json();
+    if (!Array.isArray(items)) throw new Error(items.message || items.hint || '載入失敗');
+    console.log('部門儀器列表:', items.length, '筆');
+
+    if (items.length === 0) {
       listEl.innerHTML = '<p style="text-align:center;color:#666;padding:40px;">目前沒有借用的部門儀器</p>';
       return;
     }
-    
+
     // 生成 HTML
-    const html = data.items.map(item => {
+    const html = items.map(item => {
       const isOverdue = new Date(item.dt_due) < new Date() && !item.dt_return;
       const statusClass = isOverdue ? 'style="color:#c00;"' : 'style="color:#0a0;"';
       const statusText = item.dt_return ? '✅ 已歸還' : (isOverdue ? '⏰ 已逾期' : '📤 借用中');
@@ -2612,24 +2642,35 @@ async function handleDeptReturn(id, deviceName, borrower) {
   }
   
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'deptReturn');
-    url.searchParams.append('id', id);
-    
-    const data = await gasGetJson(url.toString());
+    // 已搬到 Supabase：直接更新，不經過 GAS
+    const today = new Date();
+    const dtReturn = new Date(today.getTime() - today.getTimezoneOffset() * 60000)
+      .toISOString().slice(0, 10);
 
-    if (data.success) {
-      alert('✅ 歸還成功！已通知管理員');
-      loadDeptBorrowList();
-    } else {
-      alert('❌ 歸還失敗：' + (data.error || '未知錯誤'));
-    }
+    const patchUrl = SUPABASE_URL + '/rest/v1/dept_equipment?id=eq.' + encodeURIComponent(id);
+    const res = await fetch(patchUrl, {
+      method: 'PATCH',
+      headers: sbHeaders({ 'Content-Type': 'application/json', 'Prefer': 'return=representation' }),
+      body: JSON.stringify({ dt_return: dtReturn, status: '已歸還' })
+    });
+    const updated = await res.json();
+    if (!res.ok) throw new Error((updated && updated.message) || ('HTTP ' + res.status));
+    if (!Array.isArray(updated) || updated.length === 0) throw new Error('找不到該筆借用記錄');
+
+    // 通知信排進佇列，交給 GAS 觸發器寄給全體 Keeper
+    const row = updated[0];
+    const queued = await queueMail('dept_return', {
+      device_name: row.device_name,
+      borrower: row.borrower,
+      dt_borrow: row.dt_borrow,
+      dt_return: dtReturn
+    });
+
+    alert(queued
+      ? '✅ 歸還成功！將於數分鐘內通知管理員'
+      : '✅ 歸還成功！（通知信排程失敗，請自行告知管理員）');
+    loadDeptBorrowList();
   } catch (err) {
-    if (err.isGasGlitch) {
-      alert('✅ 歸還已送出，但伺服器回應不穩定、未能確認。\n請稍後重新整理查看狀態；若仍在借用中，再按一次即可。');
-      loadDeptBorrowList();
-      return;
-    }
     console.error('歸還失敗:', err);
     alert('❌ 歸還失敗：' + err.message);
   }
