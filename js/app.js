@@ -1568,7 +1568,7 @@ function renderHistory(history, sortOrder = 'newest') {
         statusText = '歸還（待確認）';
       } else {
         statusIcon = '📤';
-        statusText = '借用';
+        statusText = '借用中';
       }
       
       html += `
