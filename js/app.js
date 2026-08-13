@@ -1761,17 +1761,23 @@ function saveAvatarCache() {
   }
 }
 
+// 頭像已搬到 Supabase（原本走 GAS getAvatarList）。
+// image_data 存的是完整的 data:image/jpeg;base64,... 字串，可以直接當 img 的 src。
+async function fetchAvatarsFromSupabase() {
+  const url = SUPABASE_URL + '/rest/v1/avatars?select=name,image_data&order=name';
+  const res = await fetch(url, { headers: sbHeaders() });
+  const rows = await res.json();
+  if (!Array.isArray(rows)) throw new Error(rows.message || rows.hint || '載入頭像失敗');
+  return rows;
+}
+
 // 從伺服器抓最新頭像並更新本地快取（頁面載入時呼叫，確保列表能正確顯示頭像）
 async function preloadAvatars() {
   try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'getAvatarList');
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const data = await res.json();
-    const avatars = Array.isArray(data) ? data : (data.data || data.result || []);
-    avatars.forEach(item => {
-      if (item.name && item.avatar_url) {
-        avatarCache[item.name] = item.avatar_url;
+    const rows = await fetchAvatarsFromSupabase();
+    rows.forEach(item => {
+      if (item.name && item.image_data) {
+        avatarCache[item.name] = item.image_data;
       }
     });
     saveAvatarCache();
@@ -1838,27 +1844,18 @@ async function loadAvatarList() {
   listEl.innerHTML = loadingHtml();
   
   try {
-    // 從 GAS 取得頭像列表
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'getAvatarList');
-    
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const data = await res.json();
-    const avatars = Array.isArray(data) ? data : (data.data || data.result || []);
-    
+    // 已搬到 Supabase
+    const avatars = await fetchAvatarsFromSupabase();
+
     if (!avatars || avatars.length === 0) {
       listEl.innerHTML = '<p style="color:#888;">目前沒有已上傳的頭像</p>';
       return;
     }
-    
+
     // 更新本地快取
     avatars.forEach(item => {
-      if (item.name && item.avatar_url) {
-        avatarCache[item.name] = item.avatar_url;
+      if (item.name && item.image_data) {
+        avatarCache[item.name] = item.image_data;
       }
     });
     saveAvatarCache();
@@ -1929,47 +1926,34 @@ function compressImage(file, maxWidth = 100, quality = 0.6) {
  */
 async function uploadAvatar(name, file) {
   try {
-    // 壓縮圖片到 150x150，品質 0.8（更清楚）
+    // 壓縮圖片到 150x150，品質 0.8
+    // 改走 Supabase 之後不再有 URL 長度限制（原本用 GET 傳 base64，
+    // 太長就得再壓一次到 80x80、品質 0.5，畫質很糊），所以不必二次壓縮。
     const compressedData = await compressImage(file, 150, 0.8);
-    
     console.log('頭像上傳開始，data URL 長度:', compressedData.length);
-    
-    // 使用 GET 請求傳送
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'uploadAvatar');
-    url.searchParams.append('user_name', name);
-    url.searchParams.append('image_data', compressedData);
-    
-    console.log('GET URL 長度:', url.toString().length);
-    
-    // 檢查 URL 是否太長（超過 8000 字元可能會失敗）
-    if (url.toString().length > 8000) {
-      console.warn('URL 太長，可能失敗，嘗試再次壓縮...');
-      const recompressed = await compressImage(file, 80, 0.5);
-      url.searchParams.set('image_data', recompressed);
-      console.log('再次壓縮後 URL 長度:', url.toString().length);
-    }
-    
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
+
+    const res = await fetch(SUPABASE_URL + '/rest/v1/avatars?on_conflict=name', {
+      method: 'POST',
+      headers: sbHeaders({
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      }),
+      body: JSON.stringify({
+        name: name,
+        image_data: compressedData,
+        updated_at: new Date().toISOString()
+      })
     });
-    
+
     if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error('HTTP ' + res.status + ': ' + errorText);
+      const detail = await res.text();
+      throw new Error(detail.slice(0, 200) || ('HTTP ' + res.status));
     }
-    
-    const result = await res.json();
-    
-    if (result.success || result.url) {
-      // 更新本地快取
-      avatarCache[name] = result.url;
-      saveAvatarCache();
-      return result;
-    } else {
-      throw new Error(result.error || '上傳失敗');
-    }
+
+    // 更新本地快取
+    avatarCache[name] = compressedData;
+    saveAvatarCache();
+    return { success: true, url: compressedData };
   } catch (err) {
     console.error('上傳頭像失敗:', err);
     throw err;  // 重新拋出讓調用者知道錯誤
