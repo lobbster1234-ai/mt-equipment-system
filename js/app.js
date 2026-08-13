@@ -2236,6 +2236,11 @@ async function deleteEquipment(fixNo) {
 document.getElementById('edit-equipment-form').addEventListener('submit', async function(e) {
   e.preventDefault();
   console.log('表單提交了');
+
+  const btn = document.getElementById('btn-edit-equipment-save');
+  // 防止重複送出（含 Enter 連按）：處理中直接忽略
+  if (btn && btn.disabled) return;
+
   // originalFixNo 是隱藏欄位，用來找資料列
   // newFixNo 是顯示欄位，是使用者輸入的新編號
   const originalFixNo = document.getElementById('edit-fix-no').value;
@@ -2243,12 +2248,21 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
   const deviceName = document.getElementById('edit-device-name').value;
   const fixType = document.getElementById('edit-fix-type').value;
   const qtyAsset = document.getElementById('edit-qty-asset').value;
-  
+
   if (!originalFixNo || !deviceName) {
     alert('請填寫設備名稱');
     return;
   }
-  
+
+  // 按下後：按鈕變灰、文字改為「儲存中...」、禁止再按（這支走 GAS，可能要等十幾秒）
+  const btnOriginalText = btn ? btn.textContent : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.style.background = '#aaa';
+    btn.style.cursor = 'not-allowed';
+    btn.textContent = '儲存中...';
+  }
+
     try {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'updateEquipment');
@@ -2277,6 +2291,14 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
   } catch (err) {
     console.error('更新設備錯誤:', err);
     alert('❌ 更新失敗：' + err.message);
+  } finally {
+    // 一定要還原：Modal 是同一顆按鈕重複使用，不還原的話下次開啟就按不下去了
+    if (btn) {
+      btn.disabled = false;
+      btn.style.background = '';
+      btn.style.cursor = '';
+      btn.textContent = btnOriginalText;
+    }
   }
 });
 
