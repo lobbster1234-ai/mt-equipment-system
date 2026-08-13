@@ -1373,7 +1373,27 @@ async function searchHistory() {
         (h.borrower || '').toLowerCase().includes(keyword) ||
         (h.keeper || '').toLowerCase().includes(keyword));
     }
-    if (actionFilter) history = history.filter(h => h.action === actionFilter);
+    // 【借用】【待確認】要看「查詢當下的狀態」，不是「當時發生過的事件」。
+    // 一筆借用會依序留下 borrow → return → confirm 三筆紀錄且都不會被刪，
+    // 所以要排掉後面已經有結案事件（同設備＋同借用人、時間更晚）的那些。
+    // 注意：transfer 是 Keeper 轉讓，不會結束一筆借用，故不列入結案事件。
+    if (actionFilter === 'borrow' || actionFilter === 'return') {
+      const closers = actionFilter === 'borrow'
+        ? ['return', 'confirm', 'confirmed']  // 已提歸還或已確認 → 不再是「借用中」
+        : ['confirm', 'confirmed'];           // 已確認 → 不再是「待確認」
+      // 用未經關鍵字篩選的 rows 比對，避免關鍵字打在借用人時漏掉 keeper 不同的 confirm
+      history = history.filter(h => {
+        if (h.action !== actionFilter) return false;
+        const t = new Date(h.timestamp || 0).getTime();
+        return !rows.some(r =>
+          closers.includes(r.action || '') &&
+          (r.fix_no || '') === h.fix_no &&
+          (r.borrower || '') === h.borrower &&
+          new Date(r.ts || 0).getTime() >= t);
+      });
+    } else if (actionFilter) {
+      history = history.filter(h => h.action === actionFilter);
+    }
 
     renderHistory(history, sortOrder);
   } catch (err) {
