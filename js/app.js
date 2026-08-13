@@ -2171,33 +2171,6 @@ function closeEditEquipmentModal() {
 }
 
 /**
- * 更新設備
- */
-async function updateEquipment(fixNo, updateData) {
-  try {
-    const url = new URL(GAS_URL);
-    url.searchParams.append('action', 'updateEquipment');
-    url.searchParams.append('fix_no', fixNo);
-    url.searchParams.append('device_name', updateData.device_name || '');
-    url.searchParams.append('fix_type', updateData.fix_type || '');
-    url.searchParams.append('token', getAuthToken());
-
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const data = await res.json();
-    
-    if (data.success) {
-      alert('✅ 設備已更新');
-      loadMyEquipment();  // 重新載入列表
-    } else {
-      if (handleAuthExpiry(data.error)) return;
-      alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
-    }
-  } catch (err) {
-    alert('❌ 更新失敗：' + err.message);
-  }
-}
-
-/**
  * 確認刪除設備
  */
 function confirmDeleteEquipment(fixNo, deviceName) {
