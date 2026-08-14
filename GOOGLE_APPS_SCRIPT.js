@@ -3041,6 +3041,36 @@ function hasPendingTransfer(ss, fixNo) {
 }
 
 /**
+ * 檢查設備是否「完全閒置」，可安全進行改編號／刪除／轉讓。
+ * 回傳 null = 可以，回傳字串 = 不可以的原因（直接當錯誤訊息用）。
+ *
+ * 設備編號是跨表關聯鍵（借用申請／轉讓申請／歸還Token／歷史紀錄都存了它），
+ * 在流程進行中做這些操作會讓那些紀錄變成孤兒，已寄出的審核／歸還信也會失效。
+ *
+ * 原本 updateEquipment / deleteEquipment / 前端按鈕三處各寫各的判斷，
+ * 而且都只擋 borrowed，漏掉 borrow_pending、return_pending 與待審核轉讓。
+ * 統一在這裡判斷，避免再次各自漏掉。
+ */
+function getEquipmentBusyReason(ss, targetSheet, foundRow, fixNo, actionLabel) {
+  const status = (targetSheet.getRange(foundRow, COLS.status + 1).getValue() || '').toString().trim();
+
+  if (status === 'borrowed' || status === '借用中' || status === '已借出' || status === '使用中') {
+    return '這台設備目前被借出，無法' + actionLabel + '。請先完成歸還後再試。';
+  }
+  if (status === 'borrow_pending') {
+    return '這台設備有待審核的借用申請，無法' + actionLabel + '。請先完成或退回該申請後再試。';
+  }
+  if (status === 'return_pending') {
+    return '這台設備正在歸還流程中，無法' + actionLabel + '。請先完成歸還確認後再試。';
+  }
+  // 轉讓不會改設備列的 status 欄，光看狀態擋不住，要另外查工作表
+  if (hasPendingTransfer(ss, fixNo)) {
+    return '這台設備有待審核的轉讓申請，無法' + actionLabel + '。請先完成或取消轉讓後再試。';
+  }
+  return null;
+}
+
+/**
  * 更新設備（管理員只能修改自己的設備）
  */
 function updateEquipment(data) {
@@ -3103,16 +3133,9 @@ function updateEquipment(data) {
   }
 
   if (renaming) {
-    // 設備編號是跨表關聯鍵（借用申請／轉讓申請／歸還Token／歷史紀錄都存了它）。
-    // 只有設備完全閒置時才准改，否則那些紀錄會變成孤兒，已寄出的審核／歸還信也會失效。
-    const status = (targetSheet.getRange(foundRow, COLS.status + 1).getValue() || '').toString().trim();
-    const isAvailable = status === '' || status === 'available' || status === '可借用';
-    if (!isAvailable) {
-      return errorResponse('這台設備目前不是閒置狀態，無法修改設備編號。請先完成借用／歸還／審核流程後再試。');
-    }
-
-    if (hasPendingTransfer(ss, fixNo)) {
-      return errorResponse('這台設備有待審核的轉讓申請，無法修改設備編號。請先完成或取消轉讓後再試。');
+    const busyReason = getEquipmentBusyReason(ss, targetSheet, foundRow, fixNo, '修改設備編號');
+    if (busyReason) {
+      return errorResponse(busyReason);
     }
 
     if (isFixNoTaken(ss, newFixNo)) {
@@ -3154,13 +3177,12 @@ function deleteEquipment(data) {
   }
   
   const fixNoCol = COLS.fix_no;
-  const statusCol = COLS.status;
-  
+
   // 先在「工作表 1」查找
   let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
   let targetSheet = null;
-  
+
   if (sheet) {
     const lastRow = sheet.getLastRow();
     for (let i = 2; i <= lastRow; i++) {
@@ -3193,14 +3215,12 @@ function deleteEquipment(data) {
     return errorResponse('找不到設備編號：' + fixNo);
   }
   
-  // 檢查設備是否被借出
-  const currentStatus = targetSheet.getRange(foundRow, statusCol + 1).getValue();
-  const isBorrowed = currentStatus === 'borrowed' || currentStatus === '借用中' || currentStatus === '已借出' || currentStatus === '使用中';
-  
-  if (isBorrowed) {
-    return errorResponse('設備目前被借出，無法刪除');
+  // 檢查設備是否閒置（借出／待審核借用／歸還中／待審核轉讓都不准刪）
+  const busyReason = getEquipmentBusyReason(ss, targetSheet, foundRow, fixNo, '刪除');
+  if (busyReason) {
+    return errorResponse(busyReason);
   }
-  
+
   // 刪除該列
   targetSheet.deleteRow(foundRow);
   
@@ -4885,7 +4905,14 @@ function requestTransfer(data) {
     if (fromKeeper === to_keeper) {
       return errorResponse('不能轉讓給自己');
     }
-    
+
+    // 檢查設備是否閒置（借出／待審核借用／歸還中／已有待審核轉讓都不准再送）
+    // 迴圈結束時 sheet 就是找到設備的那張工作表
+    const busyReason = getEquipmentBusyReason(ss, sheet, foundRow, fix_no, '轉讓');
+    if (busyReason) {
+      return errorResponse(busyReason);
+    }
+
     // 產生 request_id（用隨機 UUID，避免時間戳可被猜測而偽造審核連結）
     const requestId = 'TR' + Utilities.getUuid();
     

@@ -2117,7 +2117,12 @@ async function loadMyEquipment() {
     myEquipment.forEach((eq, index) => {
       const isBorrowed = eq.status === 'borrowed' || eq.status === '借用中' || eq.status === '已借出' || eq.status === '使用中';
       const isReturnPending = eq.status === 'return_pending';
-      
+      const isBorrowPending = eq.status === 'borrow_pending';
+      // 非閒置就不給改／刪／轉讓。後端 getEquipmentBusyReason() 有同樣的把關，
+      // 這裡只是先在畫面上擋掉，省一趟 GAS 來回。
+      // 註：待審核的「轉讓」擋不到——轉讓不會改 status 欄，前端看不出來，只能靠後端。
+      const isBusy = isBorrowed || isReturnPending || isBorrowPending;
+
       html += `
         <div style="background:#fff;border:1px solid #ddd;border-radius:8px;padding:15px;">
           <div style="display:flex;justify-content:space-between;align-items:start;">
@@ -2133,11 +2138,12 @@ async function loadMyEquipment() {
             <div style="text-align:right;">
               ${isBorrowed ? '<span style="background:#ffc107;padding:4px 8px;border-radius:4px;font-size:0.85em;">📤 已借出</span>' : ''}
               ${isReturnPending ? '<span style="background:#17a2b8;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">⏳ 歸還中</span>' : ''}
+              ${isBorrowPending ? '<span style="background:#fd7e14;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">⏳ 待審核</span>' : ''}
               ${eq.status === 'available' ? '<span style="background:#28a745;padding:4px 8px;border-radius:4px;font-size:0.85em;color:white;">✓ 可借用</span>' : ''}
             </div>
           </div>
           <div style="margin-top:15px;display:flex;gap:10px;">
-            ${(isBorrowed || isReturnPending) ? 
+            ${isBusy ?
               '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法轉讓">🔄 轉讓</button>' :
               '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button><button onclick="openTransferModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.keeper || '') + '\')" style="padding:8px 15px;background:#17a2b8;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 轉讓</button>'
             }
