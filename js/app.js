@@ -31,6 +31,21 @@ async function gasGetJson(url, opts) {
   }
 }
 
+// 把值編碼成可以安全塞進 inline onclick 單引號字串裡的形式。
+//
+// ⚠️ 不要只用 encodeURIComponent()：它「不會」編碼單引號——
+// ' 跟 - _ . ! ~ * ( ) 一樣是它的保留字元，會原封不動穿過去。
+// 所以 onclick="fn('...')" 裡只要值含一個單引號就會把字串打斷，
+// 按鈕變成按了完全沒反應，而且不會報錯，極難查。
+// （設備名稱明明包了 encodeURIComponent 卻還是會壞，就是這個原因。）
+//
+// escapeHtml() 也擋不住：它走 textContent → innerHTML，只轉 & < >，引號不轉。
+//
+// 取出時用 decodeURIComponent() 還原即可（%27 會正確還原成單引號）。
+function encodeArg(value) {
+  return encodeURIComponent(value == null ? '' : String(value)).replace(/'/g, '%27');
+}
+
 /**
  * 格式化日期時間為 yyyy-MM-dd HH:mm:ss（處理各種輸入格式）
  */
@@ -241,17 +256,19 @@ function renderEquipment(equipment) {
                 
                 // 借用/歸還/延後按鈕
                 let actionButton = '';
-                // URL 編碼設備名稱，避免特殊字元破壞 HTML/JavaScript 語法
-                const encodedDeviceName = encodeURIComponent(eq.device_name || '');
-                const encodedBorrower = encodeURIComponent(eq.borrower || '');
-                const encodedKeeper = encodeURIComponent(eq.keeper || '');
+                // 編碼後塞進 onclick，避免特殊字元破壞 HTML/JavaScript 語法。
+                // 一定要用 encodeArg（會處理單引號），不能只用 encodeURIComponent。
+                const encodedFixNo = encodeArg(eq.fix_no);
+                const encodedDeviceName = encodeArg(eq.device_name);
+                const encodedBorrower = encodeArg(eq.borrower);
+                const encodedKeeper = encodeArg(eq.keeper);
                 if (isAvailable) {
-                  actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedKeeper}'))">借用</button>`;
+                  actionButton = `<button class="btn-borrow-sm" onclick="openBorrowModal(decodeURIComponent('${encodedFixNo}'), decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedKeeper}'))">借用</button>`;
                 } else if (isBorrowed) {
                   // 借用中 - 顯示【歸還】和【延後】按鈕
                   actionButton = `
-                    <button class="btn-postpone-sm" onclick="openPostponeModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'), '${eq.dt_due}')">⏰ 續借</button>
-                    <button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))" style="margin-left:5px;">📧 歸還</button>
+                    <button class="btn-postpone-sm" onclick="openPostponeModal(decodeURIComponent('${encodedFixNo}'), decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'), decodeURIComponent('${encodeArg(eq.dt_due)}'))">⏰ 續借</button>
+                    <button class="btn-return-sm" onclick="openReturnModal(decodeURIComponent('${encodedFixNo}'), decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))" style="margin-left:5px;">📧 歸還</button>
                   `;
                 } else if (isBorrowPending) {
                   // 借用審核中，顯示提示文字
@@ -265,7 +282,7 @@ function renderEquipment(equipment) {
                   if (hasReturnDate) {
                     actionButton = '<span style="color:#17a2b8;font-size:0.85em;">⏳ 待確認</span>';
                   } else {
-                    actionButton = `<button class="btn-return-sm" onclick="openReturnModal('${eq.fix_no}', decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))">📧 歸還</button>`;
+                    actionButton = `<button class="btn-return-sm" onclick="openReturnModal(decodeURIComponent('${encodedFixNo}'), decodeURIComponent('${encodedDeviceName}'), decodeURIComponent('${encodedBorrower}'))">📧 歸還</button>`;
                   }
                 } else {
                   actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
@@ -2126,12 +2143,11 @@ async function loadMyEquipment() {
           <div style="margin-top:15px;display:flex;gap:10px;">
             ${isBusy ?
               '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法轉讓">🔄 轉讓</button>' :
-              // onclick 的每個參數都要 encodeURIComponent：值裡只要有一個單引號
-              // 就會把 onclick 字串打斷，按鈕變成按了沒反應（不報錯，最難查）。
+              // 每個參數都要走 encodeArg（不能只用 encodeURIComponent，它不轉單引號）。
               // 對應的 handler 開頭會 decodeURIComponent 還原。
-              '<button onclick="openEditEquipmentModal(\'' + encodeURIComponent(eq.fix_no || '') + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + encodeURIComponent(eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button>' +
-              '<button onclick="confirmDeleteEquipment(\'' + encodeURIComponent(eq.fix_no || '') + '\', \'' + encodeURIComponent(eq.device_name || '') + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>' +
-              '<button onclick="openTransferModal(\'' + encodeURIComponent(eq.fix_no || '') + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.keeper || '') + '\')" style="padding:8px 15px;background:#17a2b8;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 轉讓</button>'
+              '<button onclick="openEditEquipmentModal(\'' + encodeArg(eq.fix_no) + '\', \'' + encodeArg(eq.device_name) + '\', \'' + encodeArg(eq.fix_type) + '\', \'' + encodeArg(eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button>' +
+              '<button onclick="confirmDeleteEquipment(\'' + encodeArg(eq.fix_no) + '\', \'' + encodeArg(eq.device_name) + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>' +
+              '<button onclick="openTransferModal(\'' + encodeArg(eq.fix_no) + '\', \'' + encodeArg(eq.device_name) + '\', \'' + encodeArg(eq.keeper) + '\')" style="padding:8px 15px;background:#17a2b8;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 轉讓</button>'
             }
           </div>
         </div>
@@ -2592,7 +2608,7 @@ async function loadDeptBorrowList() {
             <div style="text-align:right;">
               <span ${statusClass} style="font-weight:bold;">${statusText}</span>
               ${!item.dt_return ? `
-                <button class="btn-return-sm" onclick="handleDeptReturn('${item.id}', '${escapeHtml(item.device_name)}', '${escapeHtml(item.borrower)}')" style="margin-left:10px;padding:5px 10px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85em;">
+                <button class="btn-return-sm" onclick="handleDeptReturn(decodeURIComponent('${encodeArg(item.id)}'), decodeURIComponent('${encodeArg(item.device_name)}'), decodeURIComponent('${encodeArg(item.borrower)}'))" style="margin-left:10px;padding:5px 10px;background:#28a745;color:white;border:none;border-radius:4px;cursor:pointer;font-size:0.85em;">
                   歸還
                 </button>
               ` : ''}
