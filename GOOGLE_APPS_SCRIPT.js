@@ -164,8 +164,13 @@ function doGet(e) {
     }
 
     // 管理員專屬動作：必須帶有效 token，否則拒絕
-    if (PROTECTED_ACTIONS.indexOf(action) !== -1 && !validateSession(e.parameter.token)) {
-      return errorResponse('未授權：請重新登入後再操作');
+    // session 要留著往下傳——改／刪／轉讓還要再確認操作的是不是自己保管的設備
+    let session = null;
+    if (PROTECTED_ACTIONS.indexOf(action) !== -1) {
+      session = validateSession(e.parameter.token);
+      if (!session) {
+        return errorResponse('未授權：請重新登入後再操作');
+      }
     }
 
     if (action === 'query') {
@@ -236,11 +241,13 @@ function doGet(e) {
         new_fix_no: e.parameter.new_fix_no,
         device_name: e.parameter.device_name,
         fix_type: e.parameter.fix_type,
-        qty_asset: e.parameter.qty_asset
+        qty_asset: e.parameter.qty_asset,
+        session_name: session ? session.name : ''
       });
     } else if (action === 'deleteEquipment') {
       return deleteEquipment({
-        fix_no: e.parameter.fix_no
+        fix_no: e.parameter.fix_no,
+        session_name: session ? session.name : ''
       });
     } else if (action === 'requestBorrow') {
       const requestData = {
@@ -307,7 +314,8 @@ function doGet(e) {
     } else if (action === 'requestTransfer') {
       return requestTransfer({
         fix_no: e.parameter.fix_no,
-        to_keeper: e.parameter.to_keeper
+        to_keeper: e.parameter.to_keeper,
+        session_name: session ? session.name : ''
       });
     } else if (action === 'getTransferRequest') {
       return getTransferRequest({
@@ -545,10 +553,21 @@ function registerEquipment(data) {
   if (!sheet) {
     return errorResponse(`找不到工作表：${SHEET_NAME_WEB}，請先建立此工作表`);
   }
-  
+
+  const fixNo = (data.fix_no || '').toString().trim();
+  if (!fixNo) {
+    return errorResponse('請填寫設備編號');
+  }
+
+  // 擋重複編號：一旦有兩台同編號，之後所有靠 fix_no 找列的操作
+  //（借用／歸還／轉讓／刪除）都只會命中第一台，第二台變成查不到的鬼設備。
+  if (isFixNoTaken(ss, fixNo)) {
+    return errorResponse('設備編號「' + fixNo + '」已經存在，請換一個。');
+  }
+
   const newRow = [
     data.fix_type || '',
-    data.fix_no || '',
+    fixNo,
     data.device_name || '',
     data.qty_asset || '1',
     data.keeper || '',
@@ -559,13 +578,13 @@ function registerEquipment(data) {
     '',
     false
   ];
-  
+
   sheet.appendRow(newRow);
-  
+
   return successResponse({
     success: true,
     message: '設備登記成功（已存入網站新增設備工作表）',
-    fix_no: data.fix_no
+    fix_no: fixNo
   });
 }
 
@@ -3041,6 +3060,26 @@ function hasPendingTransfer(ss, fixNo) {
 }
 
 /**
+ * 檢查登入者是不是這台設備的保管人。
+ * 回傳 null = 是本人，回傳字串 = 拒絕的原因。
+ *
+ * 前端「我的設備」用 eq.keeper === user.name 過濾，這裡用同一套比對，
+ * 讓後端的實際權限與畫面上看到的一致——否則直接打 API 就能改別人的設備。
+ */
+function getNotOwnerReason(targetSheet, foundRow, sessionName, actionLabel) {
+  const keeper = (targetSheet.getRange(foundRow, COLS.keeper + 1).getValue() || '').toString().trim();
+  const me = (sessionName || '').toString().trim();
+
+  if (!me) {
+    return '無法確認登入身分，請重新登入後再操作。';
+  }
+  if (keeper !== me) {
+    return '這台設備的保管人是「' + (keeper || '未指定') + '」，只有保管人本人可以' + actionLabel + '。';
+  }
+  return null;
+}
+
+/**
  * 檢查設備是否「完全閒置」，可安全進行改編號／刪除／轉讓。
  * 回傳 null = 可以，回傳字串 = 不可以的原因（直接當錯誤訊息用）。
  *
@@ -3085,8 +3124,7 @@ function updateEquipment(data) {
   const deviceNameCol = COLS.device_name;
   const fixTypeCol = COLS.fix_type;
   const qtyAssetCol = COLS.qty_asset;
-  const keeperCol = COLS.keeper;
-  
+
   // 先在「工作表 1」查找
   let sheet = ss.getSheetByName(SHEET_NAME);
   let foundRow = -1;
@@ -3124,6 +3162,12 @@ function updateEquipment(data) {
     return errorResponse('找不到設備編號：' + fixNo);
   }
   
+  // 只有保管人本人可以修改（與前端「我的設備」的過濾條件一致）
+  const notOwnerReason = getNotOwnerReason(targetSheet, foundRow, data.session_name, '修改');
+  if (notOwnerReason) {
+    return errorResponse(notOwnerReason);
+  }
+
   // 改編號：只有跟舊編號不同時才處理
   const newFixNo = (data.new_fix_no || '').toString().trim();
   const renaming = !!newFixNo && newFixNo !== fixNo;
@@ -3215,6 +3259,12 @@ function deleteEquipment(data) {
     return errorResponse('找不到設備編號：' + fixNo);
   }
   
+  // 只有保管人本人可以刪除（與前端「我的設備」的過濾條件一致）
+  const notOwnerReason = getNotOwnerReason(targetSheet, foundRow, data.session_name, '刪除');
+  if (notOwnerReason) {
+    return errorResponse(notOwnerReason);
+  }
+
   // 檢查設備是否閒置（借出／待審核借用／歸還中／待審核轉讓都不准刪）
   const busyReason = getEquipmentBusyReason(ss, targetSheet, foundRow, fixNo, '刪除');
   if (busyReason) {
@@ -4902,12 +4952,18 @@ function requestTransfer(data) {
       return errorResponse(`找不到設備編號：${fix_no}`);
     }
     
+    // 只有保管人本人可以轉讓（與前端「我的設備」的過濾條件一致）
+    // 迴圈結束時 sheet 就是找到設備的那張工作表
+    const notOwnerReason = getNotOwnerReason(sheet, foundRow, data.session_name, '轉讓');
+    if (notOwnerReason) {
+      return errorResponse(notOwnerReason);
+    }
+
     if (fromKeeper === to_keeper) {
       return errorResponse('不能轉讓給自己');
     }
 
     // 檢查設備是否閒置（借出／待審核借用／歸還中／已有待審核轉讓都不准再送）
-    // 迴圈結束時 sheet 就是找到設備的那張工作表
     const busyReason = getEquipmentBusyReason(ss, sheet, foundRow, fix_no, '轉讓');
     if (busyReason) {
       return errorResponse(busyReason);

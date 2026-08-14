@@ -134,23 +134,10 @@ async function searchEquipment() {
 
     console.log('GAS 請求網址:', url.toString());
 
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    console.log('GAS 回應狀態:', res.status, res.ok);
-
-  if (!res.ok) {
-      const errorText = await res.text();
-      console.error('GAS 錯誤回應:', errorText);
-      let message = `HTTP ${res.status}: ${res.statusText}.`;
-      // 由於您提到系統在 GitHub 部署，請確認 GAS_URL 是否已更新為您新的 API 端點。
-      message += `如果 API 網址錯誤，請檢查 URL。原始錯誤: ${res.statusText}`;
-      throw new Error(message);
-  }
-
-    const data = await res.json();
+    // 走 gasGetJson：GAS 轉址不穩時會回 HTML 而不是 JSON，直接 res.json() 會噴
+    // Unexpected token '<'。查詢是唯讀的，重試沒有副作用，所以放心重試。
+    // 這支是每次進站／每次搜尋都會呼叫的，最容易被抽風打到。
+    const data = await gasGetJson(url.toString(), { retries: 2 });
     console.log('GAS 回應資料:', data);
 
     if (data.error) {
@@ -2078,15 +2065,9 @@ async function loadMyEquipment() {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'query');
     console.log('查詢 URL:', url.toString());
-    
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    console.log('GAS 回應狀態:', res.status);
-    
-    if (!res.ok) {
-      throw new Error('HTTP ' + res.status);
-    }
-    
-    const data = await res.json();
+
+    // 同上，走 gasGetJson 讓 GAS 抽風時自動重試而不是直接噴錯
+    const data = await gasGetJson(url.toString(), { retries: 2 });
     console.log('GAS 回應資料:', data);
     
     if (data.error) {
@@ -2145,7 +2126,12 @@ async function loadMyEquipment() {
           <div style="margin-top:15px;display:flex;gap:10px;">
             ${isBusy ?
               '<button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法修改">✏️ 修改</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法刪除">🗑️ 刪除</button><button disabled style="padding:8px 15px;background:#ccc;color:#888;border:none;border-radius:6px;cursor:not-allowed;" title="使用中無法轉讓">🔄 轉讓</button>' :
-              '<button onclick="openEditEquipmentModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + (eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button><button onclick="confirmDeleteEquipment(\'' + eq.fix_no + '\', \'' + eq.device_name + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button><button onclick="openTransferModal(\'' + eq.fix_no + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.keeper || '') + '\')" style="padding:8px 15px;background:#17a2b8;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 轉讓</button>'
+              // onclick 的每個參數都要 encodeURIComponent：值裡只要有一個單引號
+              // 就會把 onclick 字串打斷，按鈕變成按了沒反應（不報錯，最難查）。
+              // 對應的 handler 開頭會 decodeURIComponent 還原。
+              '<button onclick="openEditEquipmentModal(\'' + encodeURIComponent(eq.fix_no || '') + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.fix_type || '') + '\', \'' + encodeURIComponent(eq.qty_asset || '1') + '\')" style="padding:8px 15px;background:#667eea;color:white;border:none;border-radius:6px;cursor:pointer;">✏️ 修改</button>' +
+              '<button onclick="confirmDeleteEquipment(\'' + encodeURIComponent(eq.fix_no || '') + '\', \'' + encodeURIComponent(eq.device_name || '') + '\')" style="padding:8px 15px;background:#dc3545;color:white;border:none;border-radius:6px;cursor:pointer;">🗑️ 刪除</button>' +
+              '<button onclick="openTransferModal(\'' + encodeURIComponent(eq.fix_no || '') + '\', \'' + encodeURIComponent(eq.device_name || '') + '\', \'' + encodeURIComponent(eq.keeper || '') + '\')" style="padding:8px 15px;background:#17a2b8;color:white;border:none;border-radius:6px;cursor:pointer;">🔄 轉讓</button>'
             }
           </div>
         </div>
@@ -2164,11 +2150,13 @@ async function loadMyEquipment() {
  * 開啟修改設備 Modal
  */
 function openEditEquipmentModal(fixNo, deviceName, fixType, qtyAsset) {
-  document.getElementById('edit-fix-no').value = fixNo;
-  document.getElementById('edit-fix-no-display').value = fixNo || '';
+  // 參數都是 encodeURIComponent 過的（見「我的設備」列表的按鈕），這裡還原
+  const rawFixNo = decodeURIComponent(fixNo || '');
+  document.getElementById('edit-fix-no').value = rawFixNo;
+  document.getElementById('edit-fix-no-display').value = rawFixNo;
   document.getElementById('edit-device-name').value = decodeURIComponent(deviceName || '');
   document.getElementById('edit-fix-type').value = decodeURIComponent(fixType || '儀器設備');
-  document.getElementById('edit-qty-asset').value = qtyAsset || '1';
+  document.getElementById('edit-qty-asset').value = decodeURIComponent(qtyAsset || '1');
   document.getElementById('edit-equipment-modal').style.display = 'flex';
 }
 
@@ -2180,10 +2168,13 @@ function closeEditEquipmentModal() {
  * 確認刪除設備
  */
 function confirmDeleteEquipment(fixNo, deviceName) {
-  if (!confirm('確定要刪除設備「' + deviceName + '」嗎？\n此操作無法撤銷！')) {
+  // 參數都是 encodeURIComponent 過的（見「我的設備」列表的按鈕），這裡還原
+  const rawFixNo = decodeURIComponent(fixNo || '');
+  const rawDeviceName = decodeURIComponent(deviceName || '');
+  if (!confirm('確定要刪除設備「' + rawDeviceName + '」嗎？\n此操作無法撤銷！')) {
     return;
   }
-  deleteEquipment(fixNo);
+  deleteEquipment(rawFixNo);
 }
 
 /**
@@ -2326,16 +2317,17 @@ function openTransferModal(fixNo, deviceName, keeper) {
     document.getElementById('transfer-form').addEventListener('submit', handleTransferSubmit);
   }
   
-  // 設定設備資訊
-  document.getElementById('transfer-fix-no').value = fixNo;
+  // 設定設備資訊（參數都是 encodeURIComponent 過的，這裡還原）
+  const rawFixNo = decodeURIComponent(fixNo || '');
+  document.getElementById('transfer-fix-no').value = rawFixNo;
   document.getElementById('transfer-info').innerHTML = `
-    <strong>設備編號：</strong>${escapeHtml(fixNo)}<br>
+    <strong>設備編號：</strong>${escapeHtml(rawFixNo)}<br>
     <strong>設備名稱：</strong>${escapeHtml(decodeURIComponent(deviceName || ''))}<br>
     <strong>目前保管人：</strong>${escapeHtml(decodeURIComponent(keeper || ''))}
   `;
-  
+
   // 載入 Keeper 清單
-  loadKeeperListForTransfer(fixNo);
+  loadKeeperListForTransfer(rawFixNo);
   
   modal.style.display = 'flex';
 }
