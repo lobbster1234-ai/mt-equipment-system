@@ -233,6 +233,7 @@ function doGet(e) {
     } else if (action === 'updateEquipment') {
       return updateEquipment({
         fix_no: e.parameter.fix_no,
+        new_fix_no: e.parameter.new_fix_no,
         device_name: e.parameter.device_name,
         fix_type: e.parameter.fix_type,
         qty_asset: e.parameter.qty_asset
@@ -2994,6 +2995,52 @@ function setupPassword(data) {
 }
 
 /**
+ * 檢查設備編號是否已被使用（兩張設備工作表都查）
+ * 用於改編號時擋掉撞號
+ */
+function isFixNoTaken(ss, fixNo) {
+  const target = (fixNo || '').toString().trim();
+  if (!target) return false;
+
+  const sheetNames = [SHEET_NAME, SHEET_NAME_WEB];
+  for (let s = 0; s < sheetNames.length; s++) {
+    const sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet) continue;
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) continue;
+    // 一次讀整欄，逐格 getValue 在這裡會慢很多
+    const values = sheet.getRange(2, COLS.fix_no + 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < values.length; i++) {
+      const v = (values[i][0] || '').toString().trim();
+      if (v && v === target) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 檢查設備是否有待審核的轉讓申請
+ * 轉讓不會改設備列的 status 欄，所以要另外查「轉讓申請」工作表
+ */
+function hasPendingTransfer(ss, fixNo) {
+  const target = (fixNo || '').toString().trim();
+  const sheet = ss.getSheetByName('轉讓申請');
+  if (!sheet) return false;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+
+  // B 欄 fix_no、G 欄 status
+  const values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  for (let i = 0; i < values.length; i++) {
+    const rowFixNo = (values[i][1] || '').toString().trim();
+    const rowStatus = (values[i][6] || '').toString().trim();
+    if (rowFixNo === target && rowStatus === 'pending') return true;
+  }
+  return false;
+}
+
+/**
  * 更新設備（管理員只能修改自己的設備）
  */
 function updateEquipment(data) {
@@ -3047,6 +3094,34 @@ function updateEquipment(data) {
     return errorResponse('找不到設備編號：' + fixNo);
   }
   
+  // 改編號：只有跟舊編號不同時才處理
+  const newFixNo = (data.new_fix_no || '').toString().trim();
+  const renaming = !!newFixNo && newFixNo !== fixNo;
+
+  if (data.new_fix_no !== undefined && !newFixNo) {
+    return errorResponse('設備編號不可空白');
+  }
+
+  if (renaming) {
+    // 設備編號是跨表關聯鍵（借用申請／轉讓申請／歸還Token／歷史紀錄都存了它）。
+    // 只有設備完全閒置時才准改，否則那些紀錄會變成孤兒，已寄出的審核／歸還信也會失效。
+    const status = (targetSheet.getRange(foundRow, COLS.status + 1).getValue() || '').toString().trim();
+    const isAvailable = status === '' || status === 'available' || status === '可借用';
+    if (!isAvailable) {
+      return errorResponse('這台設備目前不是閒置狀態，無法修改設備編號。請先完成借用／歸還／審核流程後再試。');
+    }
+
+    if (hasPendingTransfer(ss, fixNo)) {
+      return errorResponse('這台設備有待審核的轉讓申請，無法修改設備編號。請先完成或取消轉讓後再試。');
+    }
+
+    if (isFixNoTaken(ss, newFixNo)) {
+      return errorResponse('設備編號「' + newFixNo + '」已經有其他設備在使用，請換一個。');
+    }
+
+    targetSheet.getRange(foundRow, fixNoCol + 1).setValue(newFixNo);
+  }
+
   // 更新資料
   if (data.device_name) {
     targetSheet.getRange(foundRow, deviceNameCol + 1).setValue(data.device_name);
@@ -3057,13 +3132,13 @@ function updateEquipment(data) {
   if (data.qty_asset) {
     targetSheet.getRange(foundRow, qtyAssetCol + 1).setValue(data.qty_asset);
   }
-  
-  Logger.log('更新設備：' + fixNo + '，更新內容：' + JSON.stringify(data));
-  
+
+  Logger.log('更新設備：' + fixNo + (renaming ? ' → ' + newFixNo : '') + '，更新內容：' + JSON.stringify(data));
+
   return successResponse({
     success: true,
-    message: '設備已更新',
-    fix_no: fixNo
+    message: renaming ? '設備已更新（編號改為 ' + newFixNo + '）' : '設備已更新',
+    fix_no: renaming ? newFixNo : fixNo
   });
 }
 

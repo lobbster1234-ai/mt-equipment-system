@@ -2217,13 +2217,18 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
   // originalFixNo 是隱藏欄位，用來找資料列
   // newFixNo 是顯示欄位，是使用者輸入的新編號
   const originalFixNo = document.getElementById('edit-fix-no').value;
-  const newFixNo = document.getElementById('edit-fix-no-display').value;
+  const newFixNo = document.getElementById('edit-fix-no-display').value.trim();
   const deviceName = document.getElementById('edit-device-name').value;
   const fixType = document.getElementById('edit-fix-type').value;
   const qtyAsset = document.getElementById('edit-qty-asset').value;
 
   if (!originalFixNo || !deviceName) {
     alert('請填寫設備名稱');
+    return;
+  }
+
+  if (!newFixNo) {
+    alert('請填寫設備編號');
     return;
   }
 
