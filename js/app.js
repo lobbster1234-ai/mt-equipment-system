@@ -1102,12 +1102,8 @@ async function registerEquipment(formData) {
 
     console.log('登記請求網址:', url.toString());
 
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-
-    const result = await res.json();
+    // 寫入不重試（會重複建立設備），改在下面把 GAS 抽風當成「應該已寫入」
+    const result = await gasGetJson(url.toString());
 
     if (result.success || result.status === 'success') {
       return { success: true, message: '✅ 設備登記成功！' };
@@ -1115,6 +1111,9 @@ async function registerEquipment(formData) {
       throw new Error(result.error || '登記失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      return { success: true, message: '✅ 設備登記已送出，但伺服器回應不穩定、未能確認。\n\n請重新整理查看設備清單是否已出現；若沒有，再登記一次即可。' };
+    }
     console.error('登記失敗:', err);
     return { success: false, message: `❌ ${err.message}` };
   }
@@ -2374,10 +2373,10 @@ async function loadKeeperListForTransfer(currentFixNo) {
   try {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'getKeeperList');
-    
-    const res = await fetch(url.toString());
-    const data = await res.json();
-    
+
+    // 讀取為冪等，GAS 轉址不穩回 HTML 時可安全重試
+    const data = await gasGetJson(url.toString(), { retries: 2 });
+
     const select = document.getElementById('transfer-to-keeper');
     const user = JSON.parse(localStorage.getItem('mt_user'));
     
@@ -2437,9 +2436,9 @@ async function handleTransferSubmit(e) {
     url.searchParams.append('to_keeper', toKeeper);
     url.searchParams.append('token', getAuthToken());
 
-    const res = await fetch(url.toString());
-    const result = await res.json();
-    
+    // 寫入不重試（會重複寄信），改在下面把 GAS 抽風當成「應該已送出」
+    const result = await gasGetJson(url.toString());
+
     if (result.success) {
       alert('✅ 轉讓申請已送出！\n\n系統已寄信通知 ' + toKeeper + ' 審核');
       closeTransferModal();
@@ -2448,6 +2447,12 @@ async function handleTransferSubmit(e) {
       throw new Error(result.error || '申請失敗');
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      alert('✅ 轉讓申請已送出，但伺服器回應不穩定、未能確認。\n\n請留意 ' + toKeeper + ' 是否收到審核信；若沒有，稍後再送一次即可（不會重複轉讓）。');
+      closeTransferModal();
+      loadMyEquipment();
+      return;
+    }
     if (handleAuthExpiry(err.message)) return;
     alert('❌ 轉讓失敗：' + err.message);
     if (submitBtn) {
