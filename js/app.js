@@ -364,12 +364,8 @@ async function fetchEmailByName(name) {
     url.searchParams.append('action', 'getEmailByName');
     url.searchParams.append('name', name);
     
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const result = await res.json();
+    // 讀取為冪等，GAS 轉址不穩回 HTML 時可安全重試
+    const result = await gasGetJson(url.toString(), { retries: 2 });
     if (result.success && result.email) {
       return result.email;
     }
@@ -2221,9 +2217,9 @@ async function deleteEquipment(fixNo) {
     url.searchParams.append('fix_no', fixNo);
     url.searchParams.append('token', getAuthToken());
 
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    const data = await res.json();
-    
+    // 寫入不重試（會重複刪除），改在下面把 GAS 抽風當成「應該已刪除」
+    const data = await gasGetJson(url.toString());
+
     if (data.success) {
       alert('✅ 設備已刪除');
       loadMyEquipment();  // 重新載入列表
@@ -2232,6 +2228,11 @@ async function deleteEquipment(fixNo) {
       alert('❌ 刪除失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      alert('✅ 刪除已送出，但伺服器回應不穩定、未能確認。\n\n請看下方列表是否已消失；若還在，再刪一次即可。');
+      loadMyEquipment();
+      return;
+    }
     alert('❌ 刪除失敗：' + err.message);
   }
 }
@@ -2284,11 +2285,10 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
     
     console.log('更新設備 URL:', url.toString());
     
-    const res = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
-    console.log('更新設備 HTTP 狀態:', res.status);
-    const data = await res.json();
+    // 寫入不重試（會重複更新），改在下面把 GAS 抽風當成「應該已更新」
+    const data = await gasGetJson(url.toString());
     console.log('更新設備回應:', data);
-    
+
     if (data.success) {
       alert('✅ 設備已更新');
       closeEditEquipmentModal();
@@ -2298,6 +2298,12 @@ document.getElementById('edit-equipment-form').addEventListener('submit', async 
       alert('❌ 更新失敗：' + (data.error || '未知錯誤'));
     }
   } catch (err) {
+    if (err.isGasGlitch) {
+      alert('✅ 更新已送出，但伺服器回應不穩定、未能確認。\n\n請看下方列表是否已變成新內容；若沒有，再改一次即可。');
+      closeEditEquipmentModal();
+      loadMyEquipment();
+      return;
+    }
     console.error('更新設備錯誤:', err);
     alert('❌ 更新失敗：' + err.message);
   } finally {
@@ -2590,12 +2596,8 @@ async function loadDeptBorrowList() {
     const url = new URL(GAS_URL);
     url.searchParams.append('action', 'getDeptBorrowList');
     
-    const res = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow'
-    });
-    
-    const data = await res.json();
+    // 讀取為冪等，GAS 轉址不穩回 HTML 時可安全重試
+    const data = await gasGetJson(url.toString(), { retries: 2 });
     console.log('部門儀器列表:', data);
     
     if (!data.success || !data.items || data.items.length === 0) {
