@@ -65,7 +65,23 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxeI5xC33a6Ry634g6kwBPK9feElH_tTPtQYeWcH4ReiEiiq5I9yIetv8ugAFDgJkHh1A/exec';
-    
+
+    // 統一請求：處理 GAS 轉址不穩回傳 HTML。讀取類可重試；仍失敗丟出 isGasGlitch 錯誤。
+    async function fetchJsonRetry(url, retries) {
+      retries = retries || 0;
+      for (let attempt = 0; ; attempt++) {
+        const res = await fetch(url);
+        const text = await res.text();
+        try { return JSON.parse(text); }
+        catch (e) {
+          if (attempt < retries) { await new Promise(r => setTimeout(r, 1200)); continue; }
+          const err = new Error('伺服器回應不穩定，請稍後再試');
+          err.isGasGlitch = true;
+          throw err;
+        }
+      }
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const requestId = urlParams.get('request_id');
     
@@ -79,9 +95,9 @@
     async function loadRequestInfo() {
       try {
         const url = GAS_URL + '?action=getTransferRequest&request_id=' + encodeURIComponent(requestId);
-        const res = await fetch(url);
-        const data = await res.json();
-        
+        // 讀取為冪等，抽風時自動重試
+        const data = await fetchJsonRetry(url, 2);
+
         if (data.error) {
           throw new Error(data.error);
         }
@@ -173,9 +189,9 @@
       
       try {
         const url = GAS_URL + '?action=' + (action === 'approve' ? 'approveTransfer' : 'rejectTransfer') + '&request_id=' + encodeURIComponent(requestId);
-        const res = await fetch(url);
-        const data = await res.json();
-        
+        // 寫入不重試（重送會重複審核／重複寄信），抽風時在 catch 裡當成「可能已成功」
+        const data = await fetchJsonRetry(url, 0);
+
         if (data.success) {
           document.getElementById('title').textContent = action === 'approve' ? '✅ 已同意轉讓' : '❌ 已拒絕轉讓';
           const msg = action === 'approve' 
@@ -194,6 +210,15 @@
           throw new Error(data.error || '處理失敗');
         }
       } catch (err) {
+        if (err.isGasGlitch) {
+          document.getElementById('title').textContent = '📨 已送出';
+          document.getElementById('content').innerHTML = '<p style="font-size:1.1em;padding:20px;color:#666;">伺服器回應不穩定，未能確認結果。<br>此操作可能已成功，請稍後回設備系統查看該筆狀態。</p>';
+          const buttonsEl = document.getElementById('buttons');
+          const promptEl = document.getElementById('prompt');
+          if (buttonsEl) buttonsEl.style.display = 'none';
+          if (promptEl) promptEl.style.display = 'none';
+          return;
+        }
         alert('處理失敗：' + err.message);
         btnApprove.disabled = false;
         btnReject.disabled = false;
