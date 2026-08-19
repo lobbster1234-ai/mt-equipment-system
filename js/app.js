@@ -288,6 +288,25 @@ function renderEquipment(equipment) {
                   actionButton = '<span style="color:#999;font-size:0.85em;">已確認</span>';
                 }
                 
+                // 借用人與日期。一定要標明「借用日／應還日」：只放 📅 / ⏰ 兩個 icon 的話，
+                // 遇到 2026-06-10 借、2027-06-10 還這種月日相同的情況，會被誤讀成同一天。
+                const showBorrowInfo = (isBorrowed || isBorrowPending || isReturnPending || (!isAvailable && !isBorrowed && !isBorrowPending && !isReturnPending && !isConfirmed)) && eq.borrower;
+                let borrowInfoHtml = '';
+                if (showBorrowInfo) {
+                  const now = new Date();
+                  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                  const dueStr = (formatDateTime(eq.dt_due) || '').slice(0, 10);
+                  const isOverdue = /^\d{4}-\d{2}-\d{2}$/.test(dueStr) && dueStr < todayStr;
+                  const dueStyle = isOverdue ? 'color:#c00;font-weight:bold;' : '';
+                  borrowInfoHtml = `
+                    <div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;line-height:1.7;">
+                      👤 ${escapeHtml(eq.borrower)}<br>
+                      📅 借用日 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>
+                      <span style="${dueStyle}">⏰ 應還日 ${formatDateTime(eq.dt_due) || '未設定'}${isOverdue ? '（已逾期）' : ''}</span>
+                    </div>
+                  `;
+                }
+
                 return `
                   <tr>
                     <td>${escapeHtml(eq.fix_type || '')}</td>
@@ -297,7 +316,7 @@ function renderEquipment(equipment) {
                     <td>
                       ${statusHtml}
                       <div style="margin-top:5px;">${actionButton}</div>
-                      ${(isBorrowed || isBorrowPending || isReturnPending || (!isAvailable && !isBorrowed && !isBorrowPending && !isReturnPending && !isConfirmed)) && eq.borrower ? `<div style="font-size:0.8em;color:#666;margin-top:3px;text-align:center;">👤 ${escapeHtml(eq.borrower)} | 📅 ${formatDateTime(eq.dt_borrow) || '未設定'}<br>⏰ ${formatDateTime(eq.dt_due) || '未設定'}</div>` : ''}
+                      ${borrowInfoHtml}
                     </td>
                   </tr>
                 `;
