@@ -1591,7 +1591,12 @@ function confirmReturn(data) {
   if (EMAIL_CONFIG.enabled && keeperName) {
     sendReturnConfirmEmail(keeperName, fixNo, deviceName);
   }
-  
+
+  // 通知借用人歸還已完成。borrower 在上面清空欄位「之前」就先讀進變數了，這裡拿得到值。
+  if (EMAIL_CONFIG.enabled) {
+    sendReturnCompletedEmailToBorrower((borrower || '').toString().trim(), fixNo, deviceName, keeperName);
+  }
+
   return successResponse({
     message: '歸還已確認，設備狀態已更新為可借用',
     fix_no: fixNo
@@ -3433,7 +3438,246 @@ function reminderOverdue() {
   });
   
   Logger.log('=== 逾期提醒檢查完成 ===');
+
+  // 順便檢查卡在「歸還確認中」的設備。包 try/catch，確保新功能出錯時
+  // 不會影響上面已經跑很久、很穩定的逾期提醒。
+  try {
+    reminderReturnPending();
+  } catch (err) {
+    Logger.log('待確認歸還提醒失敗: ' + err.message);
+  }
 }
+
+// =============================================
+// 待 Keeper 確認的歸還：逾時提醒
+// =============================================
+
+/**
+ * 從「歸還Token」工作表找出這台設備尚未使用的 token。
+ * 歸還當下就產生過一把，而 checkReturnToken() 只看 used 欄位、不看時間，
+ * 所以那把 token 至今仍然有效；提醒信沿用同一把即可，
+ * 免得每寄一次就往 Token 表塞一列。
+ * @return {string|null} 找到回傳 token，沒有回傳 null
+ */
+function findUnusedReturnToken(fixNo) {
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(RETURN_TOKEN_SHEET_NAME);
+    if (!sheet) return null;
+
+    const data = sheet.getDataRange().getValues();
+    const target = fixNo.toString().trim();
+
+    // 從最後一筆往前找，取最新的一把
+    for (let i = data.length - 1; i >= 1; i--) {
+      const rowToken = data[i][0];
+      const rowFixNo = data[i][1];
+      const isUsed = data[i][3];
+      if (!rowToken || !rowFixNo) continue;
+      if (rowFixNo.toString().trim() !== target) continue;
+      if (isUsed === true || isUsed === 'TRUE' || isUsed === 'true') continue;
+      return rowToken.toString();
+    }
+    return null;
+  } catch (err) {
+    Logger.log('查找未使用歸還 Token 失敗: ' + err.message);
+    return null;
+  }
+}
+
+/**
+ * 判斷歸還已等待 days 天時，今天要不要寄提醒。
+ * 第 3、7、14 天各一次，之後每 14 天一次（28、42、56…）。
+ * 不另外記錄「已經寄過幾次」，純靠天數計算，少一張表也少一個同步問題。
+ */
+function shouldRemindReturnPending(days) {
+  if (days === 3 || days === 7 || days === 14) return true;
+  if (days > 14 && (days - 14) % 14 === 0) return true;
+  return false;
+}
+
+/**
+ * 掃出所有卡在 return_pending 的設備，依天數提醒 Keeper 去按確認。
+ * 由 reminderOverdue() 末端呼叫，沿用它每天的觸發器，不另外設排程。
+ * @param {boolean} dryRun - 傳 true 只寫 Logger 不寄信（在編輯器手動測試用）
+ */
+function reminderReturnPending(dryRun) {
+  Logger.log('=== 待確認歸還提醒檢查開始' + (dryRun ? '（DRY RUN，不寄信）' : '') + ' ===');
+
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  // 只比日期不比時間：把今天正規化到 0 點，天數才不會被觸發器的執行時刻影響
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let found = 0;
+  let sent = 0;
+
+  [SHEET_NAME, SHEET_NAME_WEB].forEach(sheetName => {
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) {
+      Logger.log(`工作表 ${sheetName} 不存在，跳過`);
+      return;
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    // 整批讀比逐格 getRange 快很多，但欄數不足時 getRange 會直接拋錯，
+    // 那樣連另一張表都會一起中斷，所以先確認欄位夠再讀。
+    const lastCol = sheet.getLastColumn();
+    if (lastCol < COLS.return_confirmed + 1) {
+      Logger.log(`工作表 ${sheetName} 只有 ${lastCol} 欄，欄位不足，跳過`);
+      return;
+    }
+
+    const rows = sheet.getRange(2, 1, lastRow - 1, COLS.return_confirmed + 1).getValues();
+
+    for (let i = 0; i < rows.length; i++) {
+      const status = (rows[i][COLS.status] || '').toString().trim().toLowerCase();
+      if (status !== 'return_pending') continue;
+
+      const fixNo = (rows[i][COLS.fix_no] || '').toString().trim();
+      const deviceName = rows[i][COLS.device_name];
+      const keeper = (rows[i][COLS.keeper] || '').toString().trim();
+      const borrower = (rows[i][COLS.borrower] || '').toString().trim();
+      const dtReturn = rows[i][COLS.dt_return];
+
+      found++;
+
+      if (!dtReturn) {
+        Logger.log(`設備 ${fixNo} 卡在待確認但沒有歸還時間，無法計算天數，跳過`);
+        continue;
+      }
+
+      const returnDate = new Date(dtReturn);
+      if (isNaN(returnDate.getTime())) {
+        Logger.log(`設備 ${fixNo} 的歸還時間無法解析：${dtReturn}`);
+        continue;
+      }
+      returnDate.setHours(0, 0, 0, 0);
+
+      const days = Math.floor((today - returnDate) / (1000 * 60 * 60 * 24));
+
+      if (!shouldRemindReturnPending(days)) {
+        Logger.log(`設備 ${fixNo} 已等待 ${days} 天，今天不是提醒日，跳過`);
+        continue;
+      }
+
+      if (!keeper) {
+        Logger.log(`設備 ${fixNo} 沒有 Keeper，無法提醒`);
+        continue;
+      }
+
+      const keeperEmail = getKeeperEmail(keeper);
+      if (!keeperEmail) {
+        Logger.log(`找不到 Keeper ${keeper} 的 email，設備 ${fixNo} 無法提醒`);
+        continue;
+      }
+
+      if (dryRun) {
+        Logger.log(`[DRY RUN] 會寄提醒給 ${keeper} <${keeperEmail}>：${fixNo} 已等待 ${days} 天`);
+        sent++;
+        continue;
+      }
+
+      sendReturnPendingReminder(keeper, keeperEmail, fixNo, deviceName, borrower, returnDate, days);
+      sent++;
+    }
+  });
+
+  Logger.log(`=== 待確認歸還提醒檢查完成：卡住 ${found} 台，寄出 ${sent} 封 ===`);
+}
+
+/**
+ * 手動測試用：在 Apps Script 編輯器的函式下拉選單選這個執行，只寫 Logger 不寄信。
+ * （編輯器執行函式時沒辦法傳參數，所以包一層來帶入 dryRun。）
+ */
+function reminderReturnPendingDryRun() {
+  reminderReturnPending(true);
+}
+
+/**
+ * 寄提醒信給遲遲沒按確認的 Keeper。
+ * 連結沿用歸還當下產生的那把 token；真的找不到才補發一把新的。
+ */
+function sendReturnPendingReminder(keeper, keeperEmail, fixNo, deviceName, borrower, returnDate, days) {
+  try {
+    let token = findUnusedReturnToken(fixNo);
+    if (!token) {
+      // 舊 token 不見了（例如 Token 表被清過），補一把，否則信裡沒有可按的連結
+      token = Utilities.base64Encode(`${fixNo}:${keeperEmail}:${Date.now()}`);
+      saveReturnToken(token, fixNo, keeperEmail);
+      Logger.log(`設備 ${fixNo} 找不到未使用的 token，已補發一把`);
+    }
+
+    // 注意：web_app_url 結尾已經有斜線，這裡不要再加，否則會變成 //confirm.html
+    const confirmUrl = `${EMAIL_CONFIG.web_app_url}confirm.html?token=${encodeURIComponent(token)}`;
+    const returnDateStr = Utilities.formatDate(returnDate, 'Asia/Taipei', 'yyyy-MM-dd');
+
+    const subject = `${EMAIL_CONFIG.subject_prefix} 提醒：設備歸還待您確認已 ${days} 天 - ${deviceName}`;
+    const body = `親愛的 ${keeper} 您好：
+
+以下設備已歸還，但尚未收到您的確認，目前已等待 ${days} 天：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+👤 原借用人：${borrower || '未記錄'}
+📅 歸還日期：${returnDateStr}
+
+⚠️ 在您確認之前，這台設備會一直維持「歸還確認中」，其他人無法借用。
+
+✅ 請點擊以下連結確認（可選擇「確認收到」或「未收到」）：
+${confirmUrl}
+
+---
+MT 部門設備管理系統 自動通知`.trim();
+
+    MailApp.sendEmail(keeperEmail, subject, body);
+    Logger.log(`已寄出待確認提醒給 ${keeperEmail}：${fixNo}（第 ${days} 天）`);
+  } catch (err) {
+    Logger.log(`寄送待確認提醒失敗（${fixNo}）: ${err.message}`);
+  }
+}
+
+/**
+ * Keeper 按下「確認收到」後，通知借用人歸還已完成。
+ * 原本只有「未收到」會通知借用人，確認完成反而沒有任何通知，
+ * 借用人無從得知流程已經結束。
+ */
+function sendReturnCompletedEmailToBorrower(borrower, fixNo, deviceName, keeperName) {
+  try {
+    if (!borrower) return;
+
+    let borrowerEmail = getBorrowerEmailFromRequestSheet(fixNo, borrower);
+    if (!borrowerEmail) {
+      // 借用申請表查不到就退回 Keeper 聯絡資訊（借用人本身也可能是 Keeper）
+      borrowerEmail = getKeeperEmail(borrower) || '';
+    }
+    if (!borrowerEmail) {
+      Logger.log(`找不到借用人 ${borrower} 的 email，未寄送歸還完成通知`);
+      return;
+    }
+
+    const subject = `${EMAIL_CONFIG.subject_prefix} 歸還已完成 - ${deviceName}`;
+    const body = `親愛的 ${borrower} 您好：
+
+保管人（Keeper）${keeperName} 已確認收到您歸還的設備，歸還流程完成：
+
+📦 設備編號：${fixNo}
+📝 設備名稱：${deviceName}
+
+✅ 設備狀態已更新為「可借用」，您這筆借用紀錄已結案。
+
+此郵件由系統自動產生，請勿直接回覆。`.trim();
+
+    MailApp.sendEmail(borrowerEmail, subject, body);
+    Logger.log(`已通知借用人歸還完成：${borrowerEmail}`);
+  } catch (err) {
+    Logger.log(`寄送歸還完成通知失敗（${fixNo}）: ${err.message}`);
+  }
+}
+
 
 /**
  * 每日提醒檢查（入口函式）- 只處理普通設備借用
