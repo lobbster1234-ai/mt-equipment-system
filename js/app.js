@@ -2925,24 +2925,19 @@ function toggleBookingGroup(headEl) {
   group.classList.toggle('open', !opened);
 }
 
-// 取消整筆預約（一次刪掉該批的所有日期）
-async function cancelBookingGroup(gid) {
+// 取消整筆預約（該批的所有日期一起取消，一樣要輸安全碼）
+function cancelBookingGroup(gid) {
   const g = stationGroupCache[gid];
   if (!g) return;
   const dates = g.items.map(x => x.date);
-  if (!confirm(`確定要取消 ${g.booker} 的這筆登記嗎？\n\n${stationRangeLabel(dates)}（共 ${dates.length} 天）`)) return;
-  try {
-    const ids = g.items.map(x => '"' + x.id + '"').join(',');
-    const url = SUPABASE_URL + '/rest/v1/station_bookings?id=in.(' + encodeURIComponent(ids) + ')';
-    const res = await fetch(url, { method: 'DELETE', headers: sbHeaders() });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.message || e.hint || '取消失敗');
-    }
-    loadTestStations();
-  } catch (err) {
-    alert('❌ 取消失敗：' + err.message);
-  }
+  const first = findStationBookingById(g.items[0].id);
+  openStationCancelModal({
+    ids: g.items.map(x => String(x.id)),
+    station: first ? first.station : '',
+    dateLabel: stationRangeLabel(dates),
+    booker: g.booker || '',
+    count: dates.length
+  });
 }
 
 // 渲染測試站卡片
@@ -3301,20 +3296,36 @@ function findStationBookingById(id) {
   return null;
 }
 
-// 取消一筆測試站登記：開 Modal 要求輸入安全碼
+// 取消單一天：轉給共用的取消 Modal
 function cancelStationBooking(id, date) {
   const b = findStationBookingById(id);
-  const station = b ? b.station : '';
-  const booker = b ? b.booker : '';
+  openStationCancelModal({
+    ids: [String(id)],
+    station: b ? b.station : '',
+    dateLabel: date,
+    booker: b ? b.booker : '',
+    count: 1
+  });
+}
+
+// 待取消的登記（給 Modal 送出時用）
+let pendingStationCancel = null;
+
+// 共用的取消 Modal：單日與整批都走這裡
+function openStationCancelModal(opts) {
+  pendingStationCancel = opts;
+  const { station, dateLabel, booker, count } = opts;
+  const isBatch = count > 1;
 
   buildStationModal('station-cancel-modal', `
     <h2 style="color:#e74c3c;margin-bottom:14px;">✕ 取消登記</h2>
     <div style="background:#f7f7f9;border-radius:8px;padding:12px 14px;margin-bottom:16px;line-height:1.8;">
       ${station ? `<div><strong>測試站：</strong>${escapeHtml(station)}</div>` : ''}
-      <div><strong>使用日期：</strong>${escapeHtml(date)}</div>
+      <div><strong>使用日期：</strong>${escapeHtml(dateLabel)}</div>
       ${booker ? `<div><strong>登記人：</strong>${escapeHtml(booker)}</div>` : ''}
+      ${isBatch ? `<div style="color:#c0392b;margin-top:6px;"><strong>⚠️ 這會一次取消 ${count} 天</strong></div>` : ''}
     </div>
-    <form onsubmit="submitStationCancel(event, '${id}')">
+    <form onsubmit="submitStationCancel(event)">
       <div class="form-group">
         <label>安全碼 *</label>
         ${codeBoxesHtml('station-cancel-code')}
@@ -3354,21 +3365,24 @@ function onStationCancelCodeInput() {
 }
 
 // 送出取消（走 Supabase RPC；取消的紀錄會留在 station_bookings_archive）
-async function submitStationCancel(e, id) {
+async function submitStationCancel(e) {
   e.preventDefault();
+  if (!pendingStationCancel) return;
   const btn = document.getElementById('station-cancel-submit');
   const err = document.getElementById('station-cancel-err');
   const code = getCodeValue('station-cancel-code');
+  const ids = pendingStationCancel.ids;
 
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
   if (err) err.style.display = 'none';
 
   try {
-    const url = SUPABASE_URL + '/rest/v1/rpc/cancel_station_booking';
+    // 一律走批次版：單日就是長度 1 的陣列。碼不對會整批中止，不會刪一半
+    const url = SUPABASE_URL + '/rest/v1/rpc/cancel_station_bookings';
     const res = await fetch(url, {
       method: 'POST',
       headers: sbHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ p_id: String(id), p_code: code })
+      body: JSON.stringify({ p_ids: ids, p_code: code })
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((out && (out.message || out.hint)) || '取消失敗');
@@ -3376,9 +3390,15 @@ async function submitStationCancel(e, id) {
     const modal = document.getElementById('station-cancel-modal');
     if (modal) modal.style.display = 'none';
     delete codeBoxHandlers['station-cancel-code'];
+    pendingStationCancel = null;
+
     const st = out && out.station ? out.station : '';
-    const dt = out && out.date ? out.date : '';
-    alert(`✅ 已取消登記${st ? '\n\n測試站：' + st : ''}${dt ? '\n使用日期：' + dt : ''}`);
+    const dates = (out && out.dates) || [];
+    const n = (out && out.count) || dates.length;
+    const dateLine = dates.length ? stationRangeLabel(dates.slice().sort()) : '';
+    alert(`✅ 已取消登記（共 ${n} 天）`
+      + (st ? `\n\n測試站：${st}` : '')
+      + (dateLine ? `\n使用日期：${dateLine}` : ''));
     loadTestStations();
   } catch (ex) {
     if (err) {
