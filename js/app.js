@@ -3085,6 +3085,10 @@ function openStationBookModal(station) {
         <label>用途 / 備註</label>
         <input type="text" id="station-book-purpose" placeholder="選填，例如：EE check、FT test" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
+      <div class="form-group" style="margin-top:12px;">
+        <label>取消用安全碼 * <span style="font-size:0.85em;color:#888;">(4 位數字，取消登記時要用，請記住)</span></label>
+        <input type="text" id="station-book-code" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例如：1234" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;letter-spacing:2px;">
+      </div>
       <div style="text-align:center;margin-top:18px;">
         <button type="submit" class="btn-primary">✅ 確認登記</button>
       </div>
@@ -3160,9 +3164,11 @@ async function submitStationBook(e, station) {
   e.preventDefault();
   const name = document.getElementById('station-book-name').value.trim();
   const purpose = document.getElementById('station-book-purpose').value.trim();
+  const code = document.getElementById('station-book-code').value.trim();
   const dates = Array.from(calSelected).sort();
 
   if (!name) { alert('請填寫登記人姓名'); return; }
+  if (!/^[0-9]{4}$/.test(code)) { alert('請設定 4 位數字的取消用安全碼'); return; }
   if (dates.length === 0) { alert('請在日曆上至少選一個使用日期'); return; }
   if (dates.length > 90) { alert('一次最多登記 90 天，請減少選取'); return; }
 
@@ -3177,8 +3183,10 @@ async function submitStationBook(e, station) {
 
   try {
     // 一次寫入多天；on_conflict + ignore-duplicates：已被登記的日期會被略過（不覆蓋），回傳實際新增的列
-    const rowsToInsert = dates.map(d => ({ station: station, booking_date: d, booker: name, purpose: purpose }));
-    const url = SUPABASE_URL + '/rest/v1/station_bookings?on_conflict=station,booking_date';
+    const rowsToInsert = dates.map(d => ({ station: station, booking_date: d, booker: name, purpose: purpose, cancel_code: code }));
+    // select 明確列出欄位：cancel_code 不開放前端讀取，若回傳整列會權限錯誤
+    const url = SUPABASE_URL + '/rest/v1/station_bookings?on_conflict=station,booking_date'
+      + '&select=id,station,booking_date,booker,purpose,created_at';
     const res = await fetch(url, {
       method: 'POST',
       headers: sbHeaders({ 'Content-Type': 'application/json', 'Prefer': 'return=representation,resolution=ignore-duplicates' }),
@@ -3193,7 +3201,7 @@ async function submitStationBook(e, station) {
     if (conflicts.length) {
       alert(`✅ 已登記 ${okDates.length} 天。\n\n以下日期剛好已被登記、未成功：\n${conflicts.join('\n')}`);
     } else {
-      alert(`✅ 登記成功！（共 ${okDates.length} 天）`);
+      alert(`✅ 登記成功！（共 ${okDates.length} 天）\n\n🔑 取消用安全碼：${code}\n請記住，取消登記時需要輸入。`);
     }
     closeAndRefresh();
   } catch (err) {
@@ -3202,18 +3210,100 @@ async function submitStationBook(e, station) {
   }
 }
 
-// 取消一筆測試站登記（Supabase 刪除）
-async function cancelStationBooking(id, date) {
-  if (!confirm(`確定要取消 ${date} 的登記嗎？`)) return;
+// 從已載入的資料裡找出某筆登記（用來在取消 Modal 顯示站別/登記人）
+function findStationBookingById(id) {
+  for (const st of (lastStationsData || [])) {
+    const b = (st.bookings || []).find(x => String(x.id) === String(id));
+    if (b) return { station: st.station, date: b.date, booker: b.booker || '', purpose: b.purpose || '' };
+  }
+  return null;
+}
+
+// 取消一筆測試站登記：開 Modal 要求輸入安全碼
+function cancelStationBooking(id, date) {
+  const b = findStationBookingById(id);
+  const station = b ? b.station : '';
+  const booker = b ? b.booker : '';
+
+  buildStationModal('station-cancel-modal', `
+    <h2 style="color:#e74c3c;margin-bottom:14px;">✕ 取消登記</h2>
+    <div style="background:#f7f7f9;border-radius:8px;padding:12px 14px;margin-bottom:16px;line-height:1.8;">
+      ${station ? `<div><strong>測試站：</strong>${escapeHtml(station)}</div>` : ''}
+      <div><strong>使用日期：</strong>${escapeHtml(date)}</div>
+      ${booker ? `<div><strong>登記人：</strong>${escapeHtml(booker)}</div>` : ''}
+    </div>
+    <form onsubmit="submitStationCancel(event, '${id}')">
+      <div class="form-group">
+        <label>安全碼 *</label>
+        <input type="text" id="station-cancel-code" inputmode="numeric" maxlength="4" autocomplete="off"
+               placeholder="4 位數字"
+               oninput="onStationCancelCodeInput()"
+               style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;letter-spacing:6px;font-size:1.2em;text-align:center;">
+        <div style="font-size:0.85em;color:#888;margin-top:6px;line-height:1.6;">
+          請輸入登記時設定的 4 位數安全碼。<br>
+          2026/09 以前的舊登記沒有安全碼，直接留空送出即可。
+        </div>
+      </div>
+      <div id="station-cancel-err" style="display:none;color:#c0392b;background:#fdecea;border-radius:6px;padding:10px;margin-top:12px;font-size:0.92em;"></div>
+      <div style="display:flex;gap:10px;margin-top:18px;">
+        <button type="button" onclick="document.getElementById('station-cancel-modal').style.display='none'"
+                style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;">返回</button>
+        <button type="submit" id="station-cancel-submit" disabled
+                style="flex:1;padding:10px;border:none;border-radius:6px;background:#e74c3c;color:#fff;cursor:pointer;opacity:0.45;">確認取消</button>
+      </div>
+    </form>
+  `);
+
+  const input = document.getElementById('station-cancel-code');
+  if (input) input.focus();
+  onStationCancelCodeInput();
+}
+
+// 即時檢查：只有「剛好 4 位數字」或「完全留空（舊登記）」才能送出
+function onStationCancelCodeInput() {
+  const input = document.getElementById('station-cancel-code');
+  const btn = document.getElementById('station-cancel-submit');
+  if (!input || !btn) return;
+  const v = input.value.replace(/[^0-9]/g, '').slice(0, 4);
+  if (v !== input.value) input.value = v;   // 擋掉非數字、超過 4 碼
+  const ok = v.length === 4 || v.length === 0;
+  btn.disabled = !ok;
+  btn.style.opacity = ok ? '1' : '0.45';
+  btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+  const err = document.getElementById('station-cancel-err');
+  if (err) err.style.display = 'none';
+}
+
+// 送出取消（走 Supabase RPC；取消的紀錄會留在 station_bookings_archive）
+async function submitStationCancel(e, id) {
+  e.preventDefault();
+  const input = document.getElementById('station-cancel-code');
+  const btn = document.getElementById('station-cancel-submit');
+  const err = document.getElementById('station-cancel-err');
+  const code = input ? input.value.trim() : '';
+
+  if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
+  if (err) err.style.display = 'none';
+
   try {
-    const url = SUPABASE_URL + '/rest/v1/station_bookings?id=eq.' + encodeURIComponent(id);
-    const res = await fetch(url, { method: 'DELETE', headers: sbHeaders() });
-    if (!res.ok) {
-      const e = await res.json().catch(() => ({}));
-      throw new Error(e.message || e.hint || '取消失敗');
-    }
+    const url = SUPABASE_URL + '/rest/v1/rpc/cancel_station_booking';
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: sbHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ p_id: String(id), p_code: code })
+    });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((out && (out.message || out.hint)) || '取消失敗');
+    const modal = document.getElementById('station-cancel-modal');
+    if (modal) modal.style.display = 'none';
     loadTestStations();
-  } catch (err) {
-    alert('❌ 取消失敗：' + err.message);
+  } catch (ex) {
+    if (err) {
+      err.textContent = '❌ ' + ex.message;
+      err.style.display = 'block';
+    }
+    if (input) { input.value = ''; input.focus(); }
+    if (btn) { btn.textContent = '確認取消'; }
+    onStationCancelCodeInput();
   }
 }
