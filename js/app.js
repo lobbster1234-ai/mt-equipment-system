@@ -3030,6 +3030,86 @@ function renderTestStations(stations) {
 }
 
 // 動態建立測試站用的 Modal 容器
+// ===== 4 格安全碼輸入元件（登記與取消共用）=====
+// prefix 是這組格子的 id 前綴，四格分別為 <prefix>-0 ~ <prefix>-3
+const codeBoxHandlers = {};   // prefix -> 值變動時的 callback
+
+function codeBoxesHtml(prefix) {
+  const boxes = [0, 1, 2, 3].map(i => `
+    <input type="text" class="code-box" id="${prefix}-${i}" inputmode="numeric" autocomplete="off" maxlength="1"
+           oninput="onCodeBoxInput('${prefix}', ${i})"
+           onkeydown="onCodeBoxKeydown(event, '${prefix}', ${i})"
+           onpaste="onCodeBoxPaste(event, '${prefix}')"
+           onfocus="this.select()">`).join('');
+  return `
+    <style>
+      .code-box {
+        width:54px; height:62px; text-align:center; font-size:1.7em; font-weight:600;
+        border:1px solid #ddd; border-radius:10px; background:#fff; box-sizing:border-box;
+        transition:border-color .15s, box-shadow .15s;
+      }
+      .code-box:focus { outline:none; border-color:#667eea; box-shadow:0 0 0 3px rgba(102,126,234,.18); }
+    </style>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:6px;">${boxes}</div>`;
+}
+
+function getCodeValue(prefix) {
+  return [0, 1, 2, 3].map(i => {
+    const el = document.getElementById(prefix + '-' + i);
+    return el ? el.value : '';
+  }).join('');
+}
+
+function clearCodeBoxes(prefix) {
+  [0, 1, 2, 3].forEach(i => {
+    const el = document.getElementById(prefix + '-' + i);
+    if (el) el.value = '';
+  });
+  const first = document.getElementById(prefix + '-0');
+  if (first) first.focus();
+  if (codeBoxHandlers[prefix]) codeBoxHandlers[prefix]();
+}
+
+function onCodeBoxInput(prefix, i) {
+  const el = document.getElementById(prefix + '-' + i);
+  if (!el) return;
+  const v = el.value.replace(/[^0-9]/g, '').slice(0, 1);   // 只留數字
+  el.value = v;
+  if (v && i < 3) {
+    const next = document.getElementById(prefix + '-' + (i + 1));
+    if (next) next.focus();
+  }
+  if (codeBoxHandlers[prefix]) codeBoxHandlers[prefix]();
+}
+
+function onCodeBoxKeydown(e, prefix, i) {
+  if (e.key === 'Backspace' && !e.target.value && i > 0) {
+    const prev = document.getElementById(prefix + '-' + (i - 1));
+    if (prev) { prev.value = ''; prev.focus(); e.preventDefault(); }
+    if (codeBoxHandlers[prefix]) codeBoxHandlers[prefix]();
+  } else if (e.key === 'ArrowLeft' && i > 0) {
+    const prev = document.getElementById(prefix + '-' + (i - 1));
+    if (prev) { prev.focus(); e.preventDefault(); }
+  } else if (e.key === 'ArrowRight' && i < 3) {
+    const next = document.getElementById(prefix + '-' + (i + 1));
+    if (next) { next.focus(); e.preventDefault(); }
+  }
+}
+
+function onCodeBoxPaste(e, prefix) {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+  const digits = text.replace(/[^0-9]/g, '').slice(0, 4);
+  [0, 1, 2, 3].forEach(i => {
+    const el = document.getElementById(prefix + '-' + i);
+    if (el) el.value = digits[i] || '';
+  });
+  const focusIdx = Math.min(digits.length, 3);
+  const target = document.getElementById(prefix + '-' + focusIdx);
+  if (target) target.focus();
+  if (codeBoxHandlers[prefix]) codeBoxHandlers[prefix]();
+}
+
 function buildStationModal(id, innerHtml) {
   let modal = document.getElementById(id);
   if (!modal) {
@@ -3086,8 +3166,8 @@ function openStationBookModal(station) {
         <input type="text" id="station-book-purpose" placeholder="選填，例如：EE check、FT test" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;">
       </div>
       <div class="form-group" style="margin-top:12px;">
-        <label>取消用安全碼 * <span style="font-size:0.85em;color:#888;">(4 位數字，取消登記時要用，請記住)</span></label>
-        <input type="text" id="station-book-code" required inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="例如：1234" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;letter-spacing:2px;">
+        <label>取消用安全碼 * <span style="font-size:0.85em;color:#888;">(取消登記時要用，請記住)</span></label>
+        ${codeBoxesHtml('station-book-code')}
       </div>
       <div style="text-align:center;margin-top:18px;">
         <button type="submit" class="btn-primary">✅ 確認登記</button>
@@ -3095,6 +3175,8 @@ function openStationBookModal(station) {
     </form>
   `);
   renderStationCalendar();
+  const firstBox = document.getElementById('station-book-code-0');
+  if (firstBox) firstBox.value = '';
 }
 
 // 繪製日曆
@@ -3164,11 +3246,11 @@ async function submitStationBook(e, station) {
   e.preventDefault();
   const name = document.getElementById('station-book-name').value.trim();
   const purpose = document.getElementById('station-book-purpose').value.trim();
-  const code = document.getElementById('station-book-code').value.trim();
+  const code = getCodeValue('station-book-code');
   const dates = Array.from(calSelected).sort();
 
   if (!name) { alert('請填寫登記人姓名'); return; }
-  if (!/^[0-9]{4}$/.test(code)) { alert('請設定 4 位數字的取消用安全碼'); return; }
+  if (!/^[0-9]{4}$/.test(code)) { alert('請設定 4 位數字的取消用安全碼（四格都要填）'); return; }
   if (dates.length === 0) { alert('請在日曆上至少選一個使用日期'); return; }
   if (dates.length > 90) { alert('一次最多登記 90 天，請減少選取'); return; }
 
@@ -3235,13 +3317,10 @@ function cancelStationBooking(id, date) {
     <form onsubmit="submitStationCancel(event, '${id}')">
       <div class="form-group">
         <label>安全碼 *</label>
-        <input type="text" id="station-cancel-code" inputmode="numeric" maxlength="4" autocomplete="off"
-               placeholder="4 位數字"
-               oninput="onStationCancelCodeInput()"
-               style="width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:4px;letter-spacing:6px;font-size:1.2em;text-align:center;">
-        <div style="font-size:0.85em;color:#888;margin-top:6px;line-height:1.6;">
+        ${codeBoxesHtml('station-cancel-code')}
+        <div style="font-size:0.85em;color:#888;margin-top:10px;line-height:1.6;text-align:center;">
           請輸入登記時設定的 4 位數安全碼。<br>
-          2026/09 以前的舊登記沒有安全碼，直接留空送出即可。
+          2026/09 以前的舊登記沒有安全碼，四格留空直接送出即可。
         </div>
       </div>
       <div id="station-cancel-err" style="display:none;color:#c0392b;background:#fdecea;border-radius:6px;padding:10px;margin-top:12px;font-size:0.92em;"></div>
@@ -3254,18 +3333,18 @@ function cancelStationBooking(id, date) {
     </form>
   `);
 
-  const input = document.getElementById('station-cancel-code');
-  if (input) input.focus();
+  codeBoxHandlers['station-cancel-code'] = onStationCancelCodeInput;
+  const firstBox = document.getElementById('station-cancel-code-0');
+  if (firstBox) firstBox.focus();
   onStationCancelCodeInput();
 }
 
 // 即時檢查：只有「剛好 4 位數字」或「完全留空（舊登記）」才能送出
 function onStationCancelCodeInput() {
-  const input = document.getElementById('station-cancel-code');
   const btn = document.getElementById('station-cancel-submit');
-  if (!input || !btn) return;
-  const v = input.value.replace(/[^0-9]/g, '').slice(0, 4);
-  if (v !== input.value) input.value = v;   // 擋掉非數字、超過 4 碼
+  if (!btn) return;
+  const v = getCodeValue('station-cancel-code');
+  // 只有「四格都填滿」或「四格全空（舊登記）」才能送出
   const ok = v.length === 4 || v.length === 0;
   btn.disabled = !ok;
   btn.style.opacity = ok ? '1' : '0.45';
@@ -3277,10 +3356,9 @@ function onStationCancelCodeInput() {
 // 送出取消（走 Supabase RPC；取消的紀錄會留在 station_bookings_archive）
 async function submitStationCancel(e, id) {
   e.preventDefault();
-  const input = document.getElementById('station-cancel-code');
   const btn = document.getElementById('station-cancel-submit');
   const err = document.getElementById('station-cancel-err');
-  const code = input ? input.value.trim() : '';
+  const code = getCodeValue('station-cancel-code');
 
   if (btn) { btn.disabled = true; btn.textContent = '🔄 處理中...'; }
   if (err) err.style.display = 'none';
@@ -3294,16 +3372,21 @@ async function submitStationCancel(e, id) {
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error((out && (out.message || out.hint)) || '取消失敗');
+
     const modal = document.getElementById('station-cancel-modal');
     if (modal) modal.style.display = 'none';
+    delete codeBoxHandlers['station-cancel-code'];
+    const st = out && out.station ? out.station : '';
+    const dt = out && out.date ? out.date : '';
+    alert(`✅ 已取消登記${st ? '\n\n測試站：' + st : ''}${dt ? '\n使用日期：' + dt : ''}`);
     loadTestStations();
   } catch (ex) {
     if (err) {
       err.textContent = '❌ ' + ex.message;
       err.style.display = 'block';
     }
-    if (input) { input.value = ''; input.focus(); }
     if (btn) { btn.textContent = '確認取消'; }
-    onStationCancelCodeInput();
+    clearCodeBoxes('station-cancel-code');
+    if (err) err.style.display = 'block';   // clearCodeBoxes 會把訊息藏起來，這裡再顯示回來
   }
 }
