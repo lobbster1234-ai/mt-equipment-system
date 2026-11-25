@@ -3330,8 +3330,7 @@ function openStationCancelModal(opts) {
         <label>安全碼 *</label>
         ${codeBoxesHtml('station-cancel-code')}
         <div style="font-size:0.85em;color:#888;margin-top:10px;line-height:1.6;text-align:center;">
-          請輸入登記時設定的 4 位數安全碼。<br>
-          2026/09 以前的舊登記沒有安全碼，四格留空直接送出即可。
+          請輸入登記時設定的 4 位數安全碼。
         </div>
       </div>
       <div id="station-cancel-err" style="display:none;color:#c0392b;background:#fdecea;border-radius:6px;padding:10px;margin-top:12px;font-size:0.92em;"></div>
